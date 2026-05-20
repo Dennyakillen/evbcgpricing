@@ -1,0 +1,51 @@
+# === BCG pricing repo — endast VARA artefakter ska versioneras ===
+# Pipelinen (BCG:s verbatim-kod + flera GB data) bor i V2_New/Azure, inte i Git.
+
+# Replikerad pipeline (kod finns i V2_New, data ar GB-tung)
+Pipeline/
+Elasticity/
+
+# Virtuella miljoer
+.venv/
+venv/
+env/
+**/.venv/
+**/venv/
+
+# Data och tunga binarer
+*.parquet
+*.duckdb
+*.yxdb
+*.yxmd
+*.csv
+*.xlsx
+*.xls
+
+# Python-skrap
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Loggar och korutfall
+*.log
+run_log*.txt
+output/
+**/output/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Hemligheter (ska aldrig in i Git)
+*.env
+.env
+*secret*
+*.key
+*.pem
+
+# === Undantag: dessa VILL vi ha med trots monstren ovan ===
+!Build-Structure.ps1
+!Copy-Sources.ps1
+!Scan-BCGFolder.ps1
+!*.md
