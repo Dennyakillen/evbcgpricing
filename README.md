@@ -3,8 +3,9 @@
 Replikering, validering och drift av BCG:s prissättningsmodell för Evidensia Djursjukvård AB.
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst)
-**Status:** Modell-delen (feature_selection + model) körd fullt på Azure-VM (128 GB, 3812 grupper)
-och **validerad mot BCG:s frusna facit** — elasticiteten matchar bit-för-bit. Nästa front: input-stegen.
+**Status:** Hela den VM-körbara pipelinen (regular_price → data_prepration → feature_selection → model)
+körd fullt på Azure-VM och **validerad mot BCG:s frusna facit** — vår `data_for_model.csv` är
+bit-för-bit identisk med BCG:s, och modellelasticiteten matchar bit-för-bit. Endast steg 5 (Windows/Excel) återstår.
 
 ---
 
@@ -57,8 +58,9 @@ Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt 
 | 3 | Ray-config + feature_selection (brute-force) | ✅ Klar (Azure, validerad mot facit) |
 | 8 | Azure-motor: VM, miljö, modellkörning | ✅ Klar (två tunga steg körda fullt) |
 | 4 (model) | OLS-regression per grupp | ✅ Klar (bit-för-bit-match mot facit) |
-| 7 | Validera output mot facit (KPI, population, features) | ✅ Klar (model + feature_selection) |
-| 4 (SQL prep) | SQL data prep (duckdb via Python, ej exe) | ⬜ Kvar (input-fas) |
+| 7 | Validera output mot facit (KPI, population, features) | ✅ Klar (model + feature_selection + data_for_model) |
+| 4 (input) | regular_price + data_prepration → `data_for_model.csv` | ✅ Klar (bit-för-bit identisk med BCG:s) |
+| 4 (SQL prep) | SQL data prep (duckdb via Python, ej exe) | ⬜ Kvar (egen fas, migrering) |
 | 5 | `data_prep_after_model` (xlwings/Excel) | ⬜ Windows-uppgift, ej VM |
 | 6 | Fall Back Logic (fixa hårdkodade sökvägar) | ⬜ Kvar |
 | 9 | Git-baslinje (detta repo) | ✅ Påbörjad |
@@ -72,8 +74,8 @@ Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt 
   feature_selection troget: 93,1% identiskt feature-val; avvikelser är gränsfallsfeatures utan
   resultatpåverkan (elasticitet/Adj R2 i praktiken identisk).
 - ✅ **OOM avskriven:** 128 GB, Ray-spill till `/tmp/ray_spill`, `Swap 0B` genomgående. CZ.1 bekräftad.
-- ⬜ **Input-stegen** (regular_price + data_prepration) ej körda — blockerade på `InScope Mapping.xlsx`
-  (O3 bekräftad, saknas lokalt). Det är nästa fas.
+- ⬜ **Input-stegen** ✅ NU KLARA: regular_price + data_prepration körda; vår `data_for_model.csv`
+  bit-för-bit identisk med BCG:s (max diff 1e-15, 0 text-mismatchar). `InScope`/competitor var död config.
 - 📌 **Steg 5** (`data_prep_after_model`) är Windows/Excel (xlwings) — ej VM-körbart (D14).
 
 **Detaljerad bash/Linux-handhavande och driftkort:** se `UBUNTU_AZURE_VM.md`.

@@ -14,9 +14,10 @@ vilka beslut som är fattade och vilka som återstår — utan att rekonstruera 
 faithfully (trogna namn, verbatim-kopia) och städar/rättar *längs vägen*. Designfel loggas
 i avsnitt 9 för att specas mot konsult senare — åtgärdas inte nu.
 
-**Nuläge i en mening:** De två tunga, VM-körbara modellstegen (feature_selection + model) är
-körda i full skala på Azure och **validerade mot BCG:s frusna facit** — modellelasticiteten
-matchar bit-för-bit; nästa front är input-stegen (blockerade på `InScope Mapping.xlsx`).
+**Nuläge i en mening:** Hela den VM-körbara pipelinen (regular_price → data_prepration →
+feature_selection → model) är körd i full skala på Azure och **validerad mot BCG:s frusna facit** —
+modellelasticiteten matchar bit-för-bit och vår egen `data_for_model.csv` är bit-för-bit identisk
+med BCG:s; endast steg 5 (`data_prep_after_model`, xlwings/Excel) återstår och hör till Windows.
 
 **Senast uppdaterad:** 2026-05-21 (Azure-modellkörning + facit-validering).
 
@@ -46,7 +47,7 @@ matchar bit-för-bit; nästa front är input-stegen (blockerade på `InScope Map
 | # | Fråga | Behöver |
 |---|---|---|
 | O1 | Owner på `ev-openai-swce-rg-test`? | Kent — krävs för dataroller/Blob/ACR, ej för VM-PoC |
-| O3 | ~~Krävs `InScope Mapping.xlsx`?~~ | **✅ BEKRÄFTAD krävs** — `regular_price.py` dör utan den; saknas lokalt, hämtas från källa/Kent |
+| O3 | ~~Krävs `InScope Mapping.xlsx`?~~ | **✅ AVFÄRDAD — död config.** `regular_price.py` refererar aldrig `in_scope_data`/`competitor` (verifierat med `Select-String`). Configen deklarerar filen men koden läser den aldrig. Input-stegen körda utan den |
 | O4 | Blob + DW-vyer (spår B, drift) — när? | Efter PoC validerad |
 
 ---
@@ -61,9 +62,10 @@ matchar bit-för-bit; nästa front är input-stegen (blockerade på `InScope Map
 | 3 | Ray-config + feature_selection (brute-force, Ray) | ✅ **KLAR — körd fullt på Azure, validerad mot facit** |
 | 8 | Azure-motor (PoC): VM, data+kod+venv+körning | ✅ **KLAR — två tunga steg körda i full skala** |
 | 4 (model) | OLS-regression per grupp | ✅ **KLAR — körd fullt, bit-för-bit-match mot facit** |
-| 7 | Validera output mot facit (KPI/population/features) | ✅ **KLAR — model + feature_selection validerade** |
-| 4 (SQL prep) | SQL data prep (ersätt `duckdb.exe` med Python) | ⬜ Kvar (input-fas) |
+| 7 | Validera output mot facit (KPI/population/features) | ✅ **KLAR — model + feature_selection + data_for_model validerade** |
+| **4 (input)** | **regular_price + data_prepration (producerar `data_for_model.csv`)** | ✅ **KLAR — körda; vår `data_for_model.csv` BIT-FÖR-BIT identisk med BCG:s (max diff 1e-15, floating-point-brus)** |
 | 5 | `data_prep_after_model` (xlwings/Excel) | ⬜ Windows-uppgift, ej VM (D14) |
+| 4 (SQL prep) | SQL data prep (ersätt `duckdb.exe` med Python) | ⬜ Kvar (egen fas, ej replikering utan migrering) |
 | 6 | Fall Back Logic (fixa hårdkodade sökvägar) | ⬜ Kvar |
 | 9 | Git-baslinje (eget repo) | ✅ Pågående |
 | B | DW-vyer + Blob input-folder (drift) | ⬜ Senare |
@@ -89,6 +91,13 @@ vår mellanfil). VM-PoC:en validerade modell-delen. Input-delen är nästa, egen
    utan att påverka elasticiteten — inneboende numerisk instabilitet i brute-force på tröskel-features,
    ej replikeringsfel.
 4. **Antal grupper = 3812**, inte ~2450 som tidigare antagits. Justerar tidsförväntan.
+4b. **Hela kedjan sluten.** Input-stegen (regular_price + data_prepration) körda; vår egen
+   `data_for_model.csv` jämförd mot BCG:s: BIT-FÖR-BIT identisk (max numerisk diff 1e-15 =
+   floating-point-brus, 0 text-mismatchar). Enda filskillnaden var radslut (CRLF vs LF). Cirkeln
+   sluten: vår input → samma mellanfil → samma modellresultat → matchar facit.
+4c. **`InScope Mapping.xlsx` / competitor-data är DÖD CONFIG.** Configen deklarerar dem, men
+   `regular_price.py`/`data_prepration.py` refererar dem aldrig (verifierat). Lärdom: läs vad koden
+   *gör*, inte vad configen *påstår*. Filerna behövs ej — input-stegen körde rent utan dem.
 5. **`C:\ray_spill` hårdkodad i `feature_selection.py` (rad 43)** dödar Linux-körning. Fix: `/tmp/ray_spill`
    (D13). Mappen måste skapas (`mkdir -p`) innan körning. → §9.
 6. **`data_prep_after_model` är xlwings-bundet** — kan ej köra på headless Linux (D14, R9 skarp).
@@ -158,14 +167,18 @@ data_prep_after_model. feature_selection skriver `control_file.xlsx`; model läs
 
 ---
 
-## 8. Vad nästa pass gör (input-fasen)
+## 8. Vad nästa pass gör (efter VM-kedjan)
 
-Modell-delen är klar och validerad. Nästa front: **input-stegen** (regular_price + data_prepration).
-1. Skaffa `InScope Mapping.xlsx` från Kent/BCG-källan (O3 — blockerande).
-2. Verifiera competitor-fil och `date_to_month_year_mapping.csv`.
-3. Kör input-stegen (kräver VM igen) → producera vår egen `data_for_model.csv`.
-4. Validera den mot BCG:s mellanfil (stänger cirkeln: input → samma mellanfil → samma modellresultat).
-Steg 5 (`data_prep_after_model`) körs separat på Windows med Excel (D14).
+**Hela den VM-körbara pipelinen är klar och validerad.** Återstående arbete är inte VM-bundet:
+
+1. **Steg 5 — `data_prep_after_model_output.py`** (Windows/Excel). Körs lokalt med Excel installerat
+   (xlwings, D14). Matar in i prismodell-arbetsboken. Egen Windows-session.
+2. **SQL data prep** (egen fas, migrering snarare än replikering). Ersätt DuckDB-flödet, ev. mot
+   DW-vyer (spår B). Större, eget spår.
+3. **Fall Back Logic (fas 6)** — oläst, hårdkodade sökvägar (R6). Egen session.
+
+Varje del är nu en mindre, isolerad session som ärver den infrastruktur vi byggt. Mönstret är satt:
+rökstest → full körning → validera mot facit → dokumentera.
 
 ---
 
