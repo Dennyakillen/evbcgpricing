@@ -3,8 +3,8 @@
 Replikering, validering och drift av BCG:s prissättningsmodell för Evidensia Djursjukvård AB.
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst)
-**Status:** Modellsteget validerat på Azure-VM (128 GB) — full körning på alla 3812 grupper
-producerar `output_summary.xlsx`. Återstår: jämförelse mot BCG:s frusna facit (fas 7).
+**Status:** Modell-delen (feature_selection + model) körd fullt på Azure-VM (128 GB, 3812 grupper)
+och **validerad mot BCG:s frusna facit** — elasticiteten matchar bit-för-bit. Nästa front: input-stegen.
 
 ---
 
@@ -54,27 +54,27 @@ Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt 
 | 0 | Orientering, struktur-scan, källval, rotorsaksanalys | ✅ Klar |
 | 1 | Replikera struktur + kopiera källor verbatim | ✅ Klar |
 | 2 | Bygga miljö (venv + requirements) | ✅ Klar (lokalt + Azure-VM) |
-| 3 | Ray-config + första modellkörning | ✅ Klar (på Azure-VM; lokal OOM avskriven) |
-| 8 | Azure-motor: VM byggd, miljö, **validerad modellkörning** | ✅ **Modellsteget kört hela vägen** |
-| 4 | SQL data prep (duckdb via Python, ej exe) | ⬜ Kvar |
-| 5 | Övriga modellsteg (Site, Bundle) | ⬜ Kvar |
+| 3 | Ray-config + feature_selection (brute-force) | ✅ Klar (Azure, validerad mot facit) |
+| 8 | Azure-motor: VM, miljö, modellkörning | ✅ Klar (två tunga steg körda fullt) |
+| 4 (model) | OLS-regression per grupp | ✅ Klar (bit-för-bit-match mot facit) |
+| 7 | Validera output mot facit (KPI, population, features) | ✅ Klar (model + feature_selection) |
+| 4 (SQL prep) | SQL data prep (duckdb via Python, ej exe) | ⬜ Kvar (input-fas) |
+| 5 | `data_prep_after_model` (xlwings/Excel) | ⬜ Windows-uppgift, ej VM |
 | 6 | Fall Back Logic (fixa hårdkodade sökvägar) | ⬜ Kvar |
-| 7 | Validera `output_summary.xlsx` mot BCG:s facit (KPI, population, summor) | 🔄 **Nästa — kan göras lokalt** |
 | 9 | Git-baslinje (detta repo) | ✅ Påbörjad |
 | B | DW-vyer + Blob input-folder (drift) | ⬜ Senare |
 
-### Vad som faktiskt validerades 2026-05-21 (var ärlig om scope)
+### Vad som validerades 2026-05-21 (ärligt om scope)
 
-- ✅ **Modellsteget (`model.py`)** kördes end-to-end på Azure-VM, på BCG:s mellanfil
-  `data_for_model.csv` (väg B — hoppar över de blockerade föregående stegen).
-- ✅ Alla **3812 grupper** (inte 2450 som playbooken antog) byggdes; `output_summary.xlsx`
-  producerad och hämtad lokalt.
-- ✅ **OOM:en var ett RAM-tak, inte algoritmisk.** På 128 GB pegades minnet aldrig
-  (`free -h`: ~124 GB available, 0 swap). Bekräftar CZ.1: skala vertikalt, inte kluster.
-- ❌ **Inte** validerat: hela launcher-kedjan. `regular_price.py` är blockerad av att
-  `InScope Mapping.xlsx` saknas (O3 bekräftad — krävs, finns ej lokalt). `feature_selection.py`
-  kördes inte i denna väg.
-- ❌ **Inte** gjort än: jämförelse mot BCG:s frusna facit. Det är fas 7, nästa steg.
+- ✅ **Modell-delen** — feature_selection + model — körd fullt på Azure-VM (3812 grupper), på BCG:s
+  mellanfil `data_for_model.csv` (väg B, D12).
+- ✅ **Bit-för-bit mot facit:** model-elasticiteten identisk på alla 3812 (korr 1,0, max diff 0).
+  feature_selection troget: 93,1% identiskt feature-val; avvikelser är gränsfallsfeatures utan
+  resultatpåverkan (elasticitet/Adj R2 i praktiken identisk).
+- ✅ **OOM avskriven:** 128 GB, Ray-spill till `/tmp/ray_spill`, `Swap 0B` genomgående. CZ.1 bekräftad.
+- ⬜ **Input-stegen** (regular_price + data_prepration) ej körda — blockerade på `InScope Mapping.xlsx`
+  (O3 bekräftad, saknas lokalt). Det är nästa fas.
+- 📌 **Steg 5** (`data_prep_after_model`) är Windows/Excel (xlwings) — ej VM-körbart (D14).
 
 **Detaljerad bash/Linux-handhavande och driftkort:** se `UBUNTU_AZURE_VM.md`.
 
@@ -89,6 +89,8 @@ Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt 
 | `NEXT_SESSION.md` | Kall-start för nästa arbetspass |
 | `UBUNTU_AZURE_VM.md` | Linux/bash-handhavande, encoding-fällor, tmux, driftkort |
 | `make_smoke_control.py` | Bygger rökstest-control-fil (N grupper `RUN=YES`, resten `NO`) |
+| `compare_to_facit.py` | Validerar model `output_summary.xlsx` mot facit (KPI/population/kolumner) |
+| `compare_features_to_facit.py` | Validerar feature_selection mot facit (feature-val/elasticitet/R2) |
 | `Scan-BCGFolder.ps1` | Kartlägger källmappens struktur (mappar, ej 50k filer) |
 | `Build-Structure.ps1` | Speglar V2_New:s mappstruktur till ren arbetsfolder |
 | `Copy-Sources.ps1` | Kopierar kod/SQL/config/input verbatim till strukturen |
