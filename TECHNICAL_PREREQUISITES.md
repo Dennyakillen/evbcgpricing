@@ -48,6 +48,19 @@ och validerades bit-för-bit mot `0828`-facit. Baslinje (referensvärden, invari
 | Σ `TotalNet` (= `SalesExVAT`) | 6,506 mdr | 6,506 mdr |
 | Σ `SoldQuantity` | 6,44 M | 6,44 M |
 
+**B.3.5 — kodnivå-baslinje (klar):** `code_level_baseline.csv` (pre-Top80, per `ItemCode`) — den
+grupperingsinvarianta grinden B.4 valideras mot.
+
+| Kodnivå-baslinje (pre-Top80) | Värde |
+|---|---:|
+| Distinkta `ItemCode` | **13 223** |
+| Σ `SalesExVAT` | 7,985 mdr |
+| Σ `SoldQuantity` | 8,61 M |
+
+🔵 **Top80-avvägning (informerar B.4b-beslut):** Top80 behåller 1 151 / 13 223 koder (**8,7 %**) men
+6,506 / 7,985 mdr omsättning (**81,5 %**). Renodlad Pareto: svansen på 91 % av koderna = ~18 % av
+omsättningen. Beslut i B.4b: behåll Top80 (få kronor, många koder bort) eller modellera hela svansen.
+
 **B.2 — DW-schemakontroll (klar):** alla nödvändiga fält finns i DW. Inget externt beroende.
 
 | BCG-fält | DW-källa | Status |
@@ -75,6 +88,11 @@ och validerades bit-för-bit mot `0828`-facit. Baslinje (referensvärden, invari
 | D-B2 | **Klustermappning dubbelspårig:** bär *både* intern `Priskluster` *och* BCG:s föreslagna kluster (seed) | Jens jämför BCG:s förslag mot intern + egen analys, hoppas konvergera. Båda behövs som referens |
 | D-B3 | **Valideringsgrind = kodnivå mot golden reference**, mätt **före** Top80-filtret (se §5) | Omgruppering gör gruppnivå ojämförbar; kodnivå är invariant; Top80 är gruppberoende |
 | D-B4 | Namnskuggor avklarade: `SalesTotal=SalesExVAT`, `NoofUnits=SoldQuantity`. Källa = DW | B.2-bekräftat; BCG döpte bara om |
+| D-B5 | **Repo-uppdelning:** golden reference + baslinje + replikering i `evbcgpricing`; DW-native arbetet (harness, vyer, drift) i **Business_Analytics** (där `data_access`/`.env`/DW-infran bor) | DW-pratande kod hör hemma där DW-infran lever; undviker hårdkodad sys.path-skuld (R6-klass) |
+
+**Repo-karta:**
+- `evbcgpricing`: `replicate_dataprep.py` (golden reference), `code_level_baseline.csv`, all dokumentation.
+- `Business_Analytics`: `validate_dw_codelevel.py` (B.4a) och kommande DW-native artefakter (B.4b vy-DDL m.m.), via `data_access`.
 
 ---
 
@@ -136,15 +154,17 @@ från `filtered_master_2` — det blir kodnivå-baslinjen B.4 valideras mot. Lit
 | Etapp | Innehåll | Validering |
 |---|---|---|
 | ✅ B.1 | DuckDB golden reference | Bit-för-bit (klart) |
-| ✅ B.2 | DW-schemakontroll | Allt reproducerbart (klart) |
+| ✅ B.2 | DW-schemakontroll (fakta + artikeldimension) | Allt reproducerbart (klart) |
 | ✅ B.3 | Detta dokument | — |
-| **B.3.5** | Utöka golden reference: pre-Top80 per-`ItemCode`-total | — |
-| **B.4** | `Manual`-vyer (T-SQL): BCG:s metod på DW-fakta + DW-dimensioner, dubbla kluster, explicit måndagstrunkering, parametriserade datum | **Kodnivå (pre-Top80) mot golden reference** |
-| B.5 | Top80/FTE-metodbeslut, dokumentera, committa | — |
+| ✅ B.3.5 | Golden reference: pre-Top80 per-`ItemCode`-baslinje (`code_level_baseline.csv`, 13 223 koder) | — |
+| ✅ B.4a | `validate_dw_codelevel.py` — DW per-kod vs baslinje (Business_Analytics) | **Kodnivå-rekonciliering** |
+| **B.4b** | `Manual`-vy (T-SQL): BCG:s metod på DW-fakta + DW-hierarki-grain (`Master_*`), dubbla kluster, explicit måndagstrunkering, parametriserade datum | **Kodnivå (pre-Top80) mot baslinje** |
+| B.5 | Top80/FTE-/grupp-grain-metodbeslut, dokumentera, committa | — |
 
-**Rekommendation:** B.3.5 (liten utökning av runnern) ger kodnivå-baslinjen, sedan B.4 (själva DW-vyerna).
-Klustringsanalysen (intern vs BCG:s förslag, D-B2) är ett eget analysspår Jens kör parallellt mot golden
-reference — den blockerar inte vy-bygget, den berikar det.
+**Rekommendation:** kör B.4a → låt deltat avslöja rabatt/kredit-mappningen → fastställ filtret →
+B.4b (DW-vyn). Gruppgrain-valet (`Master_Underkategori3`/`Subgrupp` ≈ BCG:s nivå, eller finare) och
+Top80-beslutet (§2: 8,7 % koder / 81,5 % omsättning) tas i B.4b. Klustringsanalysen (D-B2) är ett eget
+parallellt spår mot golden reference — berikar, blockerar ej.
 
 ---
 
