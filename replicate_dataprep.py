@@ -295,6 +295,35 @@ def validate_one(con: duckdb.DuckDBPyConnection, table: str, facit_path: str,
     return gate_ok
 
 
+def emit_code_baseline(con: duckdb.DuckDBPyConnection, base_dir: str) -> None:
+    """B.3.5: write the grouping-invariant code-level baseline that the DW-native build
+    (B.4) is validated against. Source = filtered_master_2 = the filtered, PG4-canonicalised
+    population BEFORE the group-relative Top80 cut. Per ItemCode: Sum SalesExVAT (BCG
+    'SalesTotal') and Sum SoldQuantity. Top80 is group-dependent, so it is deliberately
+    excluded here -- only pre-Top80 per-code totals are comparable once grouping changes (D-B3)."""
+    out = os.path.join(base_dir, "output", "code_level_baseline.csv").replace(chr(92), "/")
+    try:
+        con.execute(f"""
+            COPY (
+              SELECT ItemCode,
+                     COUNT(*)            AS n_rows,
+                     SUM(SalesTotal)     AS sum_SalesExVAT,
+                     SUM(SoldQuantity)   AS sum_SoldQuantity
+              FROM filtered_master_2
+              GROUP BY ItemCode
+              ORDER BY ItemCode
+            ) TO '{out}' WITH (HEADER, DELIMITER ',')
+        """)
+        n, ssales, sqty = con.execute(
+            "SELECT COUNT(DISTINCT ItemCode), SUM(SalesTotal), SUM(SoldQuantity) FROM filtered_master_2"
+        ).fetchone()
+        log("VERIFY", f"code_level_baseline.csv: {n:,} distinct ItemCode (pre-Top80) | "
+                      f"Sum SalesExVAT={float(ssales):.4e} | Sum SoldQuantity={float(sqty):.4e}")
+        log("Saved", f"code-level baseline -> output/code_level_baseline.csv")
+    except Exception as e:
+        log("ERROR", f"code baseline failed: {type(e).__name__}: {e}")
+
+
 def register_ours_from_output(con: duckdb.DuckDBPyConnection, base_dir: str, table: str) -> None:
     """validate-only: load an already-produced output CSV as the 'ours' table, so we can
     re-validate without re-running the multi-minute SQL pipeline."""
@@ -335,6 +364,8 @@ def main() -> int:
                     help="Facit CSV encoding. 'auto' sniffs (0828 is latin-1, not UTF-8 -- R12b).")
     ap.add_argument("--validate-only", action="store_true",
                     help="Skip the SQL run; validate the already-produced output CSVs against facit.")
+    ap.add_argument("--no-code-baseline", action="store_true",
+                    help="Skip emitting the pre-Top80 code-level baseline (B.3.5) on a full run.")
     args = ap.parse_args()
 
     base_dir = os.path.abspath(args.base_dir)
@@ -369,6 +400,8 @@ def main() -> int:
         else:
             run_sql_files(con, scripts_dir)
             verify_outputs(con, base_dir)
+            if not args.no_code_baseline:
+                emit_code_baseline(con, base_dir)
     except Exception as e:
         log("ERROR", f"{'load' if args.validate_only else 'SQL execution'} failed: {type(e).__name__}: {e}")
         return 2
