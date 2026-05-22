@@ -169,3 +169,46 @@ parallellt spår mot golden reference — berikar, blockerar ej.
 ---
 
 *Skapad av Jens Palmö (utvecklare) med AI-rådgivaren, 2026-05-21. Reviderad efter B.2 + strategisk omsvängning.*
+
+---
+
+## 8. Spår B avslutat — bekräftade fakta, korrigeringar & modellkontrakt (2026-05-22)
+
+Detta avsnitt **ersätter** tidigare preliminära antaganden där de krockar (särskilt D-B4).
+
+### Korrigeringar (bekräftade med data)
+- **D-B4 var fel på två punkter:**
+  - `SalesTotal` ≠ `SalesExVAT`. `SalesTotal` är **BRUTTO inkl 25% moms** (= `SalesExVAT` × 1,25).
+    Modellens omsättning (`TotalNet`/`DOLLAR`) = `SalesTotal` (brutto). `TotalNetXVat` = `SalesExVAT` (netto).
+  - `NoofUnits` ≠ `SoldQuantity` — separata kolumner (~16×). Modellens volym = `SoldQuantity`.
+- **Källa:** `transaction_data` kommer från `dbo.Fact_BillingInvoiceRows` JOIN `dbo.Dim_Item`
+  (ej `Manual.Fact_Sales_RowLevel`). Provenans: PBI-dataset 2025-07-08, M-query `InvoiceDate >= 2020-01-01`.
+- **G1/TD4: STÄNGD.** Källan bevisad ekvivalent per kod (median-kvot 1,0000, korr 0,989).
+
+### Nya beslut
+- **D-B6:** PoC replikerar på `dbo.Dim_Item`; `Manual.Dim_Item_Extended` (finare) = dokumenterat
+  skalningssteg efter att struktur bevisats körande + validerad + förvaltningsbar.
+
+### Modellsidan kartlagd (config.yml + constants.py + pipeline-Python)
+- **Elasticitet = log-log** (`QuantitySold` och `Regular_Price` båda `Transform=1`) → koefficienten ÄR
+  elasticiteten direkt. (Tidigare "viktigaste oklarheten" — stängd.)
+- **Modellens KEY = `Cluster × ItemCode`** (`KEY = Cluster_Granularity + '-' + ItemCode`). L4 påverkar
+  INTE kärnelasticiteten — bärs för YOY-säsong + output.
+- **"Externa källor" är mestadels inte externa:** PR/media-datum = `SPECIAL_WEEKS`-konstanter; helger =
+  Python `holidays.Sweden()`; säsong/kvartal = härlett i pipeline; extern prisdata = död config (läses ej).
+  **Enda genuina uppströms-inputen = `Sum_FTE_Interpolated`** (Quinyx), en kontrollvariabel i `cols_needed`.
+- **Modellen är redan validerad bit-för-bit på Azure** (3812 grupper, korr 1,0) på DuckDB-preppen.
+  Compute-risken stängd (`ray: memory:8, cpus:12`).
+
+### Modellkontraktet (b4b → modell, för PoC-2)
+b4b ska leverera: `ItemCode, ItemDescription, week_starting_monday, Cluster, SoldQuantity, NoofUnits,
+TotalNet (brutto), QuantitySold(SalesTotal>0), No of Sites, TotalNetXVat (=SalesExVAT),
+Sum_FTE_Interpolated, service(=ProductGroupL4Name)`. Resten härleds i pipelinen. För PoC: FTE droppbar ur
+`cols_needed` (config); `service`/L4 ej kritisk; `Cluster` = BCG-seed (jämförbar) / Priskluster (skalning).
+
+### Reviderad roadmap (kritisk väg → affärsmål)
+1. **PoC-2:** b4b (DW) → modellkontrakt → kör modellen (control_file `RUN=YES` på några KEYs).
+2. **Output-rimlighetsgrind** (ersätter facit på färsk data).
+3. Steg 5 (Excel, xlwings) — körbar på validerad output.
+4. Site/Bundle-familjer → Steg 6 Fall Back (path-fix R6).
+5. Färsk data (parametrisera G7) + FTE-pipeline (Quinyx).

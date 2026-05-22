@@ -217,3 +217,29 @@ hårdkodade datum i `constants.py` (START/END_DATE, SPECIAL_WEEKS) — filtrerar
 ---
 
 *Skapad av Jens Palmö (utvecklare) med AI-rådgivaren. Reviderad 2026-05-21 vid Azure-modellvalidering.*
+
+---
+
+## Roadmap-uppdatering 2026-05-22 — efter Spår B
+
+**Strategisk omsvängning (befäst):** Målet är inte att replikera BCG exakt på gammal data (ger bara
+insikter konsulterna redan levererat) utan att köra deras LOGIK på FÄRSK data via DW, med diffar små nog
+att inte påverka top-line-beslut. Grövre DW-native gruppering än BCG:s är affärsmässigt OK och
+compute-snällare. Finare intern hierarki (Dim_Item_Extended) = uttalat senare utvecklingssteg (D-B6).
+
+**Korrekt nulägesbild:**
+- Modellen (folder 2, Cluster) = validerad bit-för-bit på Azure. Compute-risk stängd.
+- SQL-dataprep = replikerad + migrerad DW-native (b4b), validerad. G1 stängd.
+- Modellkontraktet kartlagt (log-log; KEY = Cluster × ItemCode; FTE enda genuina externa input).
+
+**Kvarvarande, i ordning (kritisk väg):**
+1. PoC-2: b4b (DW) → modellkontrakt → kör modellen på vår data (control_file `RUN=YES`, några KEYs).
+2. Output-rimlighetsgrind — ersätter facit på färsk data (negativ elasticitet, trovärdiga band,
+   "skulle diffen flippa ett prisbeslut?"). Bygg före färsk-körning.
+3. Steg 5 (`data_prep_after_model_output`, xlwings/Excel) — körbar nu på validerad output. Liten Windows-session.
+4. Site (folder 3) + Bundle (folder 5) familjer.
+5. Steg 6 Fall Back Logic — fixa hårdkodade sökvägar (R6, ofarlig hygien nu); blend kräver familjerna.
+6. Färsk data: parametrisera datumfönster (G7), bygg FTE-pipeline (Quinyx).
+
+**Notering om steg 5/6 (Jens önskemål):** legitima men nedströms. Steg 6:s path-fix är ofarlig hygien
+som kan slås in parallellt. Affärsvärdet sitter dock i PoC-2 + färsk data, inte i Excel-paketeringen.

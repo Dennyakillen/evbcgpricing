@@ -49,3 +49,7 @@ Thumbs.db
 !Copy-Sources.ps1
 !Scan-BCGFolder.ps1
 !*.md
+
+run_*.txt
+
+run_*.txt

@@ -205,3 +205,22 @@ Uppdatera `NEXT_SESSION.md` med ny startpunkt, och relevanta MASTER_*.md med nya
 - **Inga publika IP:n** (tenant-policy) — Azure-VM nås via privat IP från kontorsnätet.
 - Azure-detaljer, behörigheter och PIM: se `MASTER_AZURE.md` / `MASTER_AZURE_COMPUTE.md`.
 - Linux/bash-handhavande för VM:en: se `UBUNTU_AZURE_VM.md`.
+
+---
+
+## Statusuppdatering 2026-05-22 — Spår B (DW-native dataprep) validerad
+
+**Vad som är klart:** SQL-datapreppen är replikerad (golden reference, bit-för-bit) OCH migrerad till
+DW-native (`b4b_dw_weekly_elasticity.sql`), validerad på kod- och täckningsnivå mot baslinjen.
+Modellen (folder 2) var sedan tidigare validerad bit-för-bit på Azure.
+
+**Bekräftade fakta (se MASTER_SQL L.38-43, TECHNICAL_PREREQUISITES §8):**
+- Källa = `dbo.Fact_BillingInvoiceRows`; omsättning = `SalesTotal` (brutto); volym = `SoldQuantity`.
+- Elasticitet = log-log (koefficienten ÄR elasticiteten). Modellens KEY = `Cluster × ItemCode`.
+- "Externa källor" mestadels konstanter/bibliotek; enda genuina input = `Sum_FTE_Interpolated` (Quinyx).
+
+**Nya filer:** `validate_dw_codelevel.py`, `discover_l4_mapping.py`, `b4b_dw_weekly_elasticity.sql`
+(Business_Analytics-repot, D-B5). `replicate_dataprep.py` emitterar nu `code_level_baseline.csv`.
+
+**Nästa:** PoC-2 (b4b → modell), output-rimlighetsgrind, steg 5 (Excel), familjer + Fall Back, färsk data.
+Se `NEXT_SESSION.md` för full handoff.
