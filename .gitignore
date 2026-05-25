@@ -53,3 +53,9 @@ Thumbs.db
 run_*.txt
 
 run_*.txt
+
+# Körutfall (steg 5/6 + kartläggning)
+blend*_log.txt
+bcg_map_*.txt
+blended_output*.csv
+bcg_replication_blend*.csv

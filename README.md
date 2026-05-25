@@ -3,9 +3,10 @@
 Replikering, validering och drift av BCG:s prissättningsmodell för Evidensia Djursjukvård AB.
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst)
-**Status:** Hela den VM-körbara pipelinen (regular_price → data_prepration → feature_selection → model)
-körd fullt på Azure-VM och **validerad mot BCG:s frusna facit** — vår `data_for_model.csv` är
-bit-för-bit identisk med BCG:s, och modellelasticiteten matchar bit-för-bit. Endast steg 5 (Windows/Excel) återstår.
+**Status:** Hela den VM-körbara pipelinen (regular_price → data_prepration → feature_selection →
+model) validerad bit-för-bit mot BCG:s frusna facit. **Steg 5 (fallback / `blended_logic`) nu också
+facit-validerat bit-för-bit** (43/43 representanter, 618/1276 signifikanta). Steg 6 (F1–F7
+multi-model-blend) är kartlagt; dess input (Site- + Bundle-modellernas output) återstår att köra på VM.
 
 ---
 
@@ -34,17 +35,24 @@ Rådata (transaktioner, dimensioner)
         |
         v
   Modellsteg 2/3/5 (OLS per produktgrupp, Ray-parallell, feature-selection)
-        |
-        v
-  Fall Back Logic (blend)  -->  final_elasticity
-        |
-        v
+        |                                          |              |
+        v                                          v              v
+  Cluster-modell (folder 2)              Site-modell      Bundle-modell
+        |                                 (folder 3)       (folder 5)
+        v                                     |                |
+  Steg 5: blended_logic (representant-väljare) |                |
+        |   -> final_model_cluster_granularity |                |
+        +-------------------+------------------+----------------+
+                            v
+  Steg 6: Fall Back Logic (F1–F7, np.select-prioritet)  -->  final_elasticity
+                            |
+                            v
   BCG Pricing Model vFinal.xlsx (CALC_Elasticity, VTL)  <-- slutkonsument
 ```
 
 Beräkningskärna: OLS-regression per produktgrupp (`statsmodels`), priskoefficienten = elasticitet.
-Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt config-styrt
-(`config.yml`).
+Parallellisering via Ray. Glesa grupper hanteras via **steg 5** (cluster-representant-väljare) och
+**steg 6** (F1–F7-fallback över site/bundle/cluster-nivåer). Allt config-styrt (`config.yml`).
 
 ---
 
@@ -56,28 +64,36 @@ Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt 
 | 1 | Replikera struktur + kopiera källor verbatim | ✅ Klar |
 | 2 | Bygga miljö (venv + requirements) | ✅ Klar (lokalt + Azure-VM) |
 | 3 | Ray-config + feature_selection (brute-force) | ✅ Klar (Azure, validerad mot facit) |
-| 8 | Azure-motor: VM, miljö, modellkörning | ✅ Klar (två tunga steg körda fullt) |
+| 8 | Azure-motor: VM, miljö, modellkörning | ✅ Klar (tunga steg körda fullt) |
 | 4 (model) | OLS-regression per grupp | ✅ Klar (bit-för-bit-match mot facit) |
-| 7 | Validera output mot facit (KPI, population, features) | ✅ Klar (model + feature_selection + data_for_model) |
+| 7 | Validera output mot facit (KPI, population, features) | ✅ Klar |
 | 4 (input) | regular_price + data_prepration → `data_for_model.csv` | ✅ Klar (bit-för-bit identisk med BCG:s) |
-| 4 (SQL prep) | SQL data prep (duckdb via Python, ej exe) | ⬜ Kvar (egen fas, migrering) |
-| 5 | `data_prep_after_model` (xlwings/Excel) | ⬜ Windows-uppgift, ej VM |
-| 6 | Fall Back Logic (fixa hårdkodade sökvägar) | ⬜ Kvar |
-| 9 | Git-baslinje (detta repo) | ✅ Påbörjad |
+| **5** | **`data_prep_after_model` / `blended_logic` (cluster-fallback)** | ✅ **Klar — facit-validerad bit-för-bit (43/43, 618/1276)** |
+| 4 (SQL prep) | SQL data prep (duckdb via Python, ej exe) | ⬜ Egen fas (DW-migrering) |
+| — | **Full Cluster-körning (1311+ grupper) på VM** | ⬜ **Nästa (lokalt OOM)** |
+| — | **Site-modell (folder 3) körning på VM** | ⬜ **Matar steg 6 F1** |
+| — | **Bundle-modell (folder 5) körning på VM** | ⬜ **Matar steg 6 F2/F4** |
+| **6** | **Fall Back Logic (F1–F7 multi-model-blend)** | ⬜ Kartlagd; blockerad av Site/Bundle-körning |
+| — | Output-rimlighetsgrind | ⬜ Byggs **sist**, mot färdig baslinje |
+| — | Färsk data: parametrisera datumfönster (G7) | ⬜ Senare |
+| 9 | Git-baslinje (detta repo) | ✅ Pågår |
 | B | DW-vyer + Blob input-folder (drift) | ⬜ Senare |
 
-### Vad som validerades 2026-05-21 (ärligt om scope)
+### Vad som validerades 2026-05-25 (steg 5 — fallback)
 
-- ✅ **Modell-delen** — feature_selection + model — körd fullt på Azure-VM (3812 grupper), på BCG:s
-  mellanfil `data_for_model.csv` (väg B, D12).
-- ✅ **Bit-för-bit mot facit:** model-elasticiteten identisk på alla 3812 (korr 1,0, max diff 0).
-  feature_selection troget: 93,1% identiskt feature-val; avvikelser är gränsfallsfeatures utan
-  resultatpåverkan (elasticitet/Adj R2 i praktiken identisk).
-- ✅ **OOM avskriven:** 128 GB, Ray-spill till `/tmp/ray_spill`, `Swap 0B` genomgående. CZ.1 bekräftad.
-- ⬜ **Input-stegen** ✅ NU KLARA: regular_price + data_prepration körda; vår `data_for_model.csv`
-  bit-för-bit identisk med BCG:s (max diff 1e-15, 0 text-mismatchar). `InScope`/competitor var död config.
-- 📌 **Steg 5** (`data_prep_after_model`) är Windows/Excel (xlwings) — ej VM-körbart (D14).
+- ✅ **`fallback_blend.py`** (fristående replikering av `model_output` + `blended_logic`) körd på
+  **BCG:s egen fulla `output_summary.xlsx`** (3812 KEY) → **43/43 representanter identiska** med
+  BCG:s `final_model_cluster_granularity.xlsx`. `Significant?`-flagga 43/43. PASS.
+- ✅ **Rescue-effekten bekräftad:** `pre-blend 1541/3812` → `post-blend 618/1276` — exakt de 618
+  dokumenterade. Fallback = representant-väljare (ingen ommodellering); `Significant?` = `RSQ≥0.5 &
+  p≤0.2` (inte p<0.05).
+- ✅ **Site-modell (folder 3) bekräftad strukturellt identisk med Cluster** — samma pipeline-filer,
+  samma `output_summary.xlsx`-format. Ingen ombyggnad krävs; körs som Cluster.
+- ✅ **Steg 6-kontrakt känt:** `Fall_Back_Logic.py` läser tre `output_summary.xlsx` (cluster/site/
+  bundle) + vår steg 5-output, väver F1–F7 via `np.select`-prioritet. Ny logik enbart i vävningen.
+- 📌 **Nästa = VM-körningspass** (Cluster full + Site + Bundle) för att producera steg 6:s input.
 
+**Detaljerad sessionslogg + lärdomar:** se `SESSION_2026-05-25_STEG5_STEG6.md`.
 **Detaljerad bash/Linux-handhavande och driftkort:** se `UBUNTU_AZURE_VM.md`.
 
 ---
@@ -89,17 +105,20 @@ Parallellisering via Ray. Glesa grupper hanteras via klustring + fallback. Allt 
 | `README.md` | Denna — syfte, arkitektur, roadmap, daglig drift |
 | `BCG_PRICING_PLAYBOOK.md` | Fullständigt nuläge: beslut, faser, risker, lärdomar |
 | `NEXT_SESSION.md` | Kall-start för nästa arbetspass |
+| `SESSION_2026-05-25_STEG5_STEG6.md` | Steg 5-validering + steg 6-kartläggning + lärdomar |
 | `UBUNTU_AZURE_VM.md` | Linux/bash-handhavande, encoding-fällor, tmux, driftkort |
+| `fallback_blend.py` | **Steg 5-replikering (model_output + blended_logic), facit-validerad** |
+| `map_bcg_source.py` | Read-only källkartläggning (kod i sin helhet, xlsx struktur, skip-logik) |
+| `inspect_fallback_source.py` | Read-only dump av steg 5-källa + dashboard-formler |
 | `make_smoke_control.py` | Bygger rökstest-control-fil (N grupper `RUN=YES`, resten `NO`) |
 | `compare_to_facit.py` | Validerar model `output_summary.xlsx` mot facit (KPI/population/kolumner) |
-| `compare_features_to_facit.py` | Validerar feature_selection mot facit (feature-val/elasticitet/R2) |
-| `Scan-BCGFolder.ps1` | Kartlägger källmappens struktur (mappar, ej 50k filer) |
+| `compare_features_to_facit.py` | Validerar feature_selection mot facit |
+| `Scan-BCGFolder.ps1` | Kartlägger källmappens struktur |
 | `Build-Structure.ps1` | Speglar V2_New:s mappstruktur till ren arbetsfolder |
 | `Copy-Sources.ps1` | Kopierar kod/SQL/config/input verbatim till strukturen |
 
 Versionsstyrs **inte** (se `.gitignore`): `Pipeline/` (BCG:s verbatim-kod + GB data), venv,
-parquet/csv/xlsx, körutfall. Azure-resultatet hämtas lokalt till
-`...\2. Product Cluster Level Models\output\azure_run_model\` (gitignorerat).
+parquet/csv/xlsx, körutfall (`blended_output*.csv`, `*_log.txt`, `bcg_map_*.txt`).
 
 ---
 
@@ -129,16 +148,13 @@ ssh azureuser@172.18.148.4
 ```
 
 På VM:en (bash): aktivera venv innan arbete. tmux-sessioner överlever **inte** en
-deallocate/start-cykel — starta en ny vid behov.
+deallocate/start-cykel.
 
 ```
 source ~/bcg/cluster/.venv/bin/activate
 ```
 
 ### Köra en lång körning frikopplad (tmux)
-
-Starta en namngiven session, kör med tee:ad logg, koppla loss med `Ctrl+B` följt av `D`.
-Körningen lever då på VM:en oberoende av din SSH/dator. Detaljer i `UBUNTU_AZURE_VM.md`.
 
 ```
 tmux new -s bcgrun
@@ -149,24 +165,19 @@ source ~/bcg/cluster/.venv/bin/activate
 cd ~/bcg/cluster/code
 python model.py 2>&1 | tee ~/run_log_PC_full.txt
 ```
+Koppla loss: `Ctrl+B` följt av `D`.
 
-### Kolla status utifrån (utan att gå in i sessionen)
+> **Nästa VM-pass (steg 6-input):** kör Cluster full + Site (folder 3) + Bundle (folder 5) → varje
+> producerar sin `output_summary.xlsx`. Site-input är 130 MB; alla tre är VM-uppgifter (lokalt OOM).
 
-Körs från PowerShell — stör inte den rullande körningen:
+### Kolla status utifrån
 
 ```powershell
 ssh azureuser@172.18.148.4 "pgrep -af model.py; grep -c 'Model running for' ~/run_log_PC_full.txt"
 ```
 ```powershell
-ssh azureuser@172.18.148.4 "tail -3 ~/run_log_PC_full.txt"
+ssh azureuser@172.18.148.4 "tail -3 ~/run_log_PC_full.txt; free -h"
 ```
-```powershell
-ssh azureuser@172.18.148.4 "free -h"
-```
-
-Tolkning: `pgrep` tom = processen slut (klar eller kraschad — kolla `tail`). `grep -c`-talet
-växer = jobbar framåt. `tail` visar `Total Models built:` = klar. `free -h` med `available`
-nära 0 och växande `Swap` = minnespress (reagera).
 
 ### Hämta hem resultat
 
@@ -182,11 +193,10 @@ az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
 ```powershell
 az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[?starts_with(code, 'PowerState')].displayStatus" --output tsv
 ```
-→ Ska visa `VM deallocated`. `deallocate` (inte `stop`) stoppar debiteringen.
+→ Ska visa `VM deallocated`.
 
-> **Token-utgång (E.3/CZ.3):** din `az login`-token dör efter 4 h (Conditional Access,
-> `AADSTS70043`). Logga in igen vid behov. Körningen på VM:en påverkas **inte** — den rör inte
-> Azure-API:t. För riktig drift: Managed Identity, inte din CLI-token.
+> **Token-utgång (E.3/CZ.3):** `az login`-token dör efter 4 h (Conditional Access, `AADSTS70043`).
+> Logga in igen vid behov. Körningen på VM:en påverkas inte. För riktig drift: Managed Identity.
 
 ### Vid sessionsslut i repot
 
@@ -203,24 +213,23 @@ Uppdatera `NEXT_SESSION.md` med ny startpunkt, och relevanta MASTER_*.md med nya
 
 - **Inga `.exe`** i lösningen (AppLocker) — allt via `python -m`; duckdb = `pip install duckdb` på Linux.
 - **Inga publika IP:n** (tenant-policy) — Azure-VM nås via privat IP från kontorsnätet.
+- **Windows-konsol-encoding:** script som dumpar källkod tvingar stdout UTF-8; PS-sidan
+  `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` före körning (cp1252 kraschar på å/ä/ö, pilar).
 - Azure-detaljer, behörigheter och PIM: se `MASTER_AZURE.md` / `MASTER_AZURE_COMPUTE.md`.
 - Linux/bash-handhavande för VM:en: se `UBUNTU_AZURE_VM.md`.
 
 ---
 
-## Statusuppdatering 2026-05-22 — Spår B (DW-native dataprep) validerad
+## Statusuppdatering 2026-05-25 — Steg 5 facit-validerat, steg 6 kartlagt
 
-**Vad som är klart:** SQL-datapreppen är replikerad (golden reference, bit-för-bit) OCH migrerad till
-DW-native (`b4b_dw_weekly_elasticity.sql`), validerad på kod- och täckningsnivå mot baslinjen.
-Modellen (folder 2) var sedan tidigare validerad bit-för-bit på Azure.
+**Vad som är klart:** Steg 5 (`blended_logic` / cluster-fallback) replikerat fristående
+(`fallback_blend.py`) och bevisat bit-för-bit mot BCG:s facit (43/43 representanter, 618/1276
+signifikanta, alla fyra `New_cluster`-nivåer). Steg 6 (`Fall_Back_Logic.py`, F1–F7) kartlagt —
+kontraktet känt, Site/Bundle bekräftade som samma pipeline (ingen ombyggnad).
 
-**Bekräftade fakta (se MASTER_SQL L.38-43, TECHNICAL_PREREQUISITES §8):**
-- Källa = `dbo.Fact_BillingInvoiceRows`; omsättning = `SalesTotal` (brutto); volym = `SoldQuantity`.
-- Elasticitet = log-log (koefficienten ÄR elasticiteten). Modellens KEY = `Cluster × ItemCode`.
-- "Externa källor" mestadels konstanter/bibliotek; enda genuina input = `Sum_FTE_Interpolated` (Quinyx).
+**Korrigerade missförstånd:** fallback = representant-väljare (ej omklustring); `Significant?` =
+`RSQ≥0.5 & p≤0.2` (ej p<0.05); rescue sker i blenden före flaggan räknas.
 
-**Nya filer:** `validate_dw_codelevel.py`, `discover_l4_mapping.py`, `b4b_dw_weekly_elasticity.sql`
-(Business_Analytics-repot, D-B5). `replicate_dataprep.py` emitterar nu `code_level_baseline.csv`.
-
-**Nästa:** PoC-2 (b4b → modell), output-rimlighetsgrind, steg 5 (Excel), familjer + Fall Back, färsk data.
-Se `NEXT_SESSION.md` för full handoff.
+**Nästa:** VM-körningspass (Cluster full + Site + Bundle) → producerar steg 6:s tre `output_summary`-
+input. Sedan steg 6-replikering, därefter rimlighetsgrind (sist) + färsk data. Se
+`SESSION_2026-05-25_STEG5_STEG6.md` och `NEXT_SESSION.md` för full handoff.
