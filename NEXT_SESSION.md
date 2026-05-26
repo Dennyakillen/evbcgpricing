@@ -1,213 +1,182 @@
-# NEXT_SESSION — BCG Pricing (efter PoC-2: modellen facit-validerad på DW-data)
+# NEXT_SESSION — VM-körningspass (Cluster full + Site + Bundle → steg 6-input)
 
-Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst på
-Evidensia Djursjukvård AB. Följ `KÄRNPRINCIPER.md`, `MASTER_SQL.md` (Python/Azure-lärdomar
-ligger även där tills separata masters skapas), `UBUNTU_AZURE_VM.md`, `BCG_PRICING_PLAYBOOK.md`.
+Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst på Evidensia
+Djursjukvård AB. Följ `KÄRNPRINCIPER.md`, `MASTER_AZURE.md`, `MASTER_AZURE_COMPUTE.md`,
+`MASTER_PYTHON.md`. Linux/bash: `UBUNTU_AZURE_VM.md`. Nuläge: `BCG_PRICING_PLAYBOOK.md`
+(läs riktningsblocket överst först). Lärdomar: `LESSONS_BCG.md` (`LB.N`). Insikter: `INSIGHTS_BCG.md` (`IB.N`).
 
-> **Förbättringsloop:** Vid varje korrigering — föreslå ny lärdom (Symptom → Rotorsak → Regel)
-> och lägg i relevant master.
+> **Förbättringsloop:** Vid varje korrigering — föreslå ny lärdom (Symptom → Rotorsak → Regel) i
+> `LESSONS_BCG.md`, eller ny insikt i `INSIGHTS_BCG.md`. Befordra till MASTER_* om generell.
 
 ---
 
 ## Aktuellt projekt
 
-- **Repo (replikering + golden reference):** https://github.com/Dennyakillen/evbcgpricing.git — `C:\Projekt\BCG`
-- **Repo (DW-native arbete):** https://github.com/Dennyakillen/Business_Analytics.git — `C:\Projekt\Business_Analytics` (D-B5)
-- **DW:** server `se-az-we-bi-sql-01.database.windows.net`, db `se-az-we-bi-dw-sqldb-01`. Anslutning via
-  `data_access.py` (pyodbc + DefaultAzureCredential + .env). `az login --scope https://database.windows.net/.default` (token ~4h).
-- **Azure-VM:** `bcg-poc-vm`, deallocated. Full 1311-grupps-körning är en VM-uppgift (ej lokal).
+- **Repo:** https://github.com/Dennyakillen/evbcgpricing.git — `C:\Projekt\BCG`
+- **Senaste commit på origin/main:** `85cd33f` — *Stop tracking generated run output and pipeline logs; extend gitignore*
+- **Branch:** `main`
+- **Repot innehåller nu hela receptet** (kod/config/control/kurerade inputs ur Pipeline/ + Elasticity/),
+  Excel + tung output + körutfall utestängt. Strukturen är återskapningsbar.
+- **Azure-VM:** `bcg-poc-vm`, `Standard_E16s_v5` (16 vCPU / 128 GB RAM), privat IP `172.18.148.4`,
+  **deallocated** (disken består). Subscription `ev-lz3-ai (SE)`, RG `ev-openai-swce-rg-test` (PIM Contributor).
+- **DW-script-venv** (om FTE Väg 2 berörs): `C:\Projekt\Business_Analytics\.venv` (`data_access.py`).
 
 ---
 
-## 🟢 MILSTOLPE 2026-05-25 — PoC-2 BEVISAD MOT FACIT
+## Status vid sessionsstart
 
-**Kärnfrågan ("kan vi köra BCG:s metod på vår DW-data och få samma svar?") är besvarad: JA, validerat mot facit.**
+**Full replikering är klar t.o.m. FR-3 (steg 5 facit-validerad). Det enda kvarvarande för "full
+replikering" är detta VM-pass + steg 6.**
 
-Hela kedjan kör nu end-to-end lokalt på Evidensias DW-data:
-`export_b4b_for_model.py (DW + BCG-seed + BCG-kodurval + FTE)` → `regular_price` → `data_prepration`
-→ `make_smoke_control` (CV-urval) → `feature_selection` (per-grupp-features, FTE tvingad in) → `model` → elasticiteter.
+- ✅ Klart: input-steg, model, feature_selection, steg 5-fallback — alla facit-validerade (FR-1..3).
+- 🔴 Detta pass: kör Cluster full + Site + Bundle på VM → tre `output_summary.xlsx` (FR-4..6).
+- 🔴 Blockerat tills detta pass klart: steg 6 (`Fall_Back_Logic.py`, F1–F7-väv) — FR-7.
+- 📌 Cluster-koden + data ligger kvar i `~/bcg/cluster/` sedan förra körningen (Jens 2026-05-26).
+- ⚠️ **Osäkert:** ligger Site (folder 3) + Bundle (folder 5) kod+data på VM:en? **Verifieras som
+  första steg** — antas inte (CZ.6: disken består men inget bekräftat uppladdat; LB.1: läs, gissa inte).
 
-**Facit-jämförelsen som stänger frågan (BCG:s `Model_output`-flik i Sweden_Product_Cluster_Elasticity_Dashboard.xlsx):**
-- Våra OVR0001-elasticiteter (−0,09…−0,19, icke-sig) **matchar BCG:s** OVR0001 (−0,12 / −0,15, p=0,055 / 0,18).
-- **BCG:s egen baslinje: bara 227/1276 (17,8%) rått signifikanta (p<0,05).** Icke-signifikans på fin
-  kluster×kod-nivå är NORMALTILLSTÅNDET, inte ett fel. Vår modell beter sig exakt som deras.
-- **618/1276 (48,4%) är `Significant ?=1`** — den flaggan = "signifikant ELLER fallback-räddad".
-- Fallback-nivåer bekräftade: `New_cluster ∈ {Clinics, Clinics_CH, Hospital_CH, Hospital}`, `big_cluster ∈ {Clinics, Hospital}`.
-
-**Vad det betyder:** det vi länge tolkade som svaga elasticiteter var TROGEN REPLIKERING. BCG får samma
-svaga tal på samma koder. PoC-2:s bevisbörda är därmed lyft. Resten är skalning + nedströmssteg, inte bevis.
-
-**Export-rekonciliering (med FTE inne):** 1151 koder (exakt facit), 4930 KEY (−0,38% vs 4949, D-B6-effekt),
-brutto 6,502 mdr (−0,06% vs facit), `Sum_FTE_Interpolated NULL: 0`. Trogen nog — diffar flippar inget top-line-beslut.
+**Referensvärden (facit, för rimlighetskoll av VM-output):**
+- Cluster steg 5: 43/43 representanter, 618/1276 `Significant?=1`, 4 `New_cluster`-nivåer.
+- BCG rå signifikans: 227/1276 (17,8 %) — icke-signifikans på fin nivå är normaltillstånd (`IB.1`).
 
 ---
 
-## VAR VI STÅR (korrekt bild efter denna session)
+## Mål för denna session
 
-**Pipelinen (folder 2, Cluster) kör verbatim BCG-kod på vår DW-data, end-to-end, validerad mot facit.**
-Allt utom två kirurgiska, dokumenterade ändringar är BCG:s kod orörd:
-1. **VIF-guard** (`utils.py` rad ~399, try/except runt `variance_inflation_factor`) — latent BCG-bugg
-   (VIF körs på params-skalad `X_temp`, singulär på vår data → "zero-size array"). VIF är efterdiagnostik;
-   elasticiteten beräknas i `df_coef` FÖRE VIF. Backup: `utils_BCG_verbatim.py.bak` (OBS: överskriven med
-   fixad version — verbatim original finns i git/OneDrive). NaN på fel, körningen lever.
-2. **`config.yml` cols_needed** — `Sum_FTE_Interpolated` åter inlagd (var borttagen för FTE-lös PoC).
+### Primärt: VM-körningspass — producera steg 6:s tre input-filer
 
-**FTE byggd via Väg 1 (BCG:s färdiga interpolerade fil):** `export_b4b_for_model.py` läser
-`Sweden__Interpolated_Productivity_time_date_june25.xlsx`, summerar `FTE_Interpolated` per Cluster×vecka
-→ `Sum_FTE_Interpolated` (01_process.sql rad 289-logik), joinar på Cluster+vecka. Transform: RÅ (ej log),
-matchar BCG:s `transform_control_TT.csv` (FTE har Transform=NaN). `cols_needed` tvingar in FTE i varje
-grupp (`feature_selection.py` rad 310: `features = cols_needed + list(subset)`) — som BCG:s control-fil
-(FTE=1 överallt). FTE flyttade INTE signifikansnålen — väntat, eftersom OVR0001 är oelastisk även hos BCG.
+**Syfte:** Köra de tre modellfamiljerna på VM:en så att steg 6 (`Fall_Back_Logic.py`) får sin input
+(tre `output_summary.xlsx`: cluster, site, bundle). Detta stänger FR-4..6 och låser upp FR-7.
 
-**Den verkliga "saknade" biten är inte FTE — det är fallback-logiken** (steg 3/4 nedan), som hanterar de
-~82% som inte blir rått signifikanta genom omklustring till Clinics/Hospital-nivå.
+**Leveranser:**
+1. `output_summary.xlsx` från **Cluster full** (folder 2) — hämtad hem till repo-strukturen.
+2. `output_summary.xlsx` från **Site** (folder 3) — körd som Cluster (`LB.4`: samma pipeline).
+3. `output_summary.xlsx` från **Bundle** (folder 5).
+4. Kort rimlighetskoll av varje output (negativ elasticitet, trovärdiga band — *inte* full
+   rimlighetsgrind, den hör till färsk-data-fasen, `IB.6`).
+
+**Datakälla:** VM-disk `~/bcg/` (Cluster bekräftad; Site/Bundle verifieras steg 1).
 
 ---
 
-## DET ENDA SOM ÅTERSTÅR (kritisk väg → affärsmål)
+## Steg (ett i taget, verifiera mellan steg)
 
-Affärsmålet: köra den (nu facit-validerade) modellen på FÄRSK data, med diffar små nog att inte flippa
-top-line-beslut. PoC-2-beviset är klart; återstoden är nedströmssteg + skalning.
+> **OBS:** Steg 1 är en VM-VERIFIERING, inte en körning. Anta aldrig vad som ligger på en deallokerad
+> disk (CZ.6/LB.1). Vad som följer efter steg 2 avgörs av vad steg 1 visar.
 
-| # | Steg | Status | Not |
-|---|---|---|---|
-| 1 | **PoC-2: b4b (DW) → modell → facit-validera** | ✅ **KLAR** | Bevisad mot Model_output denna session |
-| 2 | **Output-rimlighetsgrind** (negativ elasticitet, band, "flippar diffen ett beslut?") | 🔴 nästa | Ersätter facit på färsk data. Bygg FÖRE färsk-körning |
-| 3 | Steg 5 — `data_prep_after_model_output.py` (xlwings/Excel, Windows) | 🔴 | **Här bor fallback-logiken.** Slår ihop svaga fina grupper → Clinics/Hospital. Körbar nu |
-| 4 | Steg 6 — Fall Back Logic (blend, fixa hårdkodade sökvägar, R6) | 🔴 | Nära kopplad till steg 3. Kräver site/bundle-familjer för full blend |
-| 5 | Site (folder 3) + Bundle (folder 5) familjer | 🔴 | För Fall Back-blend |
-| 6 | Full körning 1311 grupper på VM | 🔴 | Lokalt = rökstest (10 KEY). Full = VM (CZ.2). feature_selection Ray-parallell |
-| 7 | Färsk data: parametrisera datumfönster (G7) + FTE Väg 2 (DW-native) | 🔴 | START_DATE/END_DATE hårdkodat i constants.py |
+### Steg 0 — Pre-flight (PowerShell, Windows)
+```powershell
+cd "C:\Projekt\BCG"
+```
+```powershell
+git log --oneline -5
+git status
+```
+Förväntat: senaste commit `85cd33f`, working tree clean.
 
-**Rekommenderad ordning:** output-rimlighetsgrind (steg 2) → fallback/steg 5 (där OVR0001 blir användbar via
-omklustring) → familjer → full VM-körning → färsk data. Affärsvärdet sitter i rimlighetsgrind + fallback + färsk data.
+```powershell
+az login --scope https://management.core.windows.net//.default
+```
+```powershell
+az account set --subscription "ev-lz3-ai (SE)"
+```
+Aktivera PIM Contributor på `ev-openai-swce-rg-test` om utgången (Portal → PIM).
 
----
+```powershell
+az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+```
+Vänta ~1 min efter start före ssh (CZ.6: `Connection refused` direkt = sshd ej vaken, inte fel).
 
-## FALLBACK — vad nästa session ska göra (steg 3/4)
+### Steg 1 — Verifiera VM-innehåll (KRITISKT första steg)
+```powershell
+ssh azureuser@172.18.148.4 "ls -la ~/bcg/; echo '---'; ls -d ~/bcg/*/ 2>/dev/null; echo '---'; du -sh ~/bcg/* 2>/dev/null"
+```
+Tolka: finns bara `cluster/`, eller även `site/` + `bundle/` (eller motsv.)? Detta avgör steg 2–4.
+- **Bara cluster** → Site+Bundle måste laddas upp (steg 2b).
+- **Alla tre** → hoppa till körning (steg 3).
 
-**Problemet fallback löser:** 82% av grupperna är inte rått signifikanta på fin Cluster×ItemCode-nivå (BCG
-själva: 18% rått signifikanta). Fallback slår ihop svaga grupper till grövre nivå där mer data ger signal.
+### Steg 2a — Kör Cluster full (om koden finns, vilket den ska)
+```powershell
+ssh azureuser@172.18.148.4 "ls ~/bcg/cluster/code/model.py; ls ~/bcg/cluster/output/ 2>/dev/null"
+```
+I tmux på VM:en (bash):
+```
+tmux new -s bcgrun
+source ~/bcg/cluster/.venv/bin/activate
+cd ~/bcg/cluster/code
+python model.py 2>&1 | tee ~/run_log_PC_full.txt
+```
+Detacha: `Ctrl+B` följt av `D`. Kolla utifrån (PowerShell):
+```powershell
+ssh azureuser@172.18.148.4 "pgrep -af model.py; tail -3 ~/run_log_PC_full.txt; free -h"
+```
 
-**Bekräftat ur facit (`Model_output`):**
-- `New_cluster ∈ {Clinics, Clinics_CH, Hospital_CH, Hospital}` — fyra fallback-nivåer.
-- `big_cluster ∈ {Clinics, Hospital}` — grövsta nivån.
-- `Significant ?` = signifikant rått ELLER räddad via fallback (618 vs 227).
-- `Check`, `Weighted elasticity/rsq/Pvalue`-kolumner = fallback-mekanikens beräkningar.
+### Steg 2b — Ladda upp Site + Bundle (ENDAST om steg 1 visar att de saknas)
+> Site-input är tung (~130 MB enligt tidigare not). Verifiera storlek + ev. Blob-blockerare innan
+> uppladdning (O1: Blob-roll kräver Owner — om scp inte räcker, flagga). Föredra scp till VM-disk
+> (PoC-mönstret, D11) framför Blob tills rollen är löst.
+```powershell
+scp -r "C:\Projekt\BCG\Pipeline\02. Elasticity\3. Product Site Level Models" azureuser@172.18.148.4:~/bcg/site
+```
+```powershell
+scp -r "C:\Projekt\BCG\Pipeline\02. Elasticity\5. Bundle Clinic Models" azureuser@172.18.148.4:~/bcg/bundle
+```
+> Efter scp: `chmod -R u+w ~/bcg/site ~/bcg/bundle` på VM:en (CZ.4 — Windows-rättigheter följer med).
+> Skapa venv + installera requirements per modell (som Cluster gjordes). Verifiera `sys.executable` (LB.13).
 
-**Första steg nästa session (LÄS FACIT FÖRST, A.9):**
-1. Läs `data_prep_after_model_output.py` i sin helhet (steg 5 i BCG:s flöde, Readme bekräftar ordningen).
-2. Läs exakt hur `Significant ?` / `New_cluster` / `Check` beräknas i dashboarden (Jens kör på Windows mot
-   OneDrive-filen — Claude når den inte). Det definierar fallback-regeln.
-3. Verifiera om fallback ligger i Python (`data_prep_after_model_output.py`) eller i Excel/dashboarden (xlwings).
-   Readme antyder Python-steg; dashboardens Weighted-kolumner antyder Excel-lager. Läs båda före bygge.
+### Steg 3 — Kör Site + Bundle (samma mönster som Cluster, LB.4)
+Site och Bundle är strukturellt identiska med Cluster — samma pipeline-filer, samma launcher-ordning
+(regular_price → data_prepration → feature_selection → model). Kör var för sig i tmux med tee.
 
----
+### Steg 4 — Hämta hem de tre output_summary.xlsx
+```powershell
+scp azureuser@172.18.148.4:~/bcg/cluster/output/model/output_summary.xlsx "C:\Projekt\BCG\Pipeline\02. Elasticity\2. Product Cluster Level Models\output\azure_run_model\output_summary.xlsx"
+```
+(Motsvarande för site + bundle till deras output-mappar.)
 
-## MODELLKONTRAKTET (oförändrat, nu uppfyllt med FTE)
-
-`KEY = Cluster + '-' + ItemCode`, `dep_var = QuantitySold(SalesTotal>0)`, `PRICE = TotalNet/UNIT`, log-log.
-b4b levererar nu ALLA kontraktets kolumner inkl `Sum_FTE_Interpolated`. Kontraktet är uppfyllt.
-
----
-
-## NYCKELARTEFAKTER DENNA SESSION (i /outputs, dra in i repona)
-
-| Fil | Mål-sökväg | Roll |
-|---|---|---|
-| `export_b4b_for_model.py` | `C:\Projekt\Business_Analytics\` | DW + BCG-seed + BCG-kodurval + **FTE-join** (Väg 1) |
-| `make_smoke_control.py` | `C:\Projekt\BCG\` | v3: väljer KEY på **pris-CV** (ej veckoantal), aktiverar features =1 |
-| `fix_config_encoding.py` | `C:\Projekt\BCG\` | Strippar BOM från config.yml (PS-redigerings-fälla) |
-| `utils.py` (VIF-guard) | pipeline `code/` | Kirurgisk try/except rad ~399. Backup: `utils_BCG_verbatim.py.bak` |
-| `config.yml` (cols_needed) | pipeline `code/src/` | `Sum_FTE_Interpolated` åter i cols_needed |
-
----
-
-## ÖPPNA BESLUT / TECH DEBT
-
-- **`output_summary`-krasch (model.py rad ~508):** `ELASTICITY_COL` används FÖRE `get_elasticity` skapar
-  den (BCG ordningsbugg). OFARLIG — `model_summary.xlsx` sparas rad ~507 (före kraschen). Elasticiteterna
-  läses därifrån. Fixas om polerad `output_summary.xlsx` behövs (flytta `get_elasticity` före rad 508).
-- **D-B6:** PoC på BCG-kodurval via `Dim_Item_Extended`; KEY −0,38% / brutto −0,06% mot facit = dimensionseffekt, ej fel.
-- **G7:** Datumfönster hårdkodat (`constants.py`: START_DATE 2022-07-01, END_DATE 2025-06-29). Vår export
-  använder 2025-06-28 = samma vecka, ofarligt. Parametrisera före färsk data.
-- **FTE Väg 2 (DW-native):** aggregera `Manual.Fact_Quinyx_DayClinic` (validerad 0% diff) — INTE replikera
-  BCG:s Quinyx-rådata-pipeline (Quinyx_h.txt:s 200-raders cost-center-CASE). Skalningssteg för färsk data.
-- **Discount-exkludering:** BCG:s assumptions säger "Models built excluding Discount ProductCategoryL4Name".
-  Vi exkluderade den INTE. Påverkade troligen inte OVR0001-resultatet (BCG fick samma svaga tal), men
-  verifiera vid Väg 2 hur rabatt markeras i vår data (`Master_Underkategori3`, halv-NULL, L.43).
-- **Södran-OVR0001:** föll ur modellen genomgående ("Cant model", för få datapunkter efter split). Gränsfall.
-- **`ProductGroupL4Name` halv-NULL** i vår data (`Master_Underkategori3`). Biter ej kärnelasticitet; relevant för Väg 2-gruppering.
-
----
-
-## NYA LÄRDOMAR DENNA SESSION (lägg i MASTER_PYTHON / KÄRNPRINCIPER)
-
-### A.9 (skärpt) — Läs facit-OUTPUT före hypotesdriven bygginsats
-**Symptom:** Byggde hel FTE-pipeline + två smoke-omgångar på hypotesen att FTE var den saknade biten för
-signifikans.
-**Rotorsak:** BCG:s `Model_output` + assumptions-flik visade på 30 sek att BCG också är icke-sig på OVR0001
-och att bara 18% är rått signifikanta — vilket hade omdirigerat från "jaga signifikans" till "förstå
-fallback" innan FTE byggdes.
-**Regel:** När egna resultat är svaga — jämför mot BCG:s FAKTISKA OUTPUT för samma grupper FÖRE nya features
-byggs på en hypotes. Dashboardens output ÄR källa (= facit), precis som koden. (FTE behövdes för trogen
-replikering oavsett, så ej spillt — men sekvensen var fel.)
-
-### Elasticitet svag ≠ pipeline trasig
-**Symptom:** 0 signifikanta på smoke-grupper tolkades först som fel.
-**Rotorsak:** OVR0001 ("Other sales, store only") är oelastisk samlingskod; BCG fick samma. Rå signifikans
-är 18% även hos BCG. Fallback (omklustring) är hur de når 48%.
-**Regel:** Bedöm egna elasticiteter mot BCG:s output PÅ SAMMA KOD, inte mot en absolut "borde vara
-signifikant"-förväntan. Icke-signifikans på fin nivå är normaltillstånd; fallback hanterar det.
-
-### Smoke-KEY väljs på pris-CV, inte veckoantal
-**Symptom:** Veckoantal-urval gav prisstabila serier (CV 0,0004) → absurd +15,0 elasticitet.
-**Rotorsak:** Elasticitet kräver prisVARIATION, inte historik-längd. En kod såld 156 v till samma pris är värdelös.
-**Regel:** Rökstest-urval = högst pris-CV bland full-historik-grupper. Veckoantal är fel optimeringsmål för elasticitet.
-
-### Control-filens feature-kolumner är aktiveringsflaggor (VALUE==1)
-**Symptom:** model_summary VARIABLE = bara CONST; intercept-only; VIF-krasch.
-**Rotorsak:** Smoke-control satte features=NaN. `utils.py` rad 278 väljer features där VALUE==1; NaN≠1 → tom ind_var.
-**Regel:** Control-filen BÄR feature_selection-output. Features = 1 för använda. `cols_needed` tvingas dock
-in av koden oavsett control-fil (rad 310).
-
-### feature_selection FÖRE model (pipeline-ordning)
-**Symptom:** Svaga elasticiteter med fast 2-feature-set.
-**Rotorsak:** Körde model.py direkt utan feature_selection. BCG:s control-fil visar per-grupp-features (olika per grupp).
-**Regel:** Replikera ordningen: feature_selection (skriver control-filen med per-grupp-features) → model läser den.
-
-### VIF är efterdiagnostik, ej elasticitet
-**Symptom:** model.py kraschar i VIF ("zero-size array") trots korrekt OLS.
-**Rotorsak:** `utils.py` återanvänder `X_temp` (params-skalad) för baseline → VIF körs på singulär matris.
-**Regel:** Elasticiteten finns i `df_coef` FÖRE VIF. Skydda VIF-steget (NaN på fel); verbatim-kod får
-kirurgisk PoC-fix, markerad + backup.
-
-### Config-encoding: VS Code, aldrig PS Set-Content -Encoding UTF8
-**Symptom:** config.yml kraschar PyYAML ("mapping values not allowed", line 2) efter PS-redigering.
-**Rotorsak:** PowerShell 5.1 `Set-Content -Encoding UTF8` skriver UTF-8 BOM (EF BB BF); PyYAML tål ej ledande BOM.
-**Regel:** Redigera YAML/config i VS Code (bevarar encoding). Om BOM ändå: strippa (läs bytes, ta bort EF BB BF).
-
-### FTE Väg 2 = via validerad vy, ej rådata-rekonstruktion (bekräftar L.39)
-**Symptom:** Stod i begrepp att replikera BCG:s Quinyx-rådata-pipeline (Quinyx_h.txt 200-raders cost-center-CASE).
-**Rotorsak:** MASTER_SQL.md visar `Manual.Fact_Quinyx_DayClinic` (validerad 0% diff) som redan gör
-mappningen + vets-filtret.
-**Regel:** FTE Väg 2 = aggregera den validerade vyn, inte replikera Alteryx-flödet. Läs MASTER-filerna
-(facit) före nytt dataflöde — de listar validerade vyer som ofta löser uppströmssteget.
-
-### venv-disciplin (återkommande)
-**Regel:** Verifiera ALLTID `sys.executable` FÖRE pipelinekörning. `cd` byter inte venv. Pipeline-venv:
-`C:\Projekt\BCG\Pipeline\02. Elasticity\.venv`. DW-script (data_access): `C:\Projekt\Business_Analytics\.venv`.
-Ge full aktiveringssökväg överst i varje körblock (Jens uttryckliga önskan).
+### Steg 5 — Deallokera (KRITISKT, CZ.2)
+```powershell
+az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+```
+```powershell
+az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[?starts_with(code, 'PowerState')].displayStatus" --output tsv
+```
+→ Ska visa `VM deallocated`.
 
 ---
 
-## STANDARDER SÄRSKILT RELEVANTA NU
+## Standarder särskilt relevanta nu
 
-- **Läs källan/facit, gissa inte ens kvalificerat** (A.9) — varje inklistrad originalfil/output löste steget
-  direkt; varje egen-hypotes kostade en runda. Default = begär källfil/output.
-- **Tee + Select-String/grep** strukturella rader (Shape/Unique/KEY/Saved/Error/Traceback) — aldrig rådata.
-- **Full venv-sökväg överst i varje körblock.** Verifiera sys.executable.
-- **Ett steg i taget, verifiera mellan steg.** FTE-kolumnen följdes genom varje pipelinesteg innan nästa.
-- **Kirurgisk str_replace + backup** för verbatim BCG-kod (ej hel fil).
+- **CZ.6** — tmux för run-to-completion; tmux överlever ej deallocate; vänta ~1 min efter start före ssh.
+- **CZ.2** — deallokera direkt efter (vanligaste dyra missen). VM ~8–10 kr/h igång.
+- **CZ.4** — scp bär Windows-rättigheter → `chmod -R u+w` på egen mapp efter uppladdning.
+- **CZ.8 / LB.16** — verifiera output mot FIL (`ls -la`, storlek>0, färsk tidsstämpel), ej loggrad.
+- **LB.1** — verifiera VM-innehåll (steg 1) före antagande; läs, gissa inte.
+- **LB.13** — verifiera `sys.executable` före varje körning; `cd` byter inte venv.
+- **LB.14** — tee + grep strukturella rader (Running/Finished/Shape/Saved/Error); aldrig rådata.
+- **E.3/CZ.3** — token dör efter 4 h; VM-körningen påverkas ej (lokala filer). Logga in igen vid behov.
 
-*Uppdaterad 2026-05-25 vid PoC-2-milstolpe (modellen facit-validerad på DW-data, FTE Väg 1 inne, fallback identifierad som nästa steg).*
+---
+
+## Efter detta pass (förberedelse, ej denna session)
+
+Med de tre `output_summary.xlsx` på plats blir **steg 6** (`Fall_Back_Logic.py`, F1–F7) nästa steg —
+DÅ läses `creating_one_df` + F1–F7-vävfunktionerna i detalj (LB.3: ej före input finns). Därefter
+färsk-data-fasen: output-rimlighetsgrind + G7-datumparametrisering + FTE Väg 2.
+
+---
+
+## Vid sessionsslut
+
+1. Committa ev. ändrade verktyg/dokumentation och pusha (output_summary.xlsx går INTE in — Excel,
+   utestängt av `.gitignore`; det är OK, det är genererat och regenererbart).
+2. `git status` — ska vara rent.
+3. Bekräfta `VM deallocated`.
+4. Uppdatera denna fil: ny SHA + nästa mål (steg 6-replikering).
+5. Nya lärdomar → `LESSONS_BCG.md`; nya insikter → `INSIGHTS_BCG.md`; befordra till MASTER_* om generella.
+6. Uppdatera playbookens riktningsblock (FR-4..6 → ✅) och README:s roadmap.
+
+---
+
+*Skapad 2026-05-26 vid dokumentstruktur-omtaget. Riktad mot VM-körningspasset (FR-4..6). VM-läge bekräftat
+med Jens: Cluster uppe, Site/Bundle verifieras + laddas upp som första steg.*
