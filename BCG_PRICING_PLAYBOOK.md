@@ -23,6 +23,68 @@ med BCG:s; endast steg 5 (`data_prep_after_model`, xlwings/Excel) återstår och
 
 ---
 
+# 🧭 RIKTNING & SYNKAD STATUS (2026-05-26 — auktoritativ topp)
+
+> **Läsregel:** Detta block är den **aktuella sanningen**. Allt nedanför (avsnitt 1–10 + roadmap-
+> uppdateringarna) är bevarat som **arkiv/historik** och får läsas för kontext — men där det krockar
+> med detta block **gäller detta block**. Inget har raderats; lagren är staplade i tidsordning.
+>
+> **Lärdomar och insikter har egna filer:** tekniska lärdomar i `LESSONS_BCG.md` (`LB.N`),
+> domäninsikter i `INSIGHTS_BCG.md` (`IB.N`). Denna playbook refererar dem vid ID istället för att
+> upprepa dem. Universella principer: `KÄRNPRINCIPER.md`. Stack-lärdomar: `MASTER_*.md`.
+
+## Affärsmålet (det enda som räknas till slut)
+Beslutsfattaren vill ha **samma modell körd på refreshad (färsk) data**, med diffar små nog att inte
+flippa ett top-line-prisbeslut (`IB.6`). Allt replikerings- och valideringsarbete hittills är
+**grundläggning** — det bevisar att vi äger logiken; det är inte slutleveransen.
+
+**Sekvens (bekräftad med Jens 2026-05-26):** först **full replikering så långt det är relevant** →
+**därefter** bygga ut mot färsk data. Output-rimlighetsgrinden hör till **färsk-data-fasen** (den
+ersätter facit först när facit försvinner) — inte till replikeringsfasen.
+
+## Vad "full replikering så långt det är relevant" konkret betyder
+En definition saknades tidigare — det var därför dokumenten spretade. Replikeringen räknas som **full**
+när allt nedan är sant:
+
+| # | Kriterium | Status |
+|---|---|---|
+| FR-1 | Input-stegen (regular_price + data_prepration) bit-för-bit mot facit | ✅ Klar |
+| FR-2 | feature_selection + model facit-validerade (3812 grupper, korr 1,0) | ✅ Klar |
+| FR-3 | Steg 5 (`blended_logic` / cluster-fallback) logik-validerad mot facit | ✅ Klar (43/43, 618/1276) |
+| FR-4 | **Cluster full körd på VÅR DW-data på VM** → vår egen `output_summary.xlsx` | 🔴 Återstår (VM) |
+| FR-5 | **Site (folder 3) körd på VM** → `output_summary.xlsx` (steg 6 F1) | 🔴 Återstår (VM) |
+| FR-6 | **Bundle (folder 5) körd på VM** → `output_summary.xlsx` (steg 6 F2/F4) | 🔴 Återstår (VM) |
+| FR-7 | Steg 6 (`Fall_Back_Logic.py`, F1–F7) vävd på de tre output_summary | 🔴 Blockerad av FR-4..6 |
+
+**Allt utom FR-4..7 är klart.** Den kvarvarande kritiska vägen för "full replikering" är alltså **ett
+VM-körningspass** (Cluster full + Site + Bundle) följt av steg 6-vävningen. Detaljläsning av steg 6:s
+`creating_one_df` (F1–F7) görs FÖRST när dess input finns (`LB.3` — bygg aldrig mot input som inte finns).
+
+## Synkad fas-status (ersätter spridda statusangivelser nedan)
+
+| Fas | Innehåll | Status |
+|---|---|---|
+| 0–3 | Orientering, struktur, miljö, Ray-config + feature_selection | ✅ Klar |
+| 4 | regular_price + data_prepration + model (input + modell) | ✅ Klar — facit-validerad |
+| 7 | Validera output mot facit (KPI/population/features) | ✅ Klar |
+| **5** | `data_prep_after_model` / `blended_logic` (cluster-fallback) | ✅ **Klar — facit-validerad bit-för-bit** |
+| — | **VM-körningspass: Cluster full + Site + Bundle** | 🔴 **NÄSTA — enda kvarvarande för full replikering** |
+| 6 | Fall Back Logic (F1–F7 multi-model-blend) | 🔴 Kartlagd; blockerad av VM-passet |
+| — | Output-rimlighetsgrind | 🔴 **Färsk-data-fasen** — byggs mot färdig baslinje, ej nu |
+| B | Färsk data: parametrisera datumfönster (G7) + FTE Väg 2 (DW) | 🔴 Senare |
+
+> **Korrigering mot äldre text nedan:** avsnitt om att "endast steg 5 återstår" (rubrikblocket,
+> 2026-05-21) och roadmap-uppdateringen 2026-05-22 som la rimlighetsgrinden *före* färsk-körning är
+> **överspelade**. Steg 5 är klart (FR-3); rimlighetsgrinden tillhör färsk-data-fasen (`IB.6`). De
+> äldre styckena behålls oförändrade nedan som spårhistorik.
+
+## Nästa konkreta steg
+Starta `bcg-poc-vm`, kör Cluster full + Site (folder 3) + Bundle (folder 5) i tmux, hämta hem tre
+`output_summary.xlsx`. Driftkort: `README.md` (Azure-VM-sektionen) + `UBUNTU_AZURE_VM.md`. Kostnads-
+disciplin: deallokera direkt efter (`CZ.2`). Detaljerad kall-start: `NEXT_SESSION.md`.
+
+---
+
 ## 1. Beslut (decision log)
 
 | # | Beslut | Motivering |

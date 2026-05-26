@@ -1,61 +1,78 @@
-# === BCG pricing repo â€” endast VARA artefakter ska versioneras ===
-# Pipelinen (BCG:s verbatim-kod + flera GB data) bor i V2_New/Azure, inte i Git.
+# ============================================================================
+# BCG pricing repo (evbcgpricing) -- .gitignore
+# Enkel regel: pusha allt UTOM Excel-output och uppenbart skrap.
+# Stadning av ovrigt skrap sker nar projektet ar klart (medvetet beslut).
+# Utvecklare: Jens Palmo. Senast reviderad: 2026-05-26.
+# ============================================================================
 
-# Replikerad pipeline (kod finns i V2_New, data ar GB-tung)
-Pipeline/
-Elasticity/
+# --- Excel (det du uttryckligen INTE vill ha i Git) --------------------------
+*.xlsx
+*.xls
+*.xlsm
 
-# Virtuella miljoer
+# --- Virtuella miljoer + Python-skrap ----------------------------------------
 .venv/
 venv/
 env/
 **/.venv/
 **/venv/
-
-# Data och tunga binarer
-*.parquet
-*.duckdb
-*.yxdb
-*.yxmd
-*.csv
-*.xlsx
-*.xls
-
-# Python-skrap
 __pycache__/
+**/__pycache__/
 *.py[cod]
 .ipynb_checkpoints/
 
-# Loggar och korutfall
-*.log
-run_log*.txt
-output/
-**/output/
+# --- Tunga binarer / radata (bor i V2_New/Azure, inte i Git) -----------------
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.yxdb
+*.zip
+*.7z
 
-# OS / editor
-.DS_Store
-Thumbs.db
-.vscode/
-
-# Hemligheter (ska aldrig in i Git)
+# --- Hemligheter (ska ALDRIG in i Git) ---------------------------------------
 *.env
 .env
 *secret*
 *.key
 *.pem
+*.pfx
 
-# === Undantag: dessa VILL vi ha med trots monstren ovan ===
-!Build-Structure.ps1
-!Copy-Sources.ps1
-!Scan-BCGFolder.ps1
-!*.md
+# --- OS / editor -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
 
-run_*.txt
+# --- Backupfiler -------------------------------------------------------------
+*.bak
+*.bak-*
 
-run_*.txt
+# ============================================================================
+# TUNGA DATAFILER -- GitHub vagrar >100 MB/fil. Dessa ar radata (bor i
+# V2_New/Azure) eller genererad output, inte recept. Halls utanfor Git.
+# Inventeringen (inventory_for_gitignore.py) listar dem sa de ar sparade i
+# strukturen aven utan att ligga i Git.
+# ============================================================================
 
-# Körutfall (steg 5/6 + kartläggning)
-blend*_log.txt
-bcg_map_*.txt
-blended_output*.csv
-bcg_replication_blend*.csv
+# All output-mapp (genererat) -- oavsett andelse
+output/
+**/output/
+**/Output/
+
+# Parquet-kataloger (radata-cache)
+parquet/
+**/parquet/
+
+# Namngivna tunga radata-CSV:er (>50 MB, bor i kallan)
+Sweden_masterdata.csv
+**/Sweden_masterdata.csv
+sweden_master_data.parquet
+**/loc.DIM_*.csv
+**/loc.Dim_Item*.csv
+**/Sweden_weekly_model_data*.csv
+**/0828_Sweden_weekly_model_data*.csv
+**/0902_Sweden_weekly_model_data*.csv
+**/all_x_for_models.csv
+**/data_for_model.csv
+**/data_original.csv
+**/model_results.csv
+**/ivc_sweden_price.csv
