@@ -76,3 +76,23 @@ sweden_master_data.parquet
 **/data_original.csv
 **/model_results.csv
 **/ivc_sweden_price.csv
+
+# ============================================================================
+# GENERERADE KORUTFALL -- loggar + blend-output (slank in 2026-05-26, nu utestangda)
+# ============================================================================
+# Rot-niva korutfall
+blended_output*.csv
+bcg_replication_blend*.csv
+blend*_log.txt
+run_dw_codelevel.txt
+gitignore_inventory.txt
+
+# Pipeline-loggar i code/-mappar (genererat, ej recept)
+**/code/*_log.txt
+**/code/*_log2.txt
+**/code/dp_fte.txt
+**/code/fs_fte.txt
+**/code/rp_fte.txt
+**/code/model_fte.txt
+# Data-prep SQL korutfall
+**/Sweden_Elasticity_Data_Prep_SQL/run_*.txt
