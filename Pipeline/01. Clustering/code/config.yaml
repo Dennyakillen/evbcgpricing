@@ -1,0 +1,55 @@
+geo_data_filename : "Clustering_Raw_Data_new.xlsx"
+pre_processed_filename : "Sweden_Clustering_Data_Treated_new.csv"
+optimal_clusters : 3
+
+experiment_iteration : "No" # Can take Yes or No. Choose Yes when exploring optimal number of cluster. Choose No when optimal number of cluster is known
+
+### Geo Cluster to consider while clustering.
+geo_cluster : ['Landsbygd A', 'Landsbygd B', 'Storstad Sthlm']
+hospital_sites_to_be_removed : [114, 8104, 8105, 8106, 8107]
+# Price index feature list
+index_features : ['Bitch_Spay_20kg_Index', 'Consultation_Index', 'Castrate Dog (20kg)_Index', 'Dog Vaccination DHPPI_Index', 
+                  'Cat Castrate_Index', 'Cat Spay_Index', 'Cat Vaccination_Index']
+
+### Revenue Columns
+revenue_cols : ['12M_ending_Jun_17', '12M_ending_Jun_18',
+                '12M_ending_Jun_19', '12M_ending_Jun_20', 
+                '12M_ending_Jun_21', '12M_ending_Jun_22', 
+                '12M_ending_Jun_23', '12M_ending_Jun_24',
+                 '12M_ending_Jun_25']
+
+# features for which median imputation need to happen
+features_median_imputation : ['Bitch_Spay_20kg_Index',  'Consultation_Index','Castrate Dog (20kg)_Index', 'Dog Vaccination DHPPI_Index',
+                              'Cat Castrate_Index', 'Cat Spay_Index', 'Cat Vaccination_Index','Median_VET_FTE_12M_ending_may25',
+                              'Median_Total_FTE_12M_ending_may25','Median_NPS_calculated', 'Revenue', 'Revenue_12M_ending_Jun_17',
+                              'Revenue_12M_ending_Jun_18','Revenue_12M_ending_Jun_19','Revenue_12M_ending_Jun_20','Revenue_12M_ending_Jun_21',
+                              'Revenue_12M_ending_Jun_22','Revenue_12M_ending_Jun_23','Revenue_12M_ending_Jun_24','Revenue_12M_ending_Jun_25',
+                              '24-23YoY_Revenue','25-24YoY_Revenue','CAGR', 'Bitch_Spay__20kg_', 'Castrate_Dog__20kg_', 'Cat_Castrate', 
+                              'Cat_Spay', 'Cat_Vaccination', 'Consultation', 'Dog_Vaccination_DHPPI', 'X_Ray___Sedation__HD_']
+
+competitor_features : ['total competitor', 'Bitch_Spay__20kg__Competitor', 'Castrate_Dog__20kg__Competitor', 
+                      'Cat_Castrate_Competitor', 'Cat_Spay_Competitor',  'Cat_Vaccination_Competitor',
+                       'Consultation_Competitor',  'Dog_Vaccination_DHPPI_Competitor','X_Ray___Sedation__HD__Competitor']
+
+# Features to cap outlier for
+outlier_capping_features : ['TotalPopulation', 'PopulationDensity', 'HouseHoldIncome', 'perc_2024 Total Population Age 15-29',
+                            'perc_2024 Total Population Age 30-44','perc_2024 Total Population Age 45-59',
+                            'perc_2024 Total Population Age 0-14','perc_2024 Total Population Age 60+', 'total competitor',
+                            'Bitch_Spay_20kg_Index', 'Consultation_Index','Castrate Dog (20kg)_Index', 'Dog Vaccination DHPPI_Index',
+                            'Cat Castrate_Index', 'Cat Spay_Index', 'Cat Vaccination_Index', 'X-Ray & Sedation (HD)',  
+                            'Median_VET_FTE_12M_ending_may25','Median_Total_FTE_12M_ending_may25','Median_NPS_calculated']
+
+# Clustering Columns
+clust_cols : ['TotalPopulation', 'PopulationDensity','HouseHoldIncome',
+              'perc_2024 Total Population Age 15-29','perc_2024 Total Population Age 30-44', 'perc_2024 Total Population Age 45-59',
+              'perc_2024 Total Population Age 60+',  'perc_2024 Total Population Age 0-14', 'total competitor', 'Bitch_Spay_20kg_Index',
+              'Consultation_Index', 'Castrate Dog (20kg)_Index', 'Dog Vaccination DHPPI_Index', 'Cat Castrate_Index', 
+              'Cat Spay_Index', 'Cat Vaccination_Index', 'Median_NPS_calculated', 'Median_VET_FTE_12M_ending_may25'] 
+
+# profiling Cols
+prof_cols : ['Clinic ID',  'Median_Total_FTE_12M_ending_may25','Revenue_12M_ending_Jun_23', 'Revenue_12M_ending_Jun_24',
+            'Revenue_12M_ending_Jun_25', 'Revenue','24-23YoY_Revenue', '25-24YoY_Revenue', 'CAGR',
+            'Bitch_Spay__20kg_', 'Castrate_Dog__20kg_', 'Cat_Castrate', 'Cat_Spay', 'Cat_Vaccination', 'Consultation', 
+            'Dog_Vaccination_DHPPI', 'X_Ray___Sedation__HD_', 'Bitch_Spay__20kg__Competitor', 'Castrate_Dog__20kg__Competitor', 
+            'Cat_Castrate_Competitor', 'Cat_Spay_Competitor', 'Cat_Vaccination_Competitor', 'Consultation_Competitor', 
+            'Dog_Vaccination_DHPPI_Competitor', 'X_Ray___Sedation__HD__Competitor']

@@ -1,0 +1,12 @@
+
+# Path to root dir (repo)
+module_path: "../.."
+
+# model_module_path: "D:\\IVC E Phase 1\\99. Team folders\\3. Mohammed Moheed Tai\\Documented Codes\\Bundle_Clinic\\2.Model_Development"
+
+model_data_creation:
+    input_data : "/data/0826_raw_data_basket_analysis_Clinic_Hospital.csv"
+    fte_data: "/data/0825_Sweden__Interpolated_Productivity_time_date_june25.xlsx"
+    uk_bundles : '/data/0826_bundle_data.csv'
+    output_data : "/data/Bundle_Clinic_Data.csv"
+    # model_output_data : "/data/UK_bundle_cluster_weekly_model_data.csv"

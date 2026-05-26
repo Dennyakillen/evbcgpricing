@@ -1,0 +1,133 @@
+# General Configuration
+itr_name  : "Ivce"
+# Module paths for each model type
+module_path: "../.."
+
+imputation:
+    technique: 'mean'
+# Regular price calculation settings
+regular_price:
+    raw_input_data : "/data/0828_Sweden_weekly_model_data_P_C.csv" 
+    raw_input_data1 : "/data/0828_Sweden_weekly_model_data_P_CH.csv" 
+    price_level : "Units"
+    output_data : "/output/regular price/ivc_sweden_price.csv"
+    in_scope_data : "/data/InScope Mapping.xlsx"
+
+    
+data_preparation:
+    raw_input_data : "/output/regular price/ivc_sweden_price.csv"
+    sheet_name : "data"
+    processed_data : "/output/data_original.csv"
+    output_data : "/output/data_for_model.csv"
+    transform_control: "code/control_files/transform_control_TT.csv"
+    date_to_month_year_path: "/data/date_to_month_year_mapping.csv"
+    competitor_data : "/output/regular price/0619_regular_price_TT_competitors.xlsx"
+    competitor_sheet_name: "data"
+    create_transform_control: False
+    transform_control_save_path : "code/control_files/transform_control_TT.csv"
+    
+# Model execution configuration  
+model:
+    raw_input_data : "/output/data_for_model.csv"
+    control_file_path : "code/control_files/control_file.xlsx"
+    model_summary_save_path : "/output/model/model_summary.xlsx"
+    output_path : "/output/model/model_results.csv"
+    output_summary_path : "/output/model/output_summary.xlsx"
+    original_values : "/output/data_original.csv"
+
+
+# Feature selection parameters
+
+feature_selection:
+    raw_input_data : "output/data_for_model.csv"
+    mappings_file_path : "/data/input/"
+    refrence_file_name : "reference.csv"
+    baseline_control_file : 'baseline_control.csv'
+    control_file_path : "code/control_files/control_file.xlsx"
+    # PoC-2: YOY_SEASONALITY removed (depends on service/L4 + prior-year; out of scope for smoke test)
+    cols_to_try : ['major_holiday_count','non_major_holiday_count', 'month_end_week', 'No of Sites',
+                   'negative_media_coverage_flag_mar24', 'negative_media_coverage_flag_jan25']
+    # PoC-2: Sum_FTE_Interpolated removed (Quinyx upstream, not built)
+    cols_needed : ['CONST', 'Regular_Price_fwbw_max_6', 'Seasonality_KEY_fwbw_6', 'Sum_FTE_Interpolated']
+    automl_summary : "output/model/automl/"
+    automl_details : "output/model/automl/details/"
+    selected_features_save_path : "output/model/automl/results/finalized_x_for_models.csv"
+    all_features_save_path : "output/model/automl/results/all_x_for_models.csv"
+    final_results : "output/model/automl/results/control_file.xlsx"
+
+# Column types (shared by both models)
+col_type: 
+    
+    service : 'str'  
+    ItemCode : 'str'  
+    Prefix_Code : 'str'
+    ItemDescription : 'str'  
+    Cluster : 'str'  
+    week_starting_monday : 'str'  
+    YearFlag : 'str'  
+    negative_media_coverage_flag_jan25 : 'int64'
+    negative_media_coverage_flag_mar24 : 'int64'
+    FORWARD_ROLLING : 'float64'
+    BACKWARD_ROLLING : 'float64'
+    No of Sites : 'float64'  
+    SoldQuantity : 'float64'  
+    NoofUnits : 'float64'  
+    TotalNet : 'float64'  
+    Emergency_Flag: 'int64'
+    negative_media_coverage_flag : 'int64'
+    QuantitySold(SalesTotal>0) : 'float64'  
+    Sum_FTE_Interpolated : 'float64'
+    low_sales_sites : 'int64'
+    KEY : 'str'  
+    key_service : 'str'
+    PRICE : 'float64'  
+    Regular_Price_fwbw_max_6 : 'float64'  
+    ADJUSTED_REGULAR_PRICE : 'float64'  
+    YEAR : 'float64'  
+    MONTH : 'float64'  
+    WEEK : 'float64'  
+    HOLIDAY : 'float64'  
+    major_holiday_count : 'int64'
+    non_major_holiday_count : 'int64'
+    OCCASION : 'str'  
+    rest_holiday : 'float64'  
+    month_end_week : 'float64'  
+    unit_temp : 'float64'  
+    Seasonality_KEY_fwbw_3 : 'float64'  
+    Seasonality_KEY_fwbw_6 : 'float64'  
+    Seasonality_KEY_fwbw_12 : 'float64'  
+    Seasonality_KEY_fwbw_18 : 'float64'  
+    Seasonality_KEY_fwbw_24 : 'float64'  
+    DISCOUNT : 'float64'  
+    CountDistinctNonNull_ItemCode : 'int64'
+    Quarter_End : 'float64'  
+    YOY_SEASONALITY : 'float64'  
+    Productive_time_per_site: 'float64'
+    week_rank: 'float64'
+    first_week: 'float64'
+    third_week: 'float64'
+    TotalNetXVat : 'float64'
+
+
+
+# Train-Test split and dependent variables
+train_perc : 0.90
+date_var : "week_starting_monday" # Column which has date variable in the data
+dep_var : "QuantitySold(SalesTotal>0)" # Declare your dependent variable for the analysis
+unique_key_var   : 'KEY' # Column name of the variable which identifies different model groups
+save_model : "/output/model/model objects/"
+model_group : 'KEY' # Column name of the variable which identifies different model groups
+rev_var : 'TotalNet'
+
+### File Preperation after model building
+output_summary_preparation:
+    model_result : "/output/model/model_summary.xlsx"
+    original_model_data : "/output/data_original.csv"
+    product_description_path : "/data/item_description.xlsx"
+    
+
+### Ray Configuration
+ray:
+    cpus: 12
+    memory : 8
+    batch : 128
