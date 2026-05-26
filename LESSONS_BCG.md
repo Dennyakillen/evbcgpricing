@@ -49,6 +49,10 @@ markerar kandidater.
 | LB.14 | Tee + strukturell filtrering, aldrig rådata | Disciplin | Kandidat → KÄRNPRINCIPER |
 | LB.15 | Ett kartläggningsscript > tio fil-frågor | Disciplin | Kandidat → KÄRNPRINCIPER |
 | LB.16 | Verifiera utfall mot FIL, inte mot loggrad | Disciplin | ✅ Redan i MASTER_AZURE_COMPUTE (CZ.8) — pekare |
+| LB.17 | Rensa output: radera filer, behåll mappstruktur | Encoding/plattform | Kandidat → MASTER_AZURE_COMPUTE |
+| LB.18 | control_file.xlsx är INPUT, inte bara output | Pipeline-mekanik | Nej |
+| LB.19 | Ny modellfamilj bär ALLA ofixade Windows/maskin-värden | Replikeringsmetod | Kandidat → MASTER_AZURE_COMPUTE |
+| LB.20 | Steg 5 (xlwings) icke-körbart på Linux men onödigt | Pipeline-mekanik | Nej |
 
 ---
 
@@ -82,7 +86,8 @@ mönster som FTE-pipelinen (byggd på hypotes innan facit lästs).
 blockerat.
 **Regel:** Ett steg vars input inte finns är inte "nästa steg" — det är blockerat. Identifiera
 blockeraren (här: tre oskörda modeller → tre saknade `output_summary.xlsx`) och kör DEN först.
-Detaljläsning av det blockerade steget väntar tills input finns.
+Detaljläsning av det blockerade steget väntar tills input finns. *(2026-05-26: blockeraren upplöst —
+alla tre `output_summary.xlsx` finns nu. Steg 6 kan läsas i detalj.)*
 
 ### LB.4 — Läs KONSUMENTEN för kontraktet, inte hela producenten
 **Symptom:** Frestelse att läsa Site/Bundle-pipelinekoden rad för rad för att veta vad den måste leverera.
@@ -90,7 +95,9 @@ Detaljläsning av det blockerade steget väntar tills input finns.
 producenten i sin helhet var överarbete.
 **Regel:** För att veta vad ett uppströmssteg måste LEVERERA, läs nedströmssteget (konsumenten) som
 definierar kontraktet. `Fall_Back_Logic.py`:s `__main__` avslöjade att Site/Bundle bara behöver producera
-`output_summary.xlsx` i Cluster-format — utan att läsa deras pipeline alls.
+`output_summary.xlsx` i Cluster-format — utan att läsa deras pipeline alls. *(2026-05-26 bekräftat:
+Site/Bundle var strukturellt identiska med Cluster — samma åtta `.py`-filer, samma launcher-kedja.
+Endast plattforms-/resursvärden skilde, se LB.19.)*
 
 ---
 
@@ -102,14 +109,17 @@ definierar kontraktet. `Fall_Back_Logic.py`:s `__main__` avslöjade att Site/Bun
 Rå signifikans är 18 % även hos BCG. Fallback (omklustring till representant) är hur de når 48 %.
 **Regel:** Bedöm egna elasticiteter mot BCG:s output PÅ SAMMA KOD, inte mot en absolut "borde vara
 signifikant"-förväntan. Icke-signifikans på fin nivå är normaltillstånd; fallback hanterar det.
-*(Se IB.1 för domäninsikten bakom.)*
+*(Se IB.1 för domäninsikten bakom. 2026-05-26 bekräftat på full körning: Cluster 18,0 % rått signifikant
+— praktiskt taget identiskt med BCG:s 17,8 %.)*
 
 ### LB.6 — feature_selection FÖRE model (pipeline-ordning)
 **Symptom:** Svaga elasticiteter med ett fast 2-feature-set.
 **Rotorsak:** Körde `model.py` direkt utan `feature_selection`. BCG:s control-fil visar per-grupp-features
 (olika per grupp), inte ett globalt set.
 **Regel:** Replikera ordningen: `feature_selection` (skriver control-filen med per-grupp-features) →
-`model` läser den. Körordning per launcher: regular_price → data_prepration → feature_selection → model.
+`model` läser den. Körordning per launcher: regular_price → data_prepration → feature_selection → model
+→ data_prep_after_model_output. *(2026-05-26: `launcher.py` orkestrerar exakt denna kedja via
+`subprocess.run(check=True)`, stannar på första fel.)*
 
 ### LB.7 — Control-filens feature-kolumner är aktiveringsflaggor (VALUE==1)
 **Symptom:** `model_summary` VARIABLE = bara CONST; intercept-only-modell; VIF-krasch.
@@ -125,13 +135,18 @@ NaN ≠ 1 → tom ind_var-lista.
 matris på vår data.
 **Regel:** Elasticiteten beräknas i `df_coef` FÖRE VIF. Skydda VIF-steget (try/except, NaN på fel) så
 körningen lever. Verbatim BCG-kod får kirurgisk PoC-fix — markerad + backup
-(`utils_BCG_verbatim.py.bak`). Loggas i playbookens §9 mot konsult.
+(`utils_BCG_verbatim.py.bak`). Loggas i playbookens §9 mot konsult. *(2026-05-26: samma backup-disciplin
+tillämpad på Site/Bundle plattformsfixar — `.bak` före varje sed-ändring av verbatim-kod.)*
 
 ### LB.9 — Smoke-KEY väljs på pris-CV, inte veckoantal
 **Symptom:** Veckoantal-urval gav prisstabila serier (CV 0,0004) → absurd +15,0 elasticitet.
 **Rotorsak:** Elasticitet kräver prisVARIATION, inte historik-längd. En kod såld 156 veckor till samma
 pris är värdelös för elasticitet.
 **Regel:** Rökstest-urval = högst pris-CV bland full-historik-grupper. Veckoantal är fel optimeringsmål.
+*(2026-05-26 sett i full körning: rå-elasticitetskolumnen har extrema svansvärden (Cluster min −820 /
+max +64, Site min −232 / max +1204) just från prisstabila grupper — kapas/hanteras nedströms av
+`get_adjusted_elasticity` [-5,0] + fallback. Bundle, med naturlig prisvariation i varukorgar, saknar
+dessa extremer (min −1,33 / max +1,21) — renaste outputen.)*
 
 ---
 
@@ -155,8 +170,9 @@ PS-sidan: `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` före körn
 ### LB.12 — Hårdkodade Windows-sökvägar dödar Linux-körning
 **Status:** ✅ Befordrad — bor i `MASTER_AZURE_COMPUTE.md` som **CZ.5**. Behållen här som pekare.
 **Kort:** `C:\ray_spill` (feature_selection.py rad 43) → `/tmp/ray_spill` på Linux (D13). Sök
-`Select-String "C:\\"` före Linux-körning; skapa output-mappar med `mkdir -p` i förväg (inkl. de med
-mellanslag). Plattformsanpassning, ej logikändring.
+`Select-String "C:\\"` / `grep 'C:'` före Linux-körning; skapa output-mappar med `mkdir -p` i förväg
+(inkl. de med mellanslag). Plattformsanpassning, ej logikändring. *(2026-05-26: LB.19 skärper detta —
+sökvägar kan vara `.\code\...` relativa Windows-sökvägar som EJ fångas av en `C:`-grep.)*
 
 ---
 
@@ -164,18 +180,22 @@ mellanslag). Plattformsanpassning, ej logikändring.
 
 ### LB.13 — venv-disciplin: verifiera `sys.executable` före körning
 **Symptom:** Pipelinekörning mot fel paketuppsättning.
-**Rotorsak:** `cd` byter inte venv. Pipeline-venv och DW-script-venv är skilda.
+**Rotorsak:** `cd` byter inte venv. Pipeline-venv och DW-script-venv är skilda. Vidare: en NY tmux-session
+startar ett nytt skal → venv-aktiveringen följer INTE med, måste göras om inne i tmux.
 **Regel:** Verifiera ALLTID `sys.executable` FÖRE pipelinekörning. Pipeline-venv:
-`C:\Projekt\BCG\Pipeline\02. Elasticity\.venv`. DW-script (data_access):
-`C:\Projekt\Business_Analytics\.venv`. Ge full aktiveringssökväg överst i varje körblock (Jens
-uttryckliga önskan). *(Kandidat → MASTER_PYTHON.)*
+`~/bcg/cluster/.venv` (3.11.9) — återanvänds för Site/Bundle (samma requirements, bevisat). Systemets
+`python3` är 3.10 och saknar paketen → aktivera alltid venv (`source ~/bcg/cluster/.venv/bin/activate`),
+verifiera `(cluster)` i prompten. Ge full aktiveringssökväg överst i varje körblock (Jens uttryckliga
+önskan). *(Kandidat → MASTER_PYTHON.)*
 
 ### LB.14 — Tee + strukturell filtrering, aldrig rådata
 **Symptom:** Risk att paste:a rådatarader tillbaka och bränna kontext.
 **Rotorsak:** Pipeline-validering genererar mycket output; bara strukturella rader bär signal.
 **Regel:** Tee:a all körning till logg och filtrera strukturella rader: PowerShell `Select-String`,
 bash `grep` på `Running` / `Finished` / `Shape` / `Unique` / `KEY` / `(N,N)` / `Saved` / `Error` /
-`Traceback`. Paste aldrig rådata. *(Kandidat → KÄRNPRINCIPER — gäller all pipeline-validering.)*
+`Traceback`. Paste aldrig rådata. *(2026-05-26: för feature_selection är `ls automl/*.xlsx | wc -l`
+[antal körda grupper] det pålitligaste progress-måttet — loggen buffras och kan se "stilla" ut medan
+Ray mal. Process (`pgrep`) + automl-räknare > loggrad.) (Kandidat → KÄRNPRINCIPER.)*
 
 ### LB.15 — Ett kartläggningsscript > tio fil-frågor
 **Symptom:** Bad om "en fil till" upprepade gånger ur den stora BCG-foldern; varje runda kostade.
@@ -188,7 +208,64 @@ dumpar all kod i sin helhet + spreadsheet-STRUKTUR (ej rådata), med skip-logik 
 **Status:** ✅ Befordrad — bor i `MASTER_AZURE_COMPUTE.md` som **CZ.8**. Behållen här som pekare.
 **Kort:** "Pipeline completed" / ren retur ≠ output skrevs. Efter varje körning: `ls -la` på output-mapp
 (storlek > 0, färsk tidsstämpel). Vid validering, jämför värden i fil (pandas normaliserar radslut); CRLF
-vs LF gör `diff` falsk-positiv — bekräfta med `xxd` att skillnaden bara är `0d0a` vs `0a`.
+vs LF gör `diff` falsk-positiv — bekräfta med `xxd` att skillnaden bara är `0d0a` vs `0a`. *(2026-05-26:
+körde `verify_output.py` mot varje `output_summary.xlsx` — rader, kolumner, elasticitet min/median/max,
+neg-andel, p<0.05 — innan filen togs som giltig. `ls -la` storlek + tidsstämpel före verifiering.)*
+
+---
+
+## VM-körning av nya modellfamiljer (Site/Bundle) — 2026-05-26
+
+### LB.17 — Rensa output: radera filer, BEHÅLL mappstrukturen
+**Symptom:** feature_selection föll på `OSError: Cannot save file into a non-existent directory:
+.../output/model/automl`.
+**Rotorsak:** Vi flyttade undan hela `output/model/` för "ren proveniens". Men BCG-koden `mkdir`:ar
+inte själv (CZ.5) — den förutsätter att output-undermapparna redan finns. Att radera output-mappen tog
+med sig mappträdet koden skriver till.
+**Regel:** Vid ren omkörning, radera/flytta *filer* men återskapa den tomma mappstrukturen
+(`mkdir -p`) före körning: `output/model/automl/details`, `output/model/automl/results`,
+`output/model/'model objects'`, `output/'regular price'`. Verifiera mot en tidigare lyckad körnings
+struktur (`find <gammal_output> -type d`). *(Befordringskandidat → MASTER_AZURE_COMPUTE, skärper CZ.5.)*
+
+### LB.18 — control_file.xlsx är INPUT till feature_selection, inte bara output
+**Symptom:** `AttributeError: 'NoneType' object has no attribute 'melt'` i feature_selection.
+**Rotorsak:** Vi flyttade bort `control_file.xlsx` i tron att feature_selection regenererar den.
+`load_or_create_feature_control_file` skapar då bara en tom mall, skriver "please update file" och
+returnerar `None` — nästa anrop (`check_nulls`) kraschar på `None.melt()`.
+**Regel:** Behåll (eller seeda) en ifylld `control_file.xlsx` FÖRE launcher-körning. Den är *input*
+till feature_selection, inte enbart dess output — den regenereras inte från scratch i ett svep.
+Verifiera seed innan körning:
+`python -c "import pandas as pd; df=pd.read_excel(path); print(len(df), (df['RUN']=='YES').sum())"`
+(förväntat: full population, alla `RUN=YES`).
+
+### LB.19 — En modellfamilj som aldrig körts på Linux bär ALLA ursprungliga Windows/stor-maskin-värden
+**Symptom:** Cluster (tidigare Linux-fixad) körde rent. Site och Bundle, som aldrig körts på VM:en,
+föll i tur och ordning på fyra olika rester: hårdkodad `C:\ray_spill` i feature_selection.py;
+`constants.py` rad 2 med `open(r".\code\src\config.yml")` (relativ Windows-sökväg); `ray: memory: 80`
+(→ 85,9 GB object store > /dev/shm 67,5 GB → `ValueError`); `ray: cpus: 50` (VM:en har 16 vCPU).
+**Rotorsak:** Cluster var "ren" bara för att den fixats under en TIDIGARE körning. CZ.5-fixar gäller
+PER modellfamilj, inte per VM — varje familjs `code/` är BCG:s orörda Windows/stor-kluster-original.
+**Regel:** Innan en ny modellfamilj körs på VM:en, scanna OCH fixa i förväg (EN runda, inte krasch för
+krasch):
+- `grep 'directory_path' feature_selection.py` → ray_spill (`C:\` → `/tmp/ray_spill`)
+- `grep 'config.yml' constants.py` → `.\code`-sökväg (fångas EJ av en `C:`-grep!) → `Path(__file__)`-metod
+- `grep -A3 'ray:' src/config.yml` → memory/cpus mot VM:ens kapacitet (→ `memory: 32`, `cpus: 14`)
+- control-fil finns och är ifylld (LB.18)
+- output-mappstruktur (LB.17)
+Fixa med backup (LB.8), byt till Cluster:s bevisade värden. Importtest av `constants.py` före körning
+(`python -c "import constants; print(constants.START_DATE)"`) fångar config-sökvägsfel tidigt.
+*(Befordringskandidat → MASTER_AZURE_COMPUTE.)*
+
+### LB.20 — Launcherns steg 5 (data_prep_after_model_output.py) är icke-körbart på Linux men behövs inte
+**Symptom:** Alla tre familjer dog i sista steget på `ModuleNotFoundError: No module named 'xlwings'`.
+**Rotorsak:** Steg 5 importerar `xlwings` (Excel-COM, Windows-only) för rapportgenerering — fungerar
+inte på Linux (ingen Excel att styra). `pip install xlwings` hjälper inte; importen kan lyckas men
+funktionen faller när den försöker öppna Excel. (Cluster antogs tidigare ha gått hela vägen — men föll
+sannolikt också här, oupptäckt, eftersom `output_summary.xlsx` redan fanns.)
+**Regel:** Behandla xlwings-kraschen som FÖRVÄNTAD och OFARLIG. `output_summary.xlsx` (steg 6:s input)
+produceras av model-steget FÖRE steg 5, och steg 5:s `blended_logic` är redan facit-validerad
+fristående (`fallback_blend.py`, LB.2). Läs `output_summary.xlsx` direkt från `output/model/`; ignorera
+steg 5-felet i launcher-loggen. *(Domänkoppling: IB.2.)*
 
 ---
 
@@ -201,4 +278,5 @@ Vid befordran — flytta innehållet, ersätt raden här med en pekare (som LB.1
 ---
 
 *Skapad 2026-05-26 vid dokumentstruktur-omtaget. Extraherad ur NEXT_SESSION.md (PoC-2), SESSION_2026-05-25,
-BCG_PRICING_PLAYBOOK §3/§10. Inga nya lärdomar uppfunna — befintliga strukturerade och numrerade.*
+BCG_PRICING_PLAYBOOK §3/§10. LB.17–20 tillagda 2026-05-26 efter VM-körningspasset (Cluster full + Site +
+Bundle → tre output_summary.xlsx).*
