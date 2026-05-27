@@ -61,6 +61,14 @@ modellering. Det är så glesa grupper görs användbara. *(Bevisat bit-för-bit
 2026-05-26: steg 5 i launchern [`data_prep_after_model_output.py`] är icke-körbart på Linux pga xlwings
 [LB.20] — men logiken är redan validerad fristående via `fallback_blend.py`, så det blockerar inte.)*
 
+### IB.2 — KORRIGERING (2026-05-27): signifikansflaggan har ett TREDJE villkor
+Tidigare formulering ("RSQ >= 0.5 AND PVALUE <= 0.20") var halvsann. Källan (`df_cleanup`) har:
+`significant = (round(RSQ,2)>=0.5) & (round(PVALUE_PRICE,2)<=0.20) & (ELASTICITY_PRICE<0) &
+(ELASTICITY_PRICE>-10)`. Elasticiteten måste alltså vara negativ och inte mer extrem än -10.
+Konsekvens: flaggan filtrerar även på tecken och magnitud, inte bara RSQ/PVALUE. Påverkar inte den
+bit-identiska replikeringen, men relevant för färsk data: nya extremvärden utanför (-10, 0) faller
+automatiskt ur signifikans.
+
 ### IB.3 — Enda genuina externa input är FTE (Quinyx)
 Det som såg ut som "externa källor" är mestadels internt: PR/media-datum = `SPECIAL_WEEKS`-konstanter;
 helger = Python `holidays.Sweden()`; säsong/kvartal = härlett i pipelinen; extern prisdata + competitor +

@@ -96,3 +96,6 @@ gitignore_inventory.txt
 **/code/model_fte.txt
 # Data-prep SQL korutfall
 **/Sweden_Elasticity_Data_Prep_SQL/run_*.txt
+
+# Session 8: step 6 working folder (copied BCG input + generated Excel output)
+_step6_run/

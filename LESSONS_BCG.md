@@ -267,6 +267,65 @@ produceras av model-steget FÖRE steg 5, och steg 5:s `blended_logic` är redan 
 fristående (`fallback_blend.py`, LB.2). Läs `output_summary.xlsx` direkt från `output/model/`; ignorera
 steg 5-felet i launcher-loggen. *(Domänkoppling: IB.2.)*
 
+## → LESSONS_BCG.md
+### LB.21 — .ps1-script vägras av execution policy (samma familj som AppLocker)
+**Symptom:** `.\script.ps1` vägras med "is not digitally signed / UnauthorizedAccess".
+**Rotorsak:** IT-miljöns execution policy blockerar osignerade script — samma restriktionsfamilj
+som AppLocker (.exe / pip.exe).
+**Regel:** Leverera flerstegsoperationer som inklistringsbara kommandoblock, eller som `.py` (körs
+AppLocker-rent via `python script.py`). Aldrig `.ps1` att anropa. Behåll ev. `.ps1` enbart som
+dokumentation/karta. Ändra aldrig execution policy bara för att köra ett kopieringssteg.
+
+### LB.22 — Kartesisk self-join i validering: merge på fullt rad-grain, aldrig delnyckel
+**Symptom:** Valideringskorr 0,95 / nivåmatch 90,7 % trots att population + F1-F7-fördelning var
+bit-identiska (sum |diff| = 0). Worst-10 visade symmetriska speglade par (A->B = B->A). "Rows
+compared" 3,9 M mot källa på 108 979 rader.
+**Rotorsak:** merge på `ProductKey` ensam, men dv8-raden är unik först på
+`ProductKey + SiteCode + Clusters`. Self-join exploderade till kartesiska par som korsparade en
+nyckels egna värden -> falsk diff.
+**Regel:** Merge alltid på det fulla rad-grainet som gör en rad unik. Läs nyckeln ur konsumentkoden
+(dv1/dv2 i creating_one_df), gissa den inte. Diagnossignatur: symmetriska speglade disagreements +
+radantal som vida överstiger källans = kartesisk self-join, inte logikfel. (Efter fix: korr
+1,000000, |diff| = 0, nivåmatch 100 %.)
+
+### LB.23 — xlwings görs valfri för logikvalidering (Windows-lokalt)
+**Symptom:** `import xlwings as xw` (top-level) kraschar vid filstart om paketet saknas, trots att
+xlwings bara används i sista kosmetiska dashboard-skrivningen (efter att dv8 sparats).
+**Rotorsak:** Top-level-import körs oavsett om funktionen anropas.
+**Regel:** Patcha arbetskopian (aldrig originalet): `try/except ImportError` -> `xw = None`, wrappa
+anropet i `if xw is not None`. Installera inte tunga COM-beroenden för en kosmetisk artefakt.
+Leverera patch som idempotent `.py` (CRLF-exakt matchning), inte `.ps1`.
+
+---
+
+## → INSIGHTS_BCG.md
+
+### IB.2 — KORRIGERING: signifikansflaggan har ETT TREDJE villkor
+Befintlig IB.2 (och NEXT_SESSION) anger flaggan `Significant ?` / `significant_<level>` som
+`RSQ ≥ 0.5 AND PVALUE ≤ 0.20`. **Källan (`df_cleanup`, rad 377) har ett tredje villkor:**
+```
+significant_<level> = (round(RSQ,2) >= 0.5)
+                    & (round(PVALUE_PRICE,2) <= 0.20)
+                    & (ELASTICITY_PRICE < 0)
+                    & (ELASTICITY_PRICE > -10)
+```
+Alltså: elasticiteten måste vara **negativ och inte mer extrem än −10** för att räknas som signifikant.
+Ekonomiskt rimligt (en "signifikant" positiv elasticitet är brus, inte en priseffekt; <−10 är instabil
+svans). **Konsekvens:** Halvsann dokumentation rättad — flaggan filtrerar även på elasticitetens tecken
+och magnitud, inte bara RSQ/PVALUE. Detta påverkar inte den validerade outputen (replikering bit-identisk),
+men är relevant för färsk-data-fasen: nya extremvärden utanför (−10, 0) faller automatiskt ur signifikans.
+
+---
+
+## Faktanot för dokumentation (inte lärdom, men korrigerar återkommande missförstånd)
+
+**"Alteryx" i steg 6 är en print-etikett, inte ett beroende.** `read_excel_data` skriver
+*"Shape of Product dataframe output from Alteryx"* — men koden läser en **statisk** `Complete_Product_Data.xlsx`
+(en gång producerad av Alteryx, sedan arkiverad i `input_data\`). Vi kör ingen Alteryx och behöver ingen.
+I färsk-data-fasen ersätts den filen av DW/SQL-prepen (modellkontraktet, TECHNICAL_PREREQUISITES §8) utan
+att `read_excel_data` ändras — etiketten är kosmetisk och kan döpas om då.
+
+
 ---
 
 ## Hur listan växer
