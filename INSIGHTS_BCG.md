@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `INSIGHTS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-05-26
+**Senast uppdaterad:** 2026-05-27
 
 ---
 
@@ -27,7 +27,7 @@ En insikt här svarar på *"vad är sant om modellen/datan, och vad betyder det 
 | ID | Insikt | Bärande konsekvens |
 |---|---|---|
 | IB.1 | Icke-signifikans på fin nivå är BCG:s normaltillstånd (18 % rått sig.) | Tolka inte svaga tal som fel |
-| IB.2 | Fallback är representant-väljare, inte omklustring | Steg 5 ommodellerar inte; det väljer |
+| IB.2 | Fallback är representant-väljare, inte omklustring | Steg 5/6 ommodellerar inte; det väljer |
 | IB.3 | Enda genuina externa input är FTE (Quinyx) | Resten härleds eller är död config |
 | IB.4 | Källan var alltid Evidensias egen data | BCG:s gruppering är grövre än DW |
 | IB.5 | `SalesTotal` = brutto inkl 25 % moms (≠ `SalesExVAT`) | Modellomsättning = brutto |
@@ -46,28 +46,41 @@ BCG:s egen frusna baslinje (`Model_output` i Sweden_Product_Cluster_Elasticity_D
 (−0,09…−0,19, icke-signifikanta) **matchar BCG:s** (−0,12 / −0,15, p=0,055 / 0,18). Det vi länge tolkade
 som svaga elasticiteter var trogen replikering — BCG får samma svaga tal på samma koder.
 **Konsekvens:** Bedöm aldrig egna elasticiteter mot en absolut "borde vara signifikant"-norm. Mät mot
-BCG:s output på samma kod. *(Teknisk motsvarighet: LB.5. 2026-05-26 bekräftat på full Cluster-körning:
-18,0 % rått signifikant — praktiskt taget identiskt med BCG:s 17,8 %.)*
+BCG:s output på samma kod. *(Teknisk motsvarighet: LB.5. Bekräftat på full Cluster-körning: 18,0 % rått
+signifikant — praktiskt taget identiskt med BCG:s 17,8 %.)*
 
 ### IB.2 — Fallback är representant-väljare, inte omklustring
-Steg 5 (`blended_logic`) gör **ingen ny regression** på grövre nivå. Per `(Service, big_cluster)`:
-sortera `[Significant? DESC, TotalNet DESC]`, behåll första raden som representant, merge tillbaka på alla
-fina rader. En svag fin grupp **ärver** den starkaste revenue-grannens representant. Flaggan
-`Significant ?` = `RSQ ≥ 0.5 AND PVALUE ≤ 0.2` (inte p<0,05, inte "sig ELLER räddad"). Rescue (227 → 618)
-sker i blenden FÖRE flaggan räknas. Fyra fallback-nivåer: `New_cluster ∈ {Clinics, Clinics_CH,
-Hospital_CH, Hospital}`; grövsta `big_cluster ∈ {Clinics, Hospital}`.
-**Konsekvens:** 618 / 1276 (48,4 %) blir `Significant ?=1` genom representant-arv, inte genom bättre
-modellering. Det är så glesa grupper görs användbara. *(Bevisat bit-för-bit: 43/43 representanter.
-2026-05-26: steg 5 i launchern [`data_prep_after_model_output.py`] är icke-körbart på Linux pga xlwings
-[LB.20] — men logiken är redan validerad fristående via `fallback_blend.py`, så det blockerar inte.)*
+Fallback gör **ingen ny regression** på grövre nivå — den **väljer** bland redan beräknade elasticiteter.
 
-### IB.2 — KORRIGERING (2026-05-27): signifikansflaggan har ett TREDJE villkor
-Tidigare formulering ("RSQ >= 0.5 AND PVALUE <= 0.20") var halvsann. Källan (`df_cleanup`) har:
-`significant = (round(RSQ,2)>=0.5) & (round(PVALUE_PRICE,2)<=0.20) & (ELASTICITY_PRICE<0) &
-(ELASTICITY_PRICE>-10)`. Elasticiteten måste alltså vara negativ och inte mer extrem än -10.
-Konsekvens: flaggan filtrerar även på tecken och magnitud, inte bara RSQ/PVALUE. Påverkar inte den
-bit-identiska replikeringen, men relevant för färsk data: nya extremvärden utanför (-10, 0) faller
-automatiskt ur signifikans.
+**Steg 5 (cluster-blend, `blended_logic`):** Per `(Service, big_cluster)`: sortera
+`[Significant? DESC, TotalNet DESC]`, behåll första raden som representant, merge tillbaka på alla fina
+rader. En svag fin grupp **ärver** den starkaste revenue-grannens representant. Fyra fallback-nivåer:
+`New_cluster ∈ {Clinics, Clinics_CH, Hospital_CH, Hospital}`; grövsta `big_cluster ∈ {Clinics, Hospital}`.
+Rescue (227 → 618) sker i blenden FÖRE flaggan räknas. Resultat: 618 / 1276 (48,4 %) blir signifikanta
+genom representant-arv, inte genom bättre modellering — så glesa grupper görs användbara. *(Bevisat
+bit-för-bit: 43/43 representanter.)*
+
+**Steg 6 (F1–F7-väv, `Fall_Back_Logic.py`):** Samma princip på sju nivåer. Per `ProductKey` väljs
+`final_elasticity` via `combine_first`-prioritet (första tillgängliga vinner): F1 site → F2 bundle →
+F3 cluster → F4 bundle-across → F5 product-across → F6 service-within → F7 service-across. *(Bevisat
+bit-för-bit 2026-05-27 mot BCG-facit: korr 1,000000, |diff|=0, F1–F7-fördelning identisk, 100 %
+nivåmatch. FR-7 stängd.)*
+
+**Signifikansflaggan (`significant_<level>`, def i `df_cleanup`):**
+```
+significant = (round(RSQ,2) >= 0.5)
+            & (round(PVALUE_PRICE,2) <= 0.20)
+            & (ELASTICITY_PRICE < 0)
+            & (ELASTICITY_PRICE > -10)
+```
+Alltså fyra villkor, inte två. Utöver RSQ ≥ 0,5 och p ≤ 0,20 måste elasticiteten vara **negativ och inte
+mer extrem än −10** (en "signifikant" positiv eller <−10-elasticitet är brus, inte en priseffekt).
+Det är **inte** p<0,05 och inte "sig ELLER räddad". *(Korrigerat 2026-05-27: tidigare dokumenterades
+flaggan som enbart RSQ/PVALUE — det var halvsant. Relevant för färsk data: nya extremvärden utanför
+(−10, 0) faller automatiskt ur signifikans.)*
+
+**Konsekvens:** Fallback (steg 5 och 6) ommodellerar aldrig — den väljer representant/nivå. Det är
+mekanismen som gör glesa grupper användbara.
 
 ### IB.3 — Enda genuina externa input är FTE (Quinyx)
 Det som såg ut som "externa källor" är mestadels internt: PR/media-datum = `SPECIAL_WEEKS`-konstanter;
@@ -76,8 +89,8 @@ helger = Python `holidays.Sweden()`; säsong/kvartal = härlett i pipelinen; ext
 uppströms-inputen är `Sum_FTE_Interpolated` (bemanning, från Quinyx), en kontrollvariabel i `cols_needed`.
 **Konsekvens:** Färsk-data-arbetet behöver bara lösa FTE uppströms — inte rekonstruera ett knippe externa
 flöden. FTE Väg 2 = aggregera validerad DW-vy (`Manual.Fact_Quinyx_DayClinic`), inte replikera BCG:s
-Quinyx-rådata-pipeline. *(2026-05-26 bekräftat: launchern föll aldrig på saknad InScope/competitor-data
-trots att config refererar dem — död config, som väntat.)*
+Quinyx-rådata-pipeline. *(Bekräftat: launchern föll aldrig på saknad InScope/competitor-data trots att
+config refererar dem — död config, som väntat.)*
 
 ### IB.4 — Källan var alltid Evidensias egen data
 BCG:s `transaction_data` kom från `dbo.Fact_BillingInvoiceRows` JOIN `dbo.Dim_Item` — data **vi** matade
@@ -96,14 +109,14 @@ data avgjorde, inte kolumnnamn. *(Princip: "mät, gissa inte", KÄRNPRINCIPER.)*
 
 ### IB.6 — Affärsvärdet sitter i FÄRSK data, inte exakt replikering
 Beslutsfattaren vill ha **samma modell körd på refreshad data**. Alla valideringar (golden reference,
-bit-för-bit, steg 5-facit) är *grundläggning* — de bevisar att vi äger logiken, men de är inte produkten.
+bit-för-bit, steg 5/6-facit) är *grundläggning* — de bevisar att vi äger logiken, men de är inte produkten.
 Produkten är den färska körningen, med diffar små nog att inte flippa ett top-line-prisbeslut.
 **Konsekvens:** Precisionskravet styrs av affärsmålet, inte av att matcha BCG till sista decimalen på
-gammal data. Output-rimlighetsgrinden (ersätter facit när facit försvinner) hör till **färsk-data-fasen**,
-inte replikeringsfasen — den byggs när det finns en färdig baslinje att kalibrera mot. *(2026-05-26:
-replikeringsgrunden är nu komplett — alla tre familjer körda på gammal data inom det hårdkodade
-datumfönstret. Nästa stora steg mot produkten är G7-datumparametrisering, annars filtreras färsk
-2026-data tyst bort.)*
+gammal data. Output-rimlighetsgrinden (ersätter facit när facit försvinner) hör till **färsk-data-fasen**
+(ROADMAP FAS F), inte replikeringsfasen — den byggs när det finns en färdig baslinje att kalibrera mot.
+*(2026-05-27: hela replikeringen FR-1..7 är komplett — alla familjer + F1–F7-väven körda och bit-för-bit
+validerade på gammal data inom det hårdkodade datumfönstret. Nästa stora steg mot produkten är
+G7-datumparametrisering, annars filtreras färsk 2026-data tyst bort.)*
 
 ### IB.7 — Elasticitet är log-log → koefficienten ÄR elasticiteten
 Både `QuantitySold(SalesTotal>0)` och `Regular_Price_fwbw_max_6` har `Transform=1` (log) i BCG:s
@@ -121,8 +134,8 @@ gruppering vid DW-native skalning.
 ett elasticitetsproblem.
 
 ### IB.9 — Grövre granularitet → starkare och renare elasticitet
-De tre modellfamiljernas fulla körning (2026-05-26) visar ett konsekvent, tolkningsbart mönster: ju
-grövre modellnivå, desto starkare negativ median, högre andel negativa, och färre absurda svansvärden.
+De tre modellfamiljernas fulla körning visar ett konsekvent, tolkningsbart mönster: ju grövre modellnivå,
+desto starkare negativ median, högre andel negativa, och färre absurda svansvärden.
 
 | Familj | Grupper | Median elasticitet | Neg-andel | p<0,05 | Svansband (min/max) |
 |---|---:|---:|---:|---:|---|
@@ -145,10 +158,14 @@ Steg 6:s multi-nivå-blend är designad för precis detta.
 ## Hur listan växer
 
 Ny insikt läggs till när vi lär oss något **substantiellt om modellen eller datan** som påverkar
-tolkning eller mål — inte när vi löser ett tekniskt problem (det → `LESSONS_BCG.md`). Vid sessionsstart:
-läs hela listan. Vid sessionsslut: överväg om sessionen gav ny insikt som förtjänar ett `IB.N`.
+tolkning eller mål — inte när vi löser ett tekniskt problem (det → `LESSONS_BCG.md`). En befintlig insikt
+**korrigeras på plats** (med kort spårparentes) när källan visar att den var halvsann — vi lägger inte en
+motsägande dubblett bredvid. Vid sessionsstart: läs hela listan. Vid sessionsslut: överväg om sessionen
+gav ny insikt som förtjänar ett `IB.N`.
 
 ---
 
-*Skapad 2026-05-26 vid dokumentstruktur-omtaget. Extraherad ur SESSION_2026-05-25, NEXT_SESSION.md (PoC-2),
-TECHNICAL_PREREQUISITES.md §8. IB.9 tillagd 2026-05-26 efter att alla tre modellfamiljer körts fullt på VM.*
+*Skapad 2026-05-26 vid dokumentstruktur-omtaget; extraherad ur SESSION_2026-05-25, NEXT_SESSION.md (PoC-2),
+TECHNICAL_PREREQUISITES.md §8. IB.9 tillagd efter att alla tre modellfamiljer körts fullt på VM. Omstrukturerad
+2026-05-27: IB.2-korrigeringen (tredje/fjärde signifikansvillkoret) invävd i IB.2 i stället för dubblerad;
+FR-7-stängning reflekterad i IB.2/IB.6.*

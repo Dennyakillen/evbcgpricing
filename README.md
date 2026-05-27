@@ -3,12 +3,51 @@
 Replikering, validering och drift av BCG:s prissättningsmodell för Evidensia Djursjukvård AB.
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst)
-**Status (2026-05-26):** **VM-körningspasset är klart — alla tre modellfamiljer (Cluster + Site +
-Bundle) körda och verifierade.** Därmed är FR-4..6 stängda och de tre `output_summary.xlsx` som steg 6
-(`Fall_Back_Logic.py`, F1–F7) behöver finns på plats. Steg 5 (`blended_logic`) var redan facit-validerad
-fristående (43/43 representanter). Det enda kvarvarande för "full replikering" är **steg 6-vävningen
-(FR-7)** — nästa pass. Därefter färsk-data-fasen. Se `BCG_PRICING_PLAYBOOK.md` (riktningsblock överst)
-för den auktoritativa nulägesbilden.
+**Status (2026-05-27):** **Hela replikeringen (FR-1..7) är KLAR och bit-för-bit bevisad.** Steg 6
+(`Fall_Back_Logic.py`, F1–F7-väv) validerades mot BCG:s facit: korrelation 1,000000, |diff|=0,
+F1–F7-fördelning identisk, 100 % nivåmatch över 108 979 rader. Därmed är *hela* BCG-kedjan
+(dataprep → cluster → site → bundle → blend → fallback) reproducerad och verifierad. Nästa: FAS V
+(`verify_tool` — repeterbart bevis-bibliotek), sedan färsk-data-fasen. Se `ROADMAP.md` (fas-/mognadsvy)
+och `BCG_PRICING_PLAYBOOK.md` (auktoritativt riktningsblock; fas-status där uppdateras till FR-7-stängt
+i nästa städsteg).
+
+---
+
+## Project Status — Milestone Tracker (for decision-makers)
+
+**One-line status:** We have proven we fully own BCG's pricing method — every stage reproduces BCG's own
+results, the final stage to the decimal. The remaining work is running that proven method on current
+data, in a managed environment.
+
+### Achieved
+
+| # | Milestone | What it proved (business terms) | Status |
+|---|---|---|---|
+| 1 | Source of truth established | BCG's model was always built on *our* data (`Fact_BillingInvoiceRows` + `Dim_Item`) — confirmed code-by-code (median ratio 1.0000, corr 0.989). No external dependency we don't control. | ✅ |
+| 2 | Revenue & volume definitions locked | Settled which numbers the model uses: revenue = gross incl. VAT, volume = `SoldQuantity`. Earlier assumptions were wrong; data decided, not column names. | ✅ |
+| 3 | Data-prep golden reference | BCG's data preparation reproduced through an independent engine and validated bit-for-bit against BCG's frozen file. We can regenerate the model's input ourselves. | ✅ |
+| 4 | Code-level baseline | A grouping-independent baseline (13,223 codes) future data builds validate against — so re-grouping never breaks comparability. | ✅ |
+| 5 | DW schema confirmed | Every field BCG's method needs exists in our data warehouse. The build is ours to run — no consultant, no missing data. | ✅ |
+| 6 | Cluster model replicated | 3,812 product×cluster elasticities; significance 18.0% ≈ BCG's own 17.8% — faithful replication, not weaker results. | ✅ |
+| 7 | Site model replicated | 4,673 product×site elasticities reproduced and validated. | ✅ |
+| 8 | Bundle model replicated | 125 basket-level elasticities reproduced and validated. | ✅ |
+| 9 | Cluster blend (step 5) replicated | Representative-selection logic that makes sparse groups usable, proven piece-by-piece (43/43). | ✅ |
+| 10 | Fallback weave (step 6) replicated | Full 7-level fallback assigning a final elasticity to every product — proven **bit-for-bit**: correlation 1.000000, zero difference, 100% level match across 108,979 rows. | ✅ |
+| 11 | **Full replication closed (FR-1..7)** | **The entire BCG pipeline reproduces BCG's results exactly on the original data. We demonstrably own the method.** | ✅ |
+
+### Ahead
+
+| Phase | Milestone | What it will prove (business terms) | Status |
+|---|---|---|---|
+| V | Proof library (`verify_tool`) | Independent, re-runnable checks — one per model part — so any result can be re-verified live on demand (e.g. when a decision-maker questions quality). Turns "trust us" into "watch us prove it." | 🟢 Next, ready |
+| T | Technical-debt brief to IT | A structured ask so the pipeline lives in a managed environment, not only on one analyst's machine. Prerequisite for production. | 🟢 Ready (no code) |
+| F | Fresh-data run | Run the proven method on current 2026 data — *the actual product*. Requires parametrizing a hard-coded date window (today it silently drops post-2025 data) and building the SQL data-prep on our DW. | 🟡 Partly ready |
+| A | Robust Azure environment | Move the cleaned structure into a managed, repeatable (optionally scheduled) environment — runnable by more than one person. | 🔴 Blocked on T + F |
+
+**What this means:** The value is not in re-deriving insights BCG already delivered on old data — it is in
+running that same method on fresh data, with differences small enough not to flip a top-line price decision
+(`IB.6`). The fresh-data run (phase F) is the next substantive step toward business value; phases V and T
+de-risk and prepare it.
 
 ---
 
@@ -27,16 +66,18 @@ Projektet följer en **trelagersmodell** för att hålla dokumentationen ren mel
 
 | Fil | Roll |
 |---|---|
-| `BCG_PRICING_PLAYBOOK.md` | **Navet.** Fullständigt nuläge: riktningsblock (auktoritativt), beslut, faser, FR-definition av "full replikering", risker. Läs riktningsblocket först. |
-| `LESSONS_BCG.md` | Tekniska lärdomar (`LB.1`–`LB.20`), Symptom→Rotorsak→Regel. Befordras till MASTER_* när de visar sig universella. |
+| `BCG_PRICING_PLAYBOOK.md` | **Navet.** Fullständigt nuläge: riktningsblock (auktoritativt), beslut, faser, FR-definition, risker. Läs riktningsblocket först. |
+| `ROADMAP.md` | **Fas-/mognadsvy** (V→T→F→A) för beslutsfattare — var står vi, vad är moget. Kompletterar playbookens riktningsblock. |
+| `LESSONS_BCG.md` | Tekniska lärdomar (`LB.1`–`LB.23`), Symptom→Rotorsak→Regel. Befordras till MASTER_* när universella. |
 | `INSIGHTS_BCG.md` | Affärs-/domäninsikter (`IB.1`–`IB.9`) om BCG:s modell och vår data. Skilt från tekniska lärdomar. |
+| `TECHNICAL_PREREQUISITES.md` | Spår B (DW-native / SQL data prep): förutsättningar, omsvängning, valideringsgrind, modellkontrakt. |
 | `NEXT_SESSION.md` | Kall-start för nästa arbetspass — konkret mål, pre-flight, blockerare. |
-| `SESSION_2026-05-25_STEG5_STEG6.md` | Sessionslogg: steg 5-validering + steg 6-kartläggning. |
 | `UBUNTU_AZURE_VM.md` | Linux/bash-handhavande, encoding-fällor, tmux, driftkort. |
 
 > **Princip:** En lärdom föds projektspecifikt (`LESSONS_BCG.md`) och **befordras** uppåt till en
 > stack-master när den visar sig gälla fler projekt än BCG. Det håller den projektspecifika listan kort
-> och master-filerna auktoritativa.
+> och master-filerna auktoritativa. Tre ytor, tre syften, ingen dubblering: README = "vad är läget" (utåt),
+> ROADMAP = "vart bär det och hur moget", playbook = "vad gör vi härnäst och varför".
 
 ---
 
@@ -79,7 +120,7 @@ Rådata (transaktioner, dimensioner)
         |   -> final_model_cluster_granularity |                |
         +-------------------+------------------+----------------+
                             v
-  Steg 6: Fall Back Logic (F1–F7, np.select-prioritet)  -->  final_elasticity
+  Steg 6: Fall Back Logic (F1–F7, combine_first-prioritet)  -->  final_elasticity
                             |
                             v
   BCG Pricing Model vFinal.xlsx (CALC_Elasticity, VTL)  <-- slutkonsument
@@ -92,97 +133,69 @@ site/bundle/cluster-nivåer). Allt config-styrt (`config.yml`).
 
 ---
 
-## VM-körningspasset 2026-05-26 — tre familjer körda och verifierade
+## Replikeringen — vad som körts och validerats
 
-Alla tre modellfamiljer kördes fullt på Azure-VM (`bcg-poc-vm`, 128 GB RAM) via `launcher.py`
-(regular_price → data_prepration → feature_selection → model). Varje producerade sin `output_summary.xlsx`
-(steg 6:s input), hämtad hem till respektive `output/azure_run_model/`. Verifierad med `verify_output.py`:
+Hela kedjan är reproducerad och verifierad mot BCG:s frusna facit. Sammanfattning per familj/steg:
 
-| Familj | FR | Grupper | Median elasticitet | Neg-andel | p<0,05 | Körtid |
+| Familj / steg | FR | Grupper / rader | Median elasticitet | Neg-andel | p<0,05 | Facit-validering |
 |---|---|---:|---:|---:|---:|---|
-| Cluster (produkt×kluster) | FR-4 ✅ | 3812 | −0,138 | 76,5 % | 18,0 % | ~45 min |
-| Site (produkt×site) | FR-5 ✅ | 4673 | −0,054 | 62,4 % | 9,3 % | ~34 min |
-| Bundle (varukorgar/klinik) | FR-6 ✅ | 125 | −0,211 | 85,6 % | 22,4 % | ~1 min |
+| Cluster (produkt×kluster) | FR-4 ✅ | 3812 | −0,138 | 76,5 % | 18,0 % | ≈ BCG 17,8 % (`IB.1`) |
+| Site (produkt×site) | FR-5 ✅ | 4673 | −0,054 | 62,4 % | 9,3 % | körd + verifierad (`IB.9`) |
+| Bundle (varukorgar/klinik) | FR-6 ✅ | 125 | −0,211 | 85,6 % | 22,4 % | körd + verifierad (`IB.9`) |
+| Steg 5 (cluster-blend) | FR-3 ✅ | 43/43 repr. | — | — | — | bit-för-bit (618/1276 rescue) |
+| Steg 6 (F1–F7-väv) | FR-7 ✅ | 108 979 / 15 128 PK | — | — | — | **korr 1,0, \|diff\|=0, 100 % nivåmatch** |
 
 **Tolkning (se `IB.9`):** Grövre granularitet → starkare/renare elasticitet. Cluster:s 18,0 % rå
 signifikans matchar BCG:s frusna 17,8 % (`IB.1`) — trogen replikering bekräftad. Site:s svaga tal är
 väntade (finast nivå, tunnast data per grupp); det är just därför fallback (steg 6) finns. Bundle är
 renast (grövst, naturlig prisvariation, inga svansextremer).
 
-**Plattformslärdomar (se `LB.17`–`LB.20`):** Site och Bundle bar var sin uppsättning ofixade
-Windows/stor-maskin-värden som Cluster fått fixade tidigare — `C:\ray_spill`, `.\code\src\config.yml`
-i `constants.py`, `ray: memory: 80` (> /dev/shm), `ray: cpus: 50` (VM har 16). Alla scannades och fixades
-i förväg (en runda) innan körning. Steg 5 (`data_prep_after_model_output.py`) är icke-körbart på Linux
-(xlwings/Excel-COM) men behövs inte — `output_summary.xlsx` produceras av model-steget före det, och
-steg 5-logiken är redan facit-validerad fristående (`fallback_blend.py`).
+**Steg 6-stängningen (FR-7, 2026-05-27):** BCG:s original kördes orört i en trogen arbetskopia mot BCG:s
+egen input; vår output jämfördes per rad-grain (`ProductKey + SiteCode + Clusters`) mot BCG:s facit.
+Path-"mismatchen" som tidigare antogs visade sig vara ett dokumentationsspöke — `Constant.py` var korrekt;
+filerna behövde bara ligga där den orörda koden läser. Verktyg + lärdomar (`LB.21`–`LB.23`, `IB.2`-korr.)
+committade. Se `LESSONS_BCG.md` / `INSIGHTS_BCG.md`.
+
+**Plattformslärdomar (se `LB.17`–`LB.23`):** VM-passet bar Windows/stor-maskin-rester som scannades och
+fixades i förväg (`C:\ray_spill`, `ray: memory/cpus` kalibrerade för fel hårdvara). Steg 5/6:s xlwings-steg
+är icke-körbart på Linux men onödigt för validering (`output_summary.xlsx` produceras före det, och
+dv8/dashboard-skrivningen är kosmetisk). Execution policy blockerar osignerade `.ps1` (`LB.21`) → leverera
+kommandoblock eller `.py`.
 
 ---
 
 ## Roadmap
 
-Statusen nedan är synkad med playbookens riktningsblock (`BCG_PRICING_PLAYBOOK.md`). Där detaljer krockar
-gäller playbooken.
+Fas-/mognadsvyn (V→T→F→A) bor i `ROADMAP.md`. Replikeringssidan (FR-1..7) är **stängd**; nedan är
+kvarvarande faser i sammandrag. Där detaljer krockar gäller `BCG_PRICING_PLAYBOOK.md`s riktningsblock.
 
 | Fas | Innehåll | Status |
 |---|---|---|
-| 0 | Orientering, struktur-scan, källval, rotorsaksanalys | ✅ Klar |
-| 1 | Replikera struktur + kopiera källor verbatim | ✅ Klar |
-| 2 | Bygga miljö (venv + requirements) | ✅ Klar (lokalt + Azure-VM) |
-| 3 | Ray-config + feature_selection (brute-force) | ✅ Klar (Azure, validerad mot facit) |
-| 8 | Azure-motor: VM, miljö, modellkörning | ✅ Klar (tunga steg körda fullt) |
-| 4 (model) | OLS-regression per grupp | ✅ Klar (bit-för-bit-match mot facit) |
-| 7 | Validera output mot facit (KPI, population, features) | ✅ Klar |
-| 4 (input) | regular_price + data_prepration → `data_for_model.csv` | ✅ Klar (bit-för-bit identisk med BCG:s) |
-| 5 | `data_prep_after_model` / `blended_logic` (cluster-fallback) | ✅ Klar — facit-validerad bit-för-bit (43/43, 618/1276) |
-| — | **VM-körningspass: Cluster full + Site + Bundle** | ✅ **Klar 2026-05-26 — tre output_summary.xlsx (FR-4..6)** |
-| 6 | Fall Back Logic (F1–F7 multi-model-blend) | 🔴 **Nästa — input finns nu, blockeraren upplöst (FR-7)** |
-| 4 (SQL prep) | SQL data prep (duckdb via Python, ej exe) | ⬜ Egen fas (DW-migrering) |
-| — | Output-rimlighetsgrind | 🔴 Färsk-data-fasen — byggs mot färdig baslinje, ej nu |
-| — | Färsk data: parametrisera datumfönster (G7) + FTE Väg 2 | 🔴 Senare |
-| 9 | Git-baslinje (detta repo) | ✅ Klar — receptet pushat, output/tungt/Excel utestängt |
-| B | DW-vyer + Blob input-folder (drift) | ⬜ Senare |
+| FR-1..7 | Hela replikeringen (dataprep → cluster → site → bundle → blend → fallback) | ✅ **Klar — bit-för-bit bevisad** |
+| **V** | `verify_tool` — bibliotek av oberoende, repeterbara verifierare per modelldel | 🟢 **Nästa — moget, allt finns** |
+| **T** | Teknisk skuld → IT (varför VM, AppLocker, blob-roller, execution policy, G7) | 🟢 Redo (parallellt, ingen kod) |
+| **F** | Färsk data: G7-datumparametrisering + output-rimlighetsgrind + SQL data prep (B.4b) + FTE Väg 2 | 🟡 Delvis — SQL-bygget återstår |
+| **A** | Robust Azure-miljö — flytta städad struktur dit, körbar/schemalagd | 🔴 Beror på T + F |
 
-> **"Full replikering så långt det är relevant"** är definierad som en checklista (FR-1..7) i playbookens
-> riktningsblock. FR-1..6 är nu klara; **FR-7 (steg 6) är det enda kvarvarande** på replikeringssidan.
-
-### Vad som validerades 2026-05-25 (steg 5 — fallback)
-
-- ✅ **`fallback_blend.py`** (fristående replikering av `model_output` + `blended_logic`) körd på
-  **BCG:s egen fulla `output_summary.xlsx`** (3812 KEY) → **43/43 representanter identiska** med
-  BCG:s `final_model_cluster_granularity.xlsx`. `Significant?`-flagga 43/43. PASS.
-- ✅ **Rescue-effekten bekräftad:** `pre-blend 1541/3812` → `post-blend 618/1276`. Fallback =
-  representant-väljare (ingen ommodellering, `IB.2`); `Significant?` = `RSQ≥0.5 & p≤0.2` (inte p<0.05).
-- ✅ **Site-modell (folder 3) bekräftad strukturellt identisk med Cluster** — samma pipeline-filer,
-  samma `output_summary.xlsx`-format. Ingen ombyggnad krävs; körs som Cluster (`LB.4`).
-- ✅ **Steg 6-kontrakt känt:** `Fall_Back_Logic.py` läser tre `output_summary.xlsx` (cluster/site/
-  bundle) + vår steg 5-output, väver F1–F7 via `np.select`-prioritet. Ny logik enbart i vävningen.
-
-### Vad som kördes 2026-05-26 (VM-passet — tre familjer)
-
-- ✅ **Cluster full** (3812 grupper) — körd från rent läge, ren proveniens, 18,0 % rå signifikans
-  (matchar BCG:s 17,8 %, `IB.1`). `output_summary.xlsx` hemtagen + verifierad.
-- ✅ **Site** (4673 grupper) — uppladdad, fem Windows/maskin-rester fixade i förväg (`LB.19`), körd,
-  verifierad. `output_summary.xlsx` hemtagen.
-- ✅ **Bundle** (125 grupper) — uppladdad, samma fem fixar, körd på ~1 min, verifierad. Renaste
-  elasticiteten av de tre (`IB.9`). `output_summary.xlsx` hemtagen.
-- ✅ **Fyra nya lärdomar** (`LB.17`–`LB.20`) + **en ny insikt** (`IB.9`) fångade.
-
-**Detaljerad sessionslogg + lärdomar:** se `SESSION_2026-05-25_STEG5_STEG6.md` och `LESSONS_BCG.md`.
-**Detaljerad bash/Linux-handhavande och driftkort:** se `UBUNTU_AZURE_VM.md`.
+> **\"Full replikering så långt det är relevant\"** definierades som FR-1..7 i playbookens riktningsblock.
+> **Samtliga FR-1..7 är nu klara.** Den kvarvarande vägen mot affärsmålet (`IB.6`) är färsk data (FAS F).
 
 ---
 
 ## Innehåll i repot
 
-**Dokumentation:** `README.md` (denna), `BCG_PRICING_PLAYBOOK.md`, `LESSONS_BCG.md`, `INSIGHTS_BCG.md`,
-`NEXT_SESSION.md`, `SESSION_2026-05-25_STEG5_STEG6.md`, `UBUNTU_AZURE_VM.md`, `TECHNICAL_PREREQUISITES.md`.
+**Dokumentation:** `README.md` (denna), `BCG_PRICING_PLAYBOOK.md`, `ROADMAP.md`, `LESSONS_BCG.md`,
+`INSIGHTS_BCG.md`, `TECHNICAL_PREREQUISITES.md`, `NEXT_SESSION.md`, `UBUNTU_AZURE_VM.md`.
 
 **Verktygsscript (våra):**
 
 | Fil | Roll |
 |---|---|
+| `verify_fallback.py` | **Steg 6-verifierare (FR-7).** Jämför vår F1–F7-output mot BCG-facit per rad-grain (population → F1–F7-fördelning → elasticitetskorr → nivåmatch). Fröet till `verify_tool` (FAS V). |
+| `setup_step6_run.ps1` | Karta över steg 6:s arbetskopia (geometri + path-ankare). Dokumentation, körs ej (`LB.21`). |
+| `patch_step6_xlwings.py` | Gör xlwings valfri i arbetskopian (idempotent) så steg 6 körs utan Excel-COM (`LB.23`). |
 | `fallback_blend.py` | Steg 5-replikering (model_output + blended_logic), facit-validerad |
-| `verify_output.py` | Rimlighetskoll av `output_summary.xlsx` (rader, kolumner, elasticitet min/median/max, neg-andel, p<0.05). Tar sökväg som argument; körs per familj. Lever på VM:en (`~/verify_output.py`). |
+| `verify_output.py` | Rimlighetskoll av `output_summary.xlsx` (rader, kolumner, elasticitet min/median/max, neg-andel, p<0.05). Tar sökväg som argument; körs per familj. |
 | `inventory_for_gitignore.py` | Read-only inventering: listar data/config med storlek + klass (recept vs output) |
 | `map_bcg_source.py` | Read-only källkartläggning (kod i sin helhet, xlsx-struktur, skip-logik) |
 | `inspect_fallback_source.py` | Read-only dump av steg 5-källa + dashboard-formler |
@@ -194,14 +207,17 @@ gäller playbooken.
 | `Build-Structure.ps1` | Speglar V2_New:s mappstruktur till ren arbetsfolder |
 | `Copy-Sources.ps1` | Kopierar kod/SQL/config/input verbatim till strukturen |
 
+> **FAS V (nästa):** `verify_fallback.py`, `verify_output.py` m.fl. samlas i en `verify_tool\`-mapp —
+> ett bevis-bibliotek där varje modelldel kan re-verifieras live på begäran, med README per verifierare
+> (vad/mot vad/kommando/förväntat). Se `NEXT_SESSION.md`.
+
 **Pipelinens recept (versionsstyrs):** `Pipeline/` + `Elasticity/`-trädens kod (`.py`), config
 (`.yml`/`.yaml`), control-filer, SQL och kurerade inputs (mappningar, item-beskrivningar, FTE).
 
 **Versionsstyrs INTE** (se `.gitignore`): Excel-output (`*.xlsx`/`*.xls`), tunga rådata/output-CSV:er
-(>50 MB), `parquet/`, `output/`-mappar, körutfall/loggar, venv, `__pycache__`. Strukturen är
-återskapningsbar: receptet finns, det tunga regenereras genom att köra pipelinen. De tre
-`output_summary.xlsx` från VM-passet ligger i respektive `output/azure_run_model/` lokalt men är
-utestängda av `.gitignore` (Excel-output) — de regenereras av pipelinen och behöver inte versionsstyras.
+(>50 MB), `parquet/`, `output/`-mappar, `_step6_run/` (steg 6:s arbetskopia), körutfall/loggar, venv,
+`__pycache__`. Strukturen är återskapningsbar: receptet finns, det tunga regenereras genom att köra
+pipelinen.
 
 ---
 
@@ -241,9 +257,9 @@ inne i tmux (`LB.13`).
 source ~/bcg/cluster/.venv/bin/activate
 ```
 
-> **VM-disklayout efter 2026-05-26:** `~/bcg/cluster/`, `~/bcg/site/`, `~/bcg/bundle/` (alla tre
-> körklara, fixade), `~/bcg/_old_runs_20260521/` (undanflyttade gamla körningsrester), `~/verify_output.py`
-> (rimlighetskoll). Cluster-venv (`~/bcg/cluster/.venv`, Python 3.11.9) återanvänds för alla tre familjer.
+> **VM-disklayout:** `~/bcg/cluster/`, `~/bcg/site/`, `~/bcg/bundle/` (alla tre körklara, fixade),
+> `~/bcg/_old_runs_20260521/` (undanflyttade gamla körningsrester), `~/verify_output.py` (rimlighetskoll).
+> Cluster-venv (`~/bcg/cluster/.venv`, Python 3.11.9) återanvänds för alla tre familjer.
 
 ### Köra en lång körning frikopplad (tmux)
 
@@ -258,8 +274,8 @@ python launcher.py 2>&1 | tee ~/run_log_PC_full.txt
 ```
 Koppla loss: `Ctrl+B` (släpp) sedan `D`.
 
-> **Steg 6-passet (nästa):** med de tre `output_summary.xlsx` på plats körs `Fall_Back_Logic.py`
-> (folder 6, F1–F7-väv). Input finns nu — blockeraren är upplöst. Se `NEXT_SESSION.md`.
+> **Notera:** modellstegens tunga körningar (Cluster/Site/Bundle) görs på VM. Steg 6 (F1–F7-väv) är lätt
+> och körs lokalt på Windows (`_step6_run\`-arbetskopia) — se `LESSONS_BCG.md` (`LB.23`) och NEXT_SESSION.
 
 ### Kolla status utifrån
 
@@ -306,6 +322,8 @@ och relevanta MASTER_*.md om en lärdom befordrats.
 
 - **Inga `.exe`** i lösningen (AppLocker) — allt via `python -m`; duckdb = `pip install duckdb` på Linux.
 - **Inga publika IP:n** (tenant-policy) — Azure-VM nås via privat IP från kontorsnätet.
+- **Execution policy** blockerar osignerade `.ps1` (`LB.21`) — leverera flerstegsoperationer som
+  inklistringsbara kommandoblock eller `.py` (körs AppLocker-rent via `python`), inte `.ps1` att anropa.
 - **Windows-konsol-encoding:** script som dumpar källkod tvingar stdout UTF-8 (`LB.11`); PS-sidan
   `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` före körning (cp1252 kraschar på å/ä/ö, pilar).
 - **Tre skal i spel vid VM-arbete:** PowerShell (`PS C:\`, kör `ssh`/`scp`/`az`), cmd (`C:\`, undvik —
@@ -316,5 +334,7 @@ och relevanta MASTER_*.md om en lärdom befordrats.
 
 ---
 
-*README synkad 2026-05-26 efter VM-körningspasset: FR-4..6 ✅ (tre familjer körda + verifierade),
-roadmap uppdaterad, findings-tabell + plattformslärdomar (LB.17–20, IB.9) införda. Nästa: steg 6 (FR-7).*
+*README omstrukturerad 2026-05-27 efter FR-7-stängning: engelsk milstolpstabell (beslutsfattare) tillagd
+överst; status-stycke, replikeringstabell, roadmap, dokumentkarta och verktygslista synkade till FR-1..7
+klart + FAS V→A; LB-referens uppdaterad till LB.1–23; ROADMAP.md + verify_tool/setup/patch inlagda.
+Driftkortet (Azure-VM) bevarat. Playbookens riktningsblock uppdateras till FR-7-stängt i nästa städsteg.*
