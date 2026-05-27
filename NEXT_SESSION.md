@@ -1,209 +1,174 @@
-# NEXT_SESSION — Steg 6-validering (Fall Back Logic, F1–F7) mot BCG:s facit
+# NEXT_SESSION — FAS V: bygg `verify_tool` (oberoende, repeterbara bevis per modelldel)
 
 Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst på Evidensia
 Djursjukvård AB. Följ `KÄRNPRINCIPER.md`, `MASTER_AZURE.md`, `MASTER_AZURE_COMPUTE.md`,
 `MASTER_PYTHON.md`. Linux/bash: `UBUNTU_AZURE_VM.md`. Nuläge: `BCG_PRICING_PLAYBOOK.md`
-(läs riktningsblocket överst först). Lärdomar: `LESSONS_BCG.md` (`LB.N`). Insikter: `INSIGHTS_BCG.md` (`IB.N`).
+(läs riktningsblocket överst). Lärdomar: `LESSONS_BCG.md` (`LB.N`). Insikter: `INSIGHTS_BCG.md` (`IB.N`).
+Fasöversikt: `ROADMAP.md` (V→T→F→A).
 
 > **Förbättringsloop:** Vid varje korrigering — föreslå ny lärdom (Symptom → Rotorsak → Regel) i
 > `LESSONS_BCG.md`, eller ny insikt i `INSIGHTS_BCG.md`. Befordra till MASTER_* om generell.
 
-> **Miljödisciplin (skärpt 2026-05-26):** Varje kommandoblock SKA etiketteras med miljö + hur den nås.
-> **PowerShell** (`PS C:\`, kör `ssh`/`scp`/`az`/lokala script) — kontrollera att prompten visar `PS`,
-> inte bara `C:\` (cmd, där `&&` och cmdlets failar). **bash på VM** (`azureuser@bcg-poc-vm`, nås via
-> `ssh azureuser@172.18.148.4`). Kolla prompten före varje kommando. Kopiera kommandon från kodblock,
-> inte genom att markera i terminalen (drar med prompttext → blandas in i kommandot).
+> **Miljödisciplin:** Varje kommandoblock etiketteras med miljö. **PowerShell** (`PS C:\`, lokal venv
+> `.venv`) — kontrollera att prompten visar `PS`, inte bara `C:\`. Inga `.ps1` att anropa (execution
+> policy blockerar, **LB.21**) — leverera kommandoblock eller `.py` (körs AppLocker-rent via `python`).
 
-> **Princip inlärd 2026-05-26: "Facit finns en prompt bort."** När en fråga om format, sökväg, kolumner
-> eller förväntat resultat uppstår — be om källfilen/koden ur originalmappen istället för att gissa eller
-> tvinga fram ett vägval (A/B). Originalet (`BCG_orginal_V2_New`) HAR svaret. Detta upprepar LB.1.
+> **Princip (session 8, hårt bekräftad):** Vår egen dokumentation kan ha halva sanningen. Det vi
+> upptäcker mot källan (`BCG_orginal_V2_New` + körande kod) trumfar alltid anteckningarna. Läs källan,
+> gissa aldrig. Detta sänkte oss inte i session 8 — det räddade oss tre gånger (path-spöke, IB.2-villkor,
+> Alteryx-etikett).
 
 ---
 
 ## Aktuellt projekt
 
 - **Repo:** https://github.com/Dennyakillen/evbcgpricing.git — `C:\Projekt\BCG`
-- **Senaste commit på origin/main:** `6dcbea1` — *Document VM run pass: Cluster/Site/Bundle complete
-  (FR-4..6), add LB.17-20, IB.9*
+- **Senaste commit på origin/main:** `96fe7a3` — *Validate step 6 fallback weave bit-for-bit against BCG
+  facit (FR-7 done); add verify/patch/setup tools, LB.21-23, IB.2 correction*
 - **Branch:** `main`
+- **Venv:** `.venv` (Python 3.11; pandas 3.0.3, numpy 2.4.4, openpyxl 3.1.5 — xlwings ej installerat, ej nödvändigt)
 - **Originalmapp (facit):** `C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG\BCG_orginal_V2_New`
-  — OBS: strukturen där är `...\BCG_orginal_V2_New\02. Elasticity\...` (INGET `Pipeline\`-led, till
-  skillnad från repot som har `...\BCG\Pipeline\02. Elasticity\...`).
-- **Azure-VM:** `bcg-poc-vm`, deallocated. Behövs INTE för steg 6 (pandas/openpyxl-väv, lätt, körs
-  LOKALT på Windows — xlwings hör hemma där).
+  (struktur: `...\BCG_orginal_V2_New\02. Elasticity\...`, INGET `Pipeline\`-led — repot har `...\BCG\Pipeline\02. Elasticity\...`).
 
 ---
 
 ## Status vid sessionsstart
 
-**Full replikering är klar t.o.m. FR-6. Alla tre modellfamiljer körda + verifierade + hemtagna +
-dokumenterade + pushade (commit `6dcbea1`). Det enda kvarvarande för full replikering är steg 6
-(FR-7) — F1–F7-vävningen, validerad mot BCG:s facit.**
+**HELA replikeringen FR-1..7 är KLAR och bit-för-bit bevisad. Steg 6 (F1–F7-väv) validerades 2026-05-27
+mot BCG:s facit: korr 1,000000, |diff|=0, F1–F7-fördelning identisk, 100 % nivåmatch.** Replikeringsfasen
+är stängd. Vi går in i FAS V: paketera bevisen så de kan repeteras på begäran.
 
-**Referensvärden (våra VM-outputs, verifierade 2026-05-26, `IB.9`):**
+**Referensvärden (bevisade, för verifierarnas förväntade utfall):**
 
-| Familj | Grupper | Median elast. | Neg-andel | p<0,05 | Hemtagen till |
+| Del | Grupper | Median elast. | Neg-andel | p<0,05 | Facit-match |
 |---|---:|---:|---:|---:|---|
-| Cluster | 3812 | −0,138 | 76,5% | 18,0% | `2. ...\output\azure_run_model\output_summary.xlsx` |
-| Site | 4673 | −0,054 | 62,4% | 9,3% | `3. ...\output\azure_run_model\output_summary.xlsx` |
-| Bundle | 125 | −0,211 | 85,6% | 22,4% | `5. ...\output\azure_run_model\output_summary.xlsx` |
-
-Cluster 18,0% ≈ BCG:s frusna 17,8% (`IB.1`) — trogen replikering bekräftad.
+| Cluster | 3812 | −0,138 | 76,5% | 18,0% | ≈ BCG 17,8% (IB.1) |
+| Site | 4673 | −0,054 | 62,4% | 9,3% | (IB.9) |
+| Bundle | 125 | −0,211 | 85,6% | 22,4% | (IB.9) |
+| Steg 6 (F1–F7) | 108 979 rader / 15 128 ProductKeys | — | — | — | korr 1,0, |diff|=0, 100 % nivåmatch |
 
 ---
 
 ## Mål för denna session
 
-### Primärt: Validera steg 6 (F1–F7-väv) mot BCG:s facit
+### Primärt: Bygg `verify_tool\` — ett bibliotek av oberoende, repeterbara verifierare
 
-**Strategi (ren logik-grind, LB.2 — INGET A/B-val):** Kör `Fall_Back_Logic.py` på **BCG:s egna
-input_data-filer** och matcha vår slutoutput (`dv8`) mot BCG:s facit-slutfil, per `ProductKey` på
-`final_elasticity` + `elasticity_level`. Bevisar att vi äger F1–F7-vävlogiken end-to-end. (Att köra
-steg 6 på VÅRA färska VM-outputs är en SEPARAT, senare integrationsfråga — inte det som stänger FR-7.)
+**Syfte (förtroende, inte orchestrering):** Ett bevis-bibliotek där varje modelldel valideras av ett
+**fristående** script som kan köras på begäran och live visa *vad som jämförs mot vad* och att det
+stämmer. Användningsfall: en beslutsfattare ifrågasätter kvaliteten på en specifik del → Jens kör just
+den verifieraren live → skärmen visar grupper/elasticiteter/diff mot facit → tvivlet besvaras konkret.
+**Inte** en monolitisk orchestrator (spröd, svartlåda). Granulariteten ÄR trovärdigheten.
 
-**FACIT (i originalets `02. Elasticity\6. Fall Back Logic\output_data\`):**
-- `Final_Fallback_Data_20250930_091648.xlsx` (7,9 MB) — **slutfilen vi validerar mot** (= `dv8`).
-- `Complete_Product_Data_Blended.xlsx` (3,9 MB) — mellanfil som main genererar (kan korsvalideras).
-- `Product_site_check_20250930_091648.csv` (6 KB) — site-diagnostik.
-
-**BCG:s INPUT (i originalets `02. Elasticity\6. Fall Back Logic\input_data\`):**
-- `Complete_Product_Data.xlsx` (7 MB) — produkt×klinik-bas (från Alteryx, `df_all_product_path`)
-- `output_summary_site.xlsx` (410 KB) — site-modellens output
-- `output_summary_bundle.xlsx` (27 KB) — bundle-output
-- `final_model_cluster_granularity_Ivce.xlsx` (17 KB) — steg 5:s cluster-blended-output
-- `0901_Sweden_code_level_elasticity_regular_price_blended Final Model.xlsx` (28 MB) — blended-modell
-- `0808_Sweden_Clinic_Cluster_Mapping.xlsx` (27 KB) — klustermappning
+**Designprinciper (bär dessa genom bygget):**
+- Varje verifierare står själv, körs ensam, kräver inga andra.
+- Var och en skriver i lager (population → kolumner/struktur → KPI), och **rapporterar avvikelser** i
+  stället för binär PASS/FAIL (KÄRNPRINCIPER: grindar som rapporterar slår ja/nej). Mönstret är redan
+  satt av `verify_fallback.py`.
+- Var och en pekar explicit på *vår output* vs *BCG-facit* med sökväg, så det syns vad som jämförs.
+- Lätt: lokalt, sekunder, ingen VM. Validerar **producerade outputfiler** mot facit — kör INTE om
+  pipelinen (tung körning hör till FAS A / VM, och bevisades redan på VM-passet).
+- ASCII-rena filer/ID; svenska i dokumentation, engelska i kod (KÄRNPRINCIPER §3).
 
 **Leveranser:**
-1. Läs KLART de tre olästa vävfunktionerna i `Fall_Back_Logic.py` (i repots `6. Fall Back Logic\`):
-   `aggregate_sales_by_granularity` (rad 116–221), `read_blended_model_data` (222),
-   `significant_cluster_summary`/`significant_bundle_summary` (387–472, bygger F4–F7-nivåerna).
-   `creating_one_df` (473–551) är REDAN läst — F1–F7 via `combine_first`-prioritet, `elasticity_level`
-   via `np.select`. (Se "Vad steg 6 gör" nedan.)
-2. Lös path-frågan (se KÄRNPROBLEM nedan) — peka `Constant.py` mot BCG:s input_data, eller kör från en
-   plats där de relativa sökvägarna löses rätt.
-3. Hantera `import xlwings as xw` (rad 10). Lokalt på Windows med Excel fungerar det troligen; verifiera
-   att det är installerat i venv:en, annars `python -m pip install xlwings` (lokalt OK — Windows har
-   Excel). Main använder `to_excel(engine="openpyxl")`, så xlwings kan vara död import — men importen
-   körs vid filstart, så den måste lösas.
-4. Bygg `verify_fallback.py` (som `verify_output.py`): jämför vår `dv8` mot facit per `ProductKey` —
-   `final_elasticity` (numerisk diff/korr) + `elasticity_level` (F1–F7-fördelning matchar?).
-5. Kör + validera. PASS = elasticity_level-fördelning matchar facit, final_elasticity korr ~1,0.
+1. **Inventering FÖRST (blockerare — se nedan):** lokalisera alla befintliga `verify_*`-script på disk
+   och i Git. Vi vet inte säkert vilka som finns (`verify_output.py` nämns för FR-4..6; `verify_fallback.py`
+   committad idag). `verify_tool` ska VÄVA IHOP det som finns, inte återuppfinna det (LB.1).
+2. `verify_tool\` skapad med en verifierare per modelldel:
+   - `verify_cluster.py` — Cluster-output vs facit (3812 grupper, elasticitetsfördelning, signifikans).
+   - `verify_site.py` — Site-output vs facit (4673 grupper).
+   - `verify_bundle.py` — Bundle-output vs facit (125 grupper).
+   - `verify_fallback.py` — steg 6 F1–F7-väv vs facit (flyttas/kopieras hit; redan klar & bevisad).
+   - (Ev. `verify_blend.py` — steg 5 blend/representant-arv, om facit finns; jfr IB.2.)
+3. `verify_tool\README.md` — listar varje verifierare: vad den bevisar, mot vilket facit (sökväg),
+   exakt körkommando, förväntat utfall (referensvärdena ovan). Detta är skillnaden mellan "några script"
+   och "en valideringssvit du kan visa upp".
+4. (Valfritt, om tid) `run_all.py` — kör samtliga i följd och skriver en samlad rapport. Men de enskilda
+   är primära; en run-all är bekvämlighet, inte beviset.
 
-**Datakälla:** BCG:s `input_data\` (facit-input). Lokalt, Windows. Ingen VM.
-
----
-
-## KÄRNPROBLEM att lösa FÖRST (path-mismatch)
-
-`Constant.py` läser site/bundle/cluster från sökvägar som INTE matchar var filerna ligger:
-- `prod_site_level_path = "3. Product Site Level Models\output\model\output_summary.xlsx"`
-- `bundle_cluster_level_path = "5. Bundle Clinic Models\output\model\output_summary.xlsx"`
-- `blended_output_path = "2. ...\output\final_model_cluster_granularity.xlsx"`
-- `blended_model_path = "2. ...\output\output_summary_ready.xlsx"`
-
-…lösta via `base_dir = Path(__file__).resolve().parent.parent` (= `02. Elasticity`-roten).
-**MEN** BCG:s faktiska input ligger i `6. Fall Back Logic\input_data\` (verifierat 2026-05-26) — INTE
-i modellmapparnas `output\model\`. Så antingen (a) kördes steg 6 historiskt med en annan path-config,
-eller (b) `Constant.py` i repot är en annan version. **Beslut nästa pass:** enklast att peka
-`Constant.py`:s fyra modell-sökvägar till `input_data\`-filerna (kopiera BCG:s input dit `Constant`
-läser, ELLER ändra `Constant`-sökvägarna). Verifiera mot facit oavsett väg. Det här är inte en
-logikfråga — bara att få filerna dit koden letar. (Jfr LB.19: path-mismatch är förväntat i orörd kod.)
+**Datakälla:** Era redan producerade outputs (hemtagna från VM, IB.9) + BCG-facit i originalets
+respektive `output\`/`output_data\`. Lokalt, Windows, `.venv`.
 
 ---
 
-## Vad steg 6 gör (redan kartlagt 2026-05-26, för snabb återstart)
+## KÄRNPROBLEM att lösa FÖRST — inventering (LB.1)
 
-`creating_one_df` väver ihop alla nivåer och väljer `final_elasticity` via `combine_first`-PRIORITET
-(första tillgängliga i ordningen vinner):
-1. **F1 site_level** — om `significant_SiteCode==1`
-2. **F2 bundle_level**
-3. **F3 cluster_level** — om `significant_Clusters==1`
-4. **F4 bundle_across_clusters** → 5. **F5 product_across_clusters** → 6. **F6 service_within_cluster**
-   → 7. **F7 service_across_clusters**
+Innan en rad skrivs: kartlägg vad som finns. Gissa inte att `verify_output.py` ser ut på ett visst sätt.
 
-`elasticity_level` taggar vinnande nivå (`np.select` över samma villkor). Signifikans-def (rad 377):
-`significant_<level> = (round(RSQ,2)>=0.5) & (round(PVALUE_PRICE,2)<=0.20)` — samma som steg 5 (`IB.2`).
-Site-skärpning (rad 658): `significant_SiteCode` nollställs om `SigSites_Sum < 10` (kräver ≥10 sig.
-sites per produkt). Slutfil `dv8`: `ProductKey, ProductDescription, service, Clusters, SiteCode,
-TotalNet, year ending 2025 revenue, PVALUE_PRICE, RSQ, final_elasticity, elasticity_level,
-Product Granularity, site Granularity, Weighted Elasticity`.
+### Steg 0 — Pre-flight (PowerShell, .venv)
+```powershell
+cd "C:\Projekt\BCG"
+git log --oneline -5
+git status
+```
+Förväntat: senaste commit `96fe7a3`, working tree clean.
 
-**Fortfarande oläst (läs först nästa pass):** hur F2/F4–F7 (de viktade `wt_elas_*`-nivåerna) faktiskt
-BERÄKNAS — det sker i `significant_cluster_summary` / `significant_bundle_summary` /
-`aggregate_sales_by_granularity` (rad 116–472). `creating_one_df` konsumerar bara deras resultat.
+### Steg 1 — Inventera befintliga verifierare (disk + Git)
+```powershell
+cd "C:\Projekt\BCG"
+Get-ChildItem -Recurse -Filter "verify_*.py" | Select-Object FullName, Length
+git ls-files | Select-String "verify"
+```
+Mål: veta exakt vilka verifierare som finns, var, och om de är committade. Det avgör vad som flyttas in
+i `verify_tool\` vs byggs nytt.
+
+### Steg 2 — Lokalisera varje dels facit + vår output (mot disk, inte minne)
+För Cluster/Site/Bundle: var ligger VÅR hemtagna output, och var ligger BCG-facit att matcha mot? (Steg 6
+är redan löst: vår `_step6_run\...\output_data\Final_Fallback_Data_*.xlsx` vs originalets
+`...\6. Fall Back Logic\output_data\Final_Fallback_Data_20250930_091648.xlsx`.) Bekräfta sökvägar med
+`Test-Path` + storlek innan verifierare byggs. Facit finns en prompt bort — be om filerna ur originalet
+om en sökväg är oklar.
 
 ---
 
 ## Steg (ett i taget, verifiera mellan steg)
 
-### Steg 0 — Pre-flight (PowerShell, Windows)
-```powershell
-cd "C:\Projekt\BCG"
-```
-```powershell
-git log --oneline -5
-git status
-```
-Förväntat: senaste commit `6dcbea1`, working tree clean.
-
-### Steg 1 — Läs klart vävfunktionerna (LB.1, FÖRE körning)
-Läs `Fall_Back_Logic.py` rad 116–472 (`aggregate_sales_by_granularity`, `read_blended_model_data`,
-`significant_cluster_summary`, `significant_bundle_summary`, `reading_site_level_data`,
-`reading_bundle_cluster_level_data`). Förstå hur F2/F4–F7 viktas innan körning.
-
-### Steg 2 — Lös path + xlwings (KÄRNPROBLEM ovan)
-Peka `Constant.py`-sökvägar mot BCG:s `input_data\`-filer (eller kopiera dit koden läser). Verifiera
-xlwings-import (installera lokalt vid behov).
-
-### Steg 3 — Kör Fall_Back_Logic.py på BCG:s input
-Lokalt, venv aktiv (`python -m`, AppLocker-rent). Tee + grep strukturella rader (LB.14).
-Producerar `dv8` → `Final_Fallback_Data.xlsx` + tidsstämplad kopia i `output_data\`.
-
-### Steg 4 — Validera mot facit (verify_fallback.py)
-Jämför vår `dv8` mot `Final_Fallback_Data_20250930_091648.xlsx` per `ProductKey`:
-- `elasticity_level`-fördelning (F1–F7 antal) matchar facit?
-- `final_elasticity` korr/diff mot facit ~1,0?
-- Radantal / ProductKey-population matchar?
-PASS-kriterium: fördelning + korr matchar (bit-för-bit-anda som steg 5, 43/43).
+1. **Inventering** (KÄRNPROBLEM ovan) — kartlägg, rapportera, besluta vad som flyttas vs byggs.
+2. **Skapa `verify_tool\`** + flytta in `verify_fallback.py` (redan klar). Verifiera att den kör från nya
+   platsen (absoluta/argument-sökvägar — platsoberoende, bekräfta).
+3. **Bygg en verifierare i taget** (Cluster → Site → Bundle), var och en mot sin facit, lager + rapport.
+   Kör + bekräfta förväntade referensvärden INNAN nästa byggs (fail-fast, isolera fel per enhet, A.3).
+4. **`README.md`** — dokumentera sviten: per verifierare vad/mot vad/kommando/förväntat.
+5. **Commit per verifierad enhet** (inte en stor klump, A.3). `.gitignore`: tunga outputs trackas ej —
+   verifierarna läser dem, committar dem inte.
 
 ---
 
 ## Standarder särskilt relevanta nu
 
-- **LB.1 / "facit en prompt bort"** — be om originalfiler ur `BCG_orginal_V2_New` när format/förväntat
-  resultat är oklart; gissa aldrig, tvinga inte fram A/B.
-- **LB.2** — kör vår kod på KONSULTENS input, matcha facit. Billig logik-grind, ingen VM behövs.
-- **LB.4** — `creating_one_df` (konsumenten) definierar vad de tre summary-funktionerna måste leverera.
-- **LB.19** — path-mismatch i `Constant.py` är förväntad orörd-kod-rest; fixa paths, inte logik.
-- **LB.20** — xlwings: på Linux dödligt, på Windows OK (Excel finns). Steg 6 körs lokalt just därför.
-- **LB.14** — tee + grep strukturella rader.
+- **LB.1 / "facit en prompt bort"** — inventera och läs källan innan bygge; gissa aldrig sökväg/format.
+- **LB.22** — merge alltid på fullt rad-grain (det som gör en rad unik), aldrig delnyckel. Symmetriska
+  speglade diffs + uppblåst radantal = kartesisk self-join. Läs nyckeln ur konsumentkoden.
+- **KÄRNPRINCIPER (grindar som rapporterar)** — varje verifierare visar avvikelser, inte ja/nej.
+- **LB.21** — leverera `.py`, inte `.ps1` att anropa.
+- **A.3** — max 3–5 filer per leverans, commit + sanity-check emellan.
 
 ---
 
-## Efter detta pass (förberedelse, ej denna session)
+## Efter detta pass (FAS T parallellt, sen F, sen A — se ROADMAP.md)
 
-Med steg 6 validerat är HELA replikeringen (FR-1..7) stängd. Då återstår **färsk-data-fasen** mot
-affärsmålet (`IB.6`): output-rimlighetsgrind + G7-datumparametrisering (hårdkodat `START_DATE
-2022-07-01 / END_DATE 2025-06-30` filtrerar annars bort färsk 2026-data tyst) + FTE Väg 2 (Quinyx).
-Parallellt: DW-native bygget (Spår B, `TECHNICAL_PREREQUISITES.md`). Samt: integration av VÅRA
-VM-outputs genom steg 6 (separat från facit-valideringen).
+- **FAS T (kan börja parallellt, kräver ingen kod):** strukturera teknisk skuld-registret till IT —
+  *varför* vi kört på VM (lokal OOM på Stage 2, **G-skuld**), AppLocker (.exe/pip.exe), execution policy
+  (LB.21), blob-roll-blockeringen (Storage Blob Data Contributor, kräver Owner), G7-datumhårdkodning.
+  Mål: en miljö IT kan ge oss så replikeringen inte bara bor i repot. Förutsättning för FAS A.
+- **FAS F:** färsk data — G7-parametrisering (annars filtreras 2026-data tyst bort), output-rimlighetsgrind
+  (ersätter facit när facit försvinner), SQL_data_prep / DW-vy (B.4b, modellkontrakt §8), FTE Väg 2 (Quinyx).
+- **FAS A:** flytta städad struktur till robust Azure-miljö, körbar/schemalagd. Beror på FAS T (IT) + FAS F.
+- **Städning (del av V eller egen):** `verify_tool` är fröet till den samlade valideringssviten Jens vill
+  kunna visa upp. Ev. dela `verify_tool\` i verifierare (bevis) vs setup (engångsbyggen). Permanenta
+  xlwings-valfriheten i pipelinekoden i stället för patch på arbetskopia.
 
 ---
 
 ## Vid sessionsslut
 
-1. Committa ev. ändrade verktyg/dokumentation (`verify_fallback.py`, ev. path-fixad `Constant.py`) +
-   pusha. Excel-output går INTE in (`.gitignore`).
-2. `git status` — ska vara rent.
-3. Uppdatera denna fil: ny SHA + nästa mål (färsk-data-fasen / DW-bygget).
-4. Nya lärdomar → `LESSONS_BCG.md`; nya insikter → `INSIGHTS_BCG.md`; befordra till MASTER_* om generella.
-5. Uppdatera playbookens riktningsblock (FR-7 → ✅) och README:s roadmap.
+1. Committa varje verifierare + `README.md` (per enhet). Tunga outputs trackas ej (`.gitignore`).
+2. `git status` — rent.
+3. Uppdatera denna fil: ny SHA + nästa mål (FAS T-skuldregister eller FAS F).
+4. Nya lärdomar → `LESSONS_BCG.md`; insikter → `INSIGHTS_BCG.md`.
+5. Uppdatera `ROADMAP.md` (FAS V → ✅ när sviten är komplett) + playbookens riktningsblock + README:s roadmap.
 
 ---
 
-*Skapad 2026-05-26 vid VM-passets slut (commit 6dcbea1). Riktad mot steg 6-validering mot facit
-(`Final_Fallback_Data_20250930_091648.xlsx`). FR-4..6 stängda. Steg 6-koden kartlagd: `creating_one_df`
-+ F1–F7-prioritet läst; tre summary-/aggregeringsfunktioner (rad 116–472) ska läsas klart först. Facit +
-BCG:s input lokaliserade i originalets `input_data\`/`output_data\`. Path-mismatch i `Constant.py` är
-det praktiska som ska lösas — inte logik.*
+*Skapad 2026-05-27 vid FR-7-passets slut (commit 96fe7a3). FR-1..7 stängd, bit-för-bit bevisad. Riktad mot
+FAS V: bevis-bibliotek `verify_tool`. Inventering av befintliga verify_*-script är blockeraren att lösa
+först (LB.1) — väv ihop det vi gjort, återuppfinn inte.*
