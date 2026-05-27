@@ -14,75 +14,77 @@ vilka beslut som är fattade och vilka som återstår — utan att rekonstruera 
 faithfully (trogna namn, verbatim-kopia) och städar/rättar *längs vägen*. Designfel loggas
 i avsnitt 9 för att specas mot konsult senare — åtgärdas inte nu.
 
-**Nuläge i en mening:** Hela den VM-körbara pipelinen (regular_price → data_prepration →
-feature_selection → model) är körd i full skala på Azure och **validerad mot BCG:s frusna facit** —
-modellelasticiteten matchar bit-för-bit och vår egen `data_for_model.csv` är bit-för-bit identisk
-med BCG:s; endast steg 5 (`data_prep_after_model`, xlwings/Excel) återstår och hör till Windows.
+**Nuläge i en mening:** Hela replikeringen (FR-1..7) är klar och bit-för-bit bevisad — dataprep,
+cluster-, site- och bundle-modellerna, steg 5-blenden och steg 6:s F1–F7-väv reproducerar BCG:s
+frusna facit (steg 6: korr 1,000000, |diff|=0, 100 % nivåmatch). Replikeringsfasen är stängd; nästa
+är FAS V (`verify_tool`), sedan färsk-data-fasen.
 
-**Senast uppdaterad:** 2026-05-21 (Azure-modellkörning + facit-validering).
+**Senast uppdaterad:** 2026-05-27 (FR-7-stängning; topp-blocket synkat).
 
 ---
 
-# 🧭 RIKTNING & SYNKAD STATUS (2026-05-26 — auktoritativ topp)
+# 🧭 RIKTNING & SYNKAD STATUS (2026-05-27 — auktoritativ topp)
 
 > **Läsregel:** Detta block är den **aktuella sanningen**. Allt nedanför (avsnitt 1–10 + roadmap-
 > uppdateringarna) är bevarat som **arkiv/historik** och får läsas för kontext — men där det krockar
 > med detta block **gäller detta block**. Inget har raderats; lagren är staplade i tidsordning.
 >
 > **Lärdomar och insikter har egna filer:** tekniska lärdomar i `LESSONS_BCG.md` (`LB.N`),
-> domäninsikter i `INSIGHTS_BCG.md` (`IB.N`). Denna playbook refererar dem vid ID istället för att
-> upprepa dem. Universella principer: `KÄRNPRINCIPER.md`. Stack-lärdomar: `MASTER_*.md`.
+> domäninsikter i `INSIGHTS_BCG.md` (`IB.N`). Fas-/mognadsvy: `ROADMAP.md` (V→T→F→A). Denna playbook
+> refererar dem vid ID/namn istället för att upprepa dem. Universella principer: `KÄRNPRINCIPER.md`.
 
 ## Affärsmålet (det enda som räknas till slut)
 Beslutsfattaren vill ha **samma modell körd på refreshad (färsk) data**, med diffar små nog att inte
-flippa ett top-line-prisbeslut (`IB.6`). Allt replikerings- och valideringsarbete hittills är
-**grundläggning** — det bevisar att vi äger logiken; det är inte slutleveransen.
+flippa ett top-line-prisbeslut (`IB.6`). Allt replikerings- och valideringsarbete är **grundläggning**
+— det bevisar att vi äger logiken; det är inte slutleveransen.
 
-**Sekvens (bekräftad med Jens 2026-05-26):** först **full replikering så långt det är relevant** →
-**därefter** bygga ut mot färsk data. Output-rimlighetsgrinden hör till **färsk-data-fasen** (den
-ersätter facit först när facit försvinner) — inte till replikeringsfasen.
+**Sekvens (bekräftad med Jens):** först **full replikering** (nu KLAR) → **därefter** bygga ut mot
+färsk data. Output-rimlighetsgrinden hör till **färsk-data-fasen** (den ersätter facit först när facit
+försvinner) — inte till replikeringsfasen.
 
-## Vad "full replikering så långt det är relevant" konkret betyder
-En definition saknades tidigare — det var därför dokumenten spretade. Replikeringen räknas som **full**
-när allt nedan är sant:
+## "Full replikering så långt det är relevant" — DEFINITIONEN ÄR UPPFYLLD
+Replikeringen räknades som **full** när allt nedan var sant. **Samtliga FR-1..7 är nu klara och
+bit-för-bit bevisade.**
 
 | # | Kriterium | Status |
 |---|---|---|
 | FR-1 | Input-stegen (regular_price + data_prepration) bit-för-bit mot facit | ✅ Klar |
 | FR-2 | feature_selection + model facit-validerade (3812 grupper, korr 1,0) | ✅ Klar |
 | FR-3 | Steg 5 (`blended_logic` / cluster-fallback) logik-validerad mot facit | ✅ Klar (43/43, 618/1276) |
-| FR-4 | **Cluster full körd på VÅR DW-data på VM** → vår egen `output_summary.xlsx` | 🔴 Återstår (VM) |
-| FR-5 | **Site (folder 3) körd på VM** → `output_summary.xlsx` (steg 6 F1) | 🔴 Återstår (VM) |
-| FR-6 | **Bundle (folder 5) körd på VM** → `output_summary.xlsx` (steg 6 F2/F4) | 🔴 Återstår (VM) |
-| FR-7 | Steg 6 (`Fall_Back_Logic.py`, F1–F7) vävd på de tre output_summary | 🔴 Blockerad av FR-4..6 |
+| FR-4 | Cluster full körd på VM → vår egen `output_summary.xlsx` (3812 grupper) | ✅ Klar (2026-05-26) |
+| FR-5 | Site (folder 3) körd på VM → `output_summary.xlsx` (4673 grupper) | ✅ Klar (2026-05-26) |
+| FR-6 | Bundle (folder 5) körd på VM → `output_summary.xlsx` (125 grupper) | ✅ Klar (2026-05-26) |
+| FR-7 | Steg 6 (`Fall_Back_Logic.py`, F1–F7) vävd + validerad mot BCG-facit | ✅ **Klar (2026-05-27) — korr 1,000000, \|diff\|=0, 100 % nivåmatch** |
 
-**Allt utom FR-4..7 är klart.** Den kvarvarande kritiska vägen för "full replikering" är alltså **ett
-VM-körningspass** (Cluster full + Site + Bundle) följt av steg 6-vävningen. Detaljläsning av steg 6:s
-`creating_one_df` (F1–F7) görs FÖRST när dess input finns (`LB.3` — bygg aldrig mot input som inte finns).
+**Hela replikeringen är stängd.** Den kvarvarande vägen mot affärsmålet (`IB.6`) är färsk data (FAS F),
+föregånget av bevis-paketering (FAS V) och IT-skuldregister (FAS T). Se `ROADMAP.md` för fas/mognad.
 
-## Synkad fas-status (ersätter spridda statusangivelser nedan)
+## Synkad fas-status
 
 | Fas | Innehåll | Status |
 |---|---|---|
 | 0–3 | Orientering, struktur, miljö, Ray-config + feature_selection | ✅ Klar |
 | 4 | regular_price + data_prepration + model (input + modell) | ✅ Klar — facit-validerad |
 | 7 | Validera output mot facit (KPI/population/features) | ✅ Klar |
-| **5** | `data_prep_after_model` / `blended_logic` (cluster-fallback) | ✅ **Klar — facit-validerad bit-för-bit** |
-| — | **VM-körningspass: Cluster full + Site + Bundle** | 🔴 **NÄSTA — enda kvarvarande för full replikering** |
-| 6 | Fall Back Logic (F1–F7 multi-model-blend) | 🔴 Kartlagd; blockerad av VM-passet |
-| — | Output-rimlighetsgrind | 🔴 **Färsk-data-fasen** — byggs mot färdig baslinje, ej nu |
-| B | Färsk data: parametrisera datumfönster (G7) + FTE Väg 2 (DW) | 🔴 Senare |
+| 5 | `data_prep_after_model` / `blended_logic` (cluster-fallback) | ✅ Klar — facit-validerad bit-för-bit |
+| — | VM-körningspass: Cluster full + Site + Bundle | ✅ Klar (2026-05-26, FR-4..6) |
+| 6 | Fall Back Logic (F1–F7 multi-model-blend) | ✅ **Klar (2026-05-27, FR-7) — bit-för-bit mot facit** |
+| **V** | `verify_tool` — bibliotek av oberoende, repeterbara verifierare per modelldel | 🟢 **NÄSTA — moget, allt finns** |
+| **T** | Teknisk skuld → IT (VM/OOM, AppLocker, execution policy, blob-roller, G7) | 🟢 Redo (parallellt, ingen kod) |
+| — | Output-rimlighetsgrind | 🔴 Färsk-data-fasen (FAS F) — byggs mot färdig baslinje |
+| F | Färsk data: G7-datumparametrisering + SQL data prep (b4b) + FTE Väg 2 (DW) | 🟡 Delvis — SQL-bygget återstår |
+| A | Robust Azure-miljö — flytta städad struktur dit, körbar/schemalagd | 🔴 Beror på T + F |
 
-> **Korrigering mot äldre text nedan:** avsnitt om att "endast steg 5 återstår" (rubrikblocket,
-> 2026-05-21) och roadmap-uppdateringen 2026-05-22 som la rimlighetsgrinden *före* färsk-körning är
-> **överspelade**. Steg 5 är klart (FR-3); rimlighetsgrinden tillhör färsk-data-fasen (`IB.6`). De
-> äldre styckena behålls oförändrade nedan som spårhistorik.
+> **Korrigering mot äldre text nedan:** allt som beskriver FR-4..7 som "återstår", VM-passet eller steg 6
+> som "nästa", samt "endast steg 5 återstår" (rubrikblocket 2026-05-21) och roadmap-uppdateringen
+> 2026-05-22 (rimlighetsgrind före färsk-körning) är **överspelat**. FR-1..7 är klart; rimlighetsgrinden
+> tillhör FAS F (`IB.6`). De äldre styckena behålls oförändrade nedan som spårhistorik.
 
 ## Nästa konkreta steg
-Starta `bcg-poc-vm`, kör Cluster full + Site (folder 3) + Bundle (folder 5) i tmux, hämta hem tre
-`output_summary.xlsx`. Driftkort: `README.md` (Azure-VM-sektionen) + `UBUNTU_AZURE_VM.md`. Kostnads-
-disciplin: deallokera direkt efter (`CZ.2`). Detaljerad kall-start: `NEXT_SESSION.md`.
-
+Bygg `verify_tool\` (FAS V) — ett bibliotek av fristående, repeterbara verifierare per modelldel, så
+varje resultat kan re-verifieras live på begäran. Inventera befintliga `verify_*`-script först (väv ihop,
+återuppfinn inte, `LB.1`). Detaljerad kall-start: `NEXT_SESSION.md`. Parallellt kan FAS T (IT-skuldregister)
+påbörjas — ingen kod krävs.
 ---
 
 ## 1. Beslut (decision log)
