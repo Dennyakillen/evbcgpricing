@@ -95,6 +95,36 @@ validation against the (now isolated) facit.
 
 ---
 
+## Output separation (prerequisite 1 — DONE 2026-05-28)
+
+Facit isolation, resolved Jens's way: the BCG original stays untouched in OneDrive
+(it IS the frozen reference; we never write there). Our **proven baseline** — the
+VM-run outputs that verify_tool showed match BCG bit-for-bit — stays in place and
+is now **read-only** so a misdirected fresh run cannot overwrite the proof:
+
+| Proven baseline (read-only) | Size |
+|---|---|
+| `2. Product Cluster Level Models\output\azure_run_model\output_summary.xlsx` | 326,890 |
+| `3. Product Site Level Models\output\azure_run_model\output_summary.xlsx` | 398,885 |
+| `5. Bundle Clinic Models\output\azure_run_model\output_summary.xlsx` | 15,921 |
+| `_step6_run\...\Final_Fallback_Data_20260527_085906.xlsx` | step 6 |
+
+**Convention for fresh runs:** a fresh run writes to a parallel, dated sibling
+folder — never into `azure_run_model`:
+
+```
+...\<model>\output\azure_run_model\      <- proven baseline (read-only, never touch)
+...\<model>\output\fresh_run_2026-05\     <- fresh run output (new place)
+```
+
+This keeps proven and fresh side by side: verify_tool / reasonableness checks can
+point at either via their `--args`, and the dated folder name self-documents which
+run is which. The fresh folder is created **when the run happens** (not pre-built).
+Step 6 follows the same pattern (`_step6_run` -> `_step6_run_fresh_<date>`).
+
+To re-enable writing to a baseline file (e.g. to regenerate it deliberately):
+`Set-ItemProperty <file> -Name IsReadOnly -Value $false`.
+
 ## Cleanup pending
 
 `.bak-g7` files (3× constants, 1× data_prepration, 1× replicate_dataprep) are
