@@ -1,174 +1,124 @@
-# NEXT_SESSION — FAS V: bygg `verify_tool` (oberoende, repeterbara bevis per modelldel)
+# NEXT_SESSION — FAS F: förutsättningar för färsk körning (facit-isolering, DW-källa, datagrind)
 
 Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst på Evidensia
 Djursjukvård AB. Följ `KÄRNPRINCIPER.md`, `MASTER_AZURE.md`, `MASTER_AZURE_COMPUTE.md`,
 `MASTER_PYTHON.md`. Linux/bash: `UBUNTU_AZURE_VM.md`. Nuläge: `BCG_PRICING_PLAYBOOK.md`
 (läs riktningsblocket överst). Lärdomar: `LESSONS_BCG.md` (`LB.N`). Insikter: `INSIGHTS_BCG.md` (`IB.N`).
-Fasöversikt: `ROADMAP.md` (V→T→F→A).
+Fasöversikt: `ROADMAP.md` (V→T→F→A). G7-fixen: `FAS_F_G7.md`.
 
 > **Förbättringsloop:** Vid varje korrigering — föreslå ny lärdom (Symptom → Rotorsak → Regel) i
 > `LESSONS_BCG.md`, eller ny insikt i `INSIGHTS_BCG.md`. Befordra till MASTER_* om generell.
 
-> **Miljödisciplin:** Varje kommandoblock etiketteras med miljö. **PowerShell** (`PS C:\`, lokal venv
-> `.venv`) — kontrollera att prompten visar `PS`, inte bara `C:\`. Inga `.ps1` att anropa (execution
-> policy blockerar, **LB.21**) — leverera kommandoblock eller `.py` (körs AppLocker-rent via `python`).
+> **Miljödisciplin:** Varje kommandoblock etiketteras med miljö. **PowerShell** (`PS C:\`). Kör pipeline
+> + verify_tool med **`py -3.11`** (global Python har duckdb/pandas/openpyxl/numpy/yaml — `.venv` och 3.13
+> saknar dem; Windows Store `python3.13`-aliaset är en fälla, **LB.26/LB.27**). Inga `.ps1` att anropa
+> (execution policy, **LB.21**) — leverera kommandoblock eller `.py`.
 
-> **Princip (session 8, hårt bekräftad):** Vår egen dokumentation kan ha halva sanningen. Det vi
+> **Princip (hårt bekräftad gång på gång):** Vår egen dokumentation kan ha halva sanningen. Det vi
 > upptäcker mot källan (`BCG_orginal_V2_New` + körande kod) trumfar alltid anteckningarna. Läs källan,
-> gissa aldrig. Detta sänkte oss inte i session 8 — det räddade oss tre gånger (path-spöke, IB.2-villkor,
-> Alteryx-etikett).
+> gissa aldrig. Räddade oss flera gånger denna session: SQL-injektionspunkten, constants.py-skillnaderna
+> mellan modeller (LB.28), `'2025-06-23'`-gåtan (W-MON-rundning).
 
 ---
 
 ## Aktuellt projekt
 
 - **Repo:** https://github.com/Dennyakillen/evbcgpricing.git — `C:\Projekt\BCG`
-- **Senaste commit på origin/main:** `96fe7a3` — *Validate step 6 fallback weave bit-for-bit against BCG
-  facit (FR-7 done); add verify/patch/setup tools, LB.21-23, IB.2 correction*
-- **Branch:** `main`
-- **Venv:** `.venv` (Python 3.11; pandas 3.0.3, numpy 2.4.4, openpyxl 3.1.5 — xlwings ej installerat, ej nödvändigt)
+- **origin/main:** `824c265` — *verify_tool: run_all orchestrator (+Excel receipt) and verify_infra
+  structure audit; document both* (FAS V komplett, pushad)
+- **Arbetsbranch:** `fas-f-fresh-data` @ `3e758b2` — *FAS F / G7: parametrize date window across pipeline*
+- **Interpreter:** global Python 3.11 (`py -3.11`) — duckdb 1.5.3, pandas 3.0.1, openpyxl 3.1.5,
+  numpy 2.4.2, pyyaml 6.0.3. INTE `.venv` (saknar duckdb), INTE 3.13.
 - **Originalmapp (facit):** `C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG\BCG_orginal_V2_New`
-  (struktur: `...\BCG_orginal_V2_New\02. Elasticity\...`, INGET `Pipeline\`-led — repot har `...\BCG\Pipeline\02. Elasticity\...`).
 
 ---
 
 ## Status vid sessionsstart
 
-**HELA replikeringen FR-1..7 är KLAR och bit-för-bit bevisad. Steg 6 (F1–F7-väv) validerades 2026-05-27
-mot BCG:s facit: korr 1,000000, |diff|=0, F1–F7-fördelning identisk, 100 % nivåmatch.** Replikeringsfasen
-är stängd. Vi går in i FAS V: paketera bevisen så de kan repeteras på begäran.
+**FAS V är KLAR och pushad till main** (`824c265`): verify_tool-sviten (fem fristående verifierare +
+run_all-orkestrerare + Excel-kvitto + verify_infra struktur-revision), hela kedjan FR-1..7 bevisad
+6/6 PASS mot fryst facit.
 
-**Referensvärden (bevisade, för verifierarnas förväntade utfall):**
+**G7 är KLAR och pushad till branchen** (`3e758b2`, se `FAS_F_G7.md`): datumfönstret är env-overridable
+tvärs hela pipelinen — `constants.py` (×3), `data_prepration.py` (cluster), och SQL via in-memory-injektion
+i `replicate_dataprep.py`. **Default (inga env-vars) = fruset fönster, bit-identiskt** (bevisat:
+verify_dataprep utan env → corr 1,0, ingen [G7]-rad). Override bevisad (BCG_END_DATE=2026-04-30 → SQL
+omskriven, loggad).
 
-| Del | Grupper | Median elast. | Neg-andel | p<0,05 | Facit-match |
-|---|---:|---:|---:|---:|---|
-| Cluster | 3812 | −0,138 | 76,5% | 18,0% | ≈ BCG 17,8% (IB.1) |
-| Site | 4673 | −0,054 | 62,4% | 9,3% | (IB.9) |
-| Bundle | 125 | −0,211 | 85,6% | 22,4% | (IB.9) |
-| Steg 6 (F1–F7) | 108 979 rader / 15 128 ProductKeys | — | — | — | korr 1,0, |diff|=0, 100 % nivåmatch |
-
----
-
-## Mål för denna session
-
-### Primärt: Bygg `verify_tool\` — ett bibliotek av oberoende, repeterbara verifierare
-
-**Syfte (förtroende, inte orchestrering):** Ett bevis-bibliotek där varje modelldel valideras av ett
-**fristående** script som kan köras på begäran och live visa *vad som jämförs mot vad* och att det
-stämmer. Användningsfall: en beslutsfattare ifrågasätter kvaliteten på en specifik del → Jens kör just
-den verifieraren live → skärmen visar grupper/elasticiteter/diff mot facit → tvivlet besvaras konkret.
-**Inte** en monolitisk orchestrator (spröd, svartlåda). Granulariteten ÄR trovärdigheten.
-
-**Designprinciper (bär dessa genom bygget):**
-- Varje verifierare står själv, körs ensam, kräver inga andra.
-- Var och en skriver i lager (population → kolumner/struktur → KPI), och **rapporterar avvikelser** i
-  stället för binär PASS/FAIL (KÄRNPRINCIPER: grindar som rapporterar slår ja/nej). Mönstret är redan
-  satt av `verify_fallback.py`.
-- Var och en pekar explicit på *vår output* vs *BCG-facit* med sökväg, så det syns vad som jämförs.
-- Lätt: lokalt, sekunder, ingen VM. Validerar **producerade outputfiler** mot facit — kör INTE om
-  pipelinen (tung körning hör till FAS A / VM, och bevisades redan på VM-passet).
-- ASCII-rena filer/ID; svenska i dokumentation, engelska i kod (KÄRNPRINCIPER §3).
-
-**Leveranser:**
-1. **Inventering FÖRST (blockerare — se nedan):** lokalisera alla befintliga `verify_*`-script på disk
-   och i Git. Vi vet inte säkert vilka som finns (`verify_output.py` nämns för FR-4..6; `verify_fallback.py`
-   committad idag). `verify_tool` ska VÄVA IHOP det som finns, inte återuppfinna det (LB.1).
-2. `verify_tool\` skapad med en verifierare per modelldel:
-   - `verify_cluster.py` — Cluster-output vs facit (3812 grupper, elasticitetsfördelning, signifikans).
-   - `verify_site.py` — Site-output vs facit (4673 grupper).
-   - `verify_bundle.py` — Bundle-output vs facit (125 grupper).
-   - `verify_fallback.py` — steg 6 F1–F7-väv vs facit (flyttas/kopieras hit; redan klar & bevisad).
-   - (Ev. `verify_blend.py` — steg 5 blend/representant-arv, om facit finns; jfr IB.2.)
-3. `verify_tool\README.md` — listar varje verifierare: vad den bevisar, mot vilket facit (sökväg),
-   exakt körkommando, förväntat utfall (referensvärdena ovan). Detta är skillnaden mellan "några script"
-   och "en valideringssvit du kan visa upp".
-4. (Valfritt, om tid) `run_all.py` — kör samtliga i följd och skriver en samlad rapport. Men de enskilda
-   är primära; en run-all är bekvämlighet, inte beviset.
-
-**Datakälla:** Era redan producerade outputs (hemtagna från VM, IB.9) + BCG-facit i originalets
-respektive `output\`/`output_data\`. Lokalt, Windows, `.venv`.
+**Återgång till gammalt facit:** `git checkout main`, eller kör branchen utan env-vars.
 
 ---
 
-## KÄRNPROBLEM att lösa FÖRST — inventering (LB.1)
+## Mål för denna session: de TRE förutsättningarna före en riktig färsk körning
 
-Innan en rad skrivs: kartlägg vad som finns. Gissa inte att `verify_output.py` ser ut på ett visst sätt.
+G7 gör fönstret *settbart*. Det räcker inte för giltiga färska resultat — tre saker måste på plats,
+i ordning (dokumenterat i FAS_F_G7.md "What's left"):
 
-### Steg 0 — Pre-flight (PowerShell, .venv)
-```powershell
-cd "C:\Projekt\BCG"
-git log --oneline -5
-git status
-```
-Förväntat: senaste commit `96fe7a3`, working tree clean.
+### 1. Isolera facit till skrivskyddad referens (FÖRST — billigast, störst skydd)
+En färsk körning skriver till kataloger där BCG:s facit ligger oskyddat (2026-05-25-driften visade
+risken, **LB.24**). Kopiera BCG-originalet till en read-only referensmapp INNAN någon färsk körning rör
+de katalogerna. Detta är förutsättningen för all rimlighetsvalidering — utan fryst facit finns inget att
+mäta mot.
 
-### Steg 1 — Inventera befintliga verifierare (disk + Git)
-```powershell
-cd "C:\Projekt\BCG"
-Get-ChildItem -Recurse -Filter "verify_*.py" | Select-Object FullName, Length
-git ls-files | Select-String "verify"
-```
-Mål: veta exakt vilka verifierare som finns, var, och om de är committade. Det avgör vad som flyttas in
-i `verify_tool\` vs byggs nytt.
+### 2. Färsk källa, inte bara färskt fönster (Spår B)
+`00_read.sql` läser fortfarande BCG:s frusna `transaction_data.parquet`. Ett färskt fönster över en
+frusen källa har ingen färsk data att hämta. DW-native-läsningen måste byggas/verifieras så pipelinen
+läser *aktuella* transaktioner för det valda fönstret. Se modellkontrakt §8, B.4b. Enda genuina
+uppströms-input är FTE (Quinyx, IB.3) — Väg 2 = aggregera DW-vy, inte replikera BCG:s rådata-pipeline.
 
-### Steg 2 — Lokalisera varje dels facit + vår output (mot disk, inte minne)
-För Cluster/Site/Bundle: var ligger VÅR hemtagna output, och var ligger BCG-facit att matcha mot? (Steg 6
-är redan löst: vår `_step6_run\...\output_data\Final_Fallback_Data_*.xlsx` vs originalets
-`...\6. Fall Back Logic\output_data\Final_Fallback_Data_20250930_091648.xlsx`.) Bekräfta sökvägar med
-`Test-Path` + storlek innan verifierare byggs. Facit finns en prompt bort — be om filerna ur originalet
-om en sökväg är oklar.
+### 3. Datafullständighets-grind (Nivå 1-säkerhet)
+Innan auto-körning av "senaste stängda månad": verifiera att DW faktiskt har komplett data för hela
+fönstret. Att köra en ofullständig senaste månad = tyst fel. Detta är grinden som gör månatliga
+auto-körningar säkra. (Auto-beräkning av "senaste stängda månad" är ETT steg bortom env-override — bygg
+grinden först, auto-beräkningen sen.)
+
+**Efter dessa tre:** en kontrollerad färsk körning, följd av rimlighetsvalidering mot det isolerade facit
+(IB.6 — diffar små nog att inte flippa ett top-line-prisbeslut).
 
 ---
 
-## Steg (ett i taget, verifiera mellan steg)
+## Vision (förvaltning framåt — bekräftad denna session)
 
-1. **Inventering** (KÄRNPROBLEM ovan) — kartlägg, rapportera, besluta vad som flyttas vs byggs.
-2. **Skapa `verify_tool\`** + flytta in `verify_fallback.py` (redan klar). Verifiera att den kör från nya
-   platsen (absoluta/argument-sökvägar — platsoberoende, bekräfta).
-3. **Bygg en verifierare i taget** (Cluster → Site → Bundle), var och en mot sin facit, lager + rapport.
-   Kör + bekräfta förväntade referensvärden INNAN nästa byggs (fail-fast, isolera fel per enhet, A.3).
-4. **`README.md`** — dokumentera sviten: per verifierare vad/mot vad/kommando/förväntat.
-5. **Commit per verifierad enhet** (inte en stor klump, A.3). `.gitignore`: tunga outputs trackas ej —
-   verifierarna läser dem, committar dem inte.
+Slutmålet: modellen kör senaste stängda månads data automatiskt; månadsuppdatering = bara kör skriptet,
+inga filändringar; på sikt i Azure utan Jens dator, körbart av kollegor utan Python-kunskap. Sekvens:
+env-override (KLART) → auto-beräkna senaste månad + datagrind (NÄSTA) → Azure-automation (FAS A, långt
+senare). Växande fönster med fast ankare 2022-07-01 (rullande trender = medvetet senare analytiskt steg,
+inte nu).
 
 ---
 
 ## Standarder särskilt relevanta nu
 
-- **LB.1 / "facit en prompt bort"** — inventera och läs källan innan bygge; gissa aldrig sökväg/format.
-- **LB.22** — merge alltid på fullt rad-grain (det som gör en rad unik), aldrig delnyckel. Symmetriska
-  speglade diffs + uppblåst radantal = kartesisk self-join. Läs nyckeln ur konsumentkoden.
-- **KÄRNPRINCIPER (grindar som rapporterar)** — varje verifierare visar avvikelser, inte ja/nej.
-- **LB.21** — leverera `.py`, inte `.ps1` att anropa.
-- **A.3** — max 3–5 filer per leverans, commit + sanity-check emellan.
+- **LB.24** — validera mot fryst original, aldrig arbetskopia pipelinen skriver till.
+- **LB.25** — misstänk korr 1,0 tills källoberoende bekräftat (cirkelbevis-risk).
+- **LB.26/LB.27** — kör `py -3.11`, aldrig bara `python` (venv/Store-alias-fällor).
+- **LB.28** — mät hash före fil-kopia mellan modeller; de skiljer sig (bundle `Bundle_code`/`Clusters`).
+- **KÄRNPRINCIPER** — läs källan före bygge; grindar som rapporterar; mät, gissa inte.
 
 ---
 
-## Efter detta pass (FAS T parallellt, sen F, sen A — se ROADMAP.md)
+## FAS T (tech-debt, parallellt — kräver ingen kod, kräver IT)
 
-- **FAS T (kan börja parallellt, kräver ingen kod):** strukturera teknisk skuld-registret till IT —
-  *varför* vi kört på VM (lokal OOM på Stage 2, **G-skuld**), AppLocker (.exe/pip.exe), execution policy
-  (LB.21), blob-roll-blockeringen (Storage Blob Data Contributor, kräver Owner), G7-datumhårdkodning.
-  Mål: en miljö IT kan ge oss så replikeringen inte bara bor i repot. Förutsättning för FAS A.
-- **FAS F:** färsk data — G7-parametrisering (annars filtreras 2026-data tyst bort), output-rimlighetsgrind
-  (ersätter facit när facit försvinner), SQL_data_prep / DW-vy (B.4b, modellkontrakt §8), FTE Väg 2 (Quinyx).
-- **FAS A:** flytta städad struktur till robust Azure-miljö, körbar/schemalagd. Beror på FAS T (IT) + FAS F.
-- **Städning (del av V eller egen):** `verify_tool` är fröet till den samlade valideringssviten Jens vill
-  kunna visa upp. Ev. dela `verify_tool\` i verifierare (bevis) vs setup (engångsbyggen). Permanenta
-  xlwings-valfriheten i pipelinekoden i stället för patch på arbetskopia.
+Strukturera skuldregistret till IT så miljön inte bara bor i repot:
+- **Miljö i global Python 3.11**, inte isolerad venv — ej reproducerbar (nu även pyyaml där). Pinnad
+  venv + requirements.txt behövs (förutsättning för FAS A).
+- **Relativa sökvägar i site/bundle `constants.py`** (`.\code\src\config.yml`) — körning platsberoende,
+  kraschar från fel katalog.
+- AppLocker (.exe/pip.exe), execution policy (LB.21), blob-roll-blockering (Storage Blob Data
+  Contributor, kräver Owner), lokal OOM på Stage 2 (varför VM behövs).
 
 ---
 
 ## Vid sessionsslut
 
-1. Committa varje verifierare + `README.md` (per enhet). Tunga outputs trackas ej (`.gitignore`).
+1. Committa på `fas-f-fresh-data` (inte main förrän färsk körning är bevisad). Inga `.bak-g7` med.
 2. `git status` — rent.
-3. Uppdatera denna fil: ny SHA + nästa mål (FAS T-skuldregister eller FAS F).
+3. Uppdatera denna fil: ny SHA + nästa mål.
 4. Nya lärdomar → `LESSONS_BCG.md`; insikter → `INSIGHTS_BCG.md`.
-5. Uppdatera `ROADMAP.md` (FAS V → ✅ när sviten är komplett) + playbookens riktningsblock + README:s roadmap.
+5. Städa `.bak-g7` ENDAST efter att hela G7-vägen körts färskt end-to-end (de är rollback tills dess).
 
 ---
 
-*Skapad 2026-05-27 vid FR-7-passets slut (commit 96fe7a3). FR-1..7 stängd, bit-för-bit bevisad. Riktad mot
-FAS V: bevis-bibliotek `verify_tool`. Inventering av befintliga verify_*-script är blockeraren att lösa
-först (LB.1) — väv ihop det vi gjort, återuppfinn inte.*
+*Skapad 2026-05-28 vid FAS F / G7-passets slut (branch fas-f-fresh-data @ 3e758b2). FAS V klar på main
+(824c265). G7 klar på branchen — datumfönstret parametriserat, default bit-identiskt, override bevisad.
+Nästa: de tre förutsättningarna (facit-isolering → DW-källa → datagrind) före en riktig färsk körning.*

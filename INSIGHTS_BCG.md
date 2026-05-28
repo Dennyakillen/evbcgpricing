@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `INSIGHTS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-05-27
+**Senast uppdaterad:** 2026-05-28
 
 ---
 
@@ -35,6 +35,7 @@ En insikt här svarar på *"vad är sant om modellen/datan, och vad betyder det 
 | IB.7 | Elasticitet är log-log → koefficienten ÄR elasticiteten | Ingen eftertransform behövs |
 | IB.8 | Modellens KEY = Cluster × ItemCode | L4 bär ej kärnelasticiteten |
 | IB.9 | Grövre granularitet → starkare, renare elasticitet | Bundle > Cluster > Site i signaltäthet |
+| IB.10 | Signifikanta tecken-flip-grupper på fin nivå är svag-signal-OLS | Inte replikeringsfel; stärker IB.9 |
 
 ---
 
@@ -116,7 +117,7 @@ gammal data. Output-rimlighetsgrinden (ersätter facit när facit försvinner) h
 (ROADMAP FAS F), inte replikeringsfasen — den byggs när det finns en färdig baslinje att kalibrera mot.
 *(2026-05-27: hela replikeringen FR-1..7 är komplett — alla familjer + F1–F7-väven körda och bit-för-bit
 validerade på gammal data inom det hårdkodade datumfönstret. Nästa stora steg mot produkten är
-G7-datumparametrisering, annars filtreras färsk 2026-data tyst bort.)*
+G7-datumparametrisering — KLAR 2026-05-28 på branch `fas-f-fresh-data`: datumfönstret är nu env-overridable tvärs hela pipelinen (constants.py ×3, data_prepration, SQL via injektion), default = fruset fönster. Återstår före färsk körning: facit-isolering, DW-färsk källa (Spår B), datafullständighets-grind.)*
 
 ### IB.7 — Elasticitet är log-log → koefficienten ÄR elasticiteten
 Både `QuantitySold(SalesTotal>0)` och `Regular_Price_fwbw_max_6` har `Transform=1` (log) i BCG:s
@@ -152,6 +153,21 @@ har renast band — inga extremer alls.
 fallback (steg 6, F1–F7) finns: glesa site-grupper ärver representanter från grövre nivåer. (3) Detta
 stärker IB.1 — låg fin-nivå-signifikans är normaltillstånd, och det förvärras med finare granularitet.
 Steg 6:s multi-nivå-blend är designad för precis detta.
+
+### IB.10 — Signifikanta tecken-flip-grupper på fin nivå är svag-signal-OLS, inte replikeringsfel
+Vid verifieringen av Site och Bundle fanns några "signifikanta" grupper där vår elasticitet och BCG:s har
+**motsatt tecken** — t.ex. Site `8103-LPROSEN002` (vår +0,87 vs facit −2,29) och Bundle
+`Hospital-CDF114,EEX113,NIH` (vår +1,21 vs facit −0,88). Vid första anblick oroande.
+**Varför det inte är fel:** Dessa är svag-signal-OLS nära brusgränsen — grupper med tunn data där
+regressionen är instabil och en marginell skillnad i indata vänder tecknet. De passerar signifikansgrindens
+RSQ/p-trösklar men ligger på gränsen där koefficienten är illa bestämd. De är **få**, och de **rensas bort
+av fallbacken** (steg 6, F1–F7) innan något prisbeslut — exakt det fallbacken finns för (IB.2).
+Cluster (grövre, mer data per grupp) har inga sådana flips; de uppträder bara på de finaste nivåerna.
+**Konsekvens:** (1) Bedöm replikeringstrohet på rank-korrelation + beslutsrelevanta (signifikanta efter
+full grind) grupper, inte på varje enskild fin-nivå-grupp. (2) Tecken-flips på finaste nivån stärker IB.9:
+finare granularitet = svagare signal = fler instabila koefficienter. (3) De motiverar fallbackens
+existens snarare än att underminera replikeringen. *(Sett vid FAS V-verifieringen 2026-05-28; Site
+rank-korr 0,91, Bundle 0,93, beslutsrelevanta 78,5 % resp. 81,4 % identiska.)*
 
 ---
 

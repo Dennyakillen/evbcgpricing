@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `PROJECT_LESSONS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-05-26
+**Senast uppdaterad:** 2026-05-28
 
 ---
 
@@ -53,6 +53,14 @@ markerar kandidater.
 | LB.18 | control_file.xlsx är INPUT, inte bara output | Pipeline-mekanik | Nej |
 | LB.19 | Ny modellfamilj bär ALLA ofixade Windows/maskin-värden | Replikeringsmetod | Kandidat → MASTER_AZURE_COMPUTE |
 | LB.20 | Steg 5 (xlwings) icke-körbart på Linux men onödigt | Pipeline-mekanik | Nej |
+| LB.21 | .ps1 vägras av execution policy (som AppLocker) | Körningsdisciplin | Kandidat → MASTER_PYTHON |
+| LB.22 | Kartesisk self-join: merge på fullt rad-grain | Replikeringsmetod | Kandidat → KÄRNPRINCIPER |
+| LB.23 | xlwings valfri för logikvalidering (try/except) | Pipeline-mekanik | Nej |
+| LB.24 | Validera mot fryst original, aldrig arbetskopian | Replikeringsmetod | Nej — kärna |
+| LB.25 | Misstänk korr 1,0 tills källoberoende bekräftat | Replikeringsmetod | Kandidat → KÄRNPRINCIPER |
+| LB.26 | verify-wrappers ärver sys.executable → py -3.11 | Körningsdisciplin | Nej |
+| LB.27 | Windows Store python3.13-alias är interpreter-fälla | Körningsdisciplin | Kandidat → MASTER_PYTHON |
+| LB.28 | Hel-fil-kopia mellan modeller farligt — mät hash | Replikeringsmetod | Kandidat → KÄRNPRINCIPER |
 
 ---
 
@@ -295,6 +303,55 @@ xlwings bara används i sista kosmetiska dashboard-skrivningen (efter att dv8 sp
 **Regel:** Patcha arbetskopian (aldrig originalet): `try/except ImportError` -> `xw = None`, wrappa
 anropet i `if xw is not None`. Installera inte tunga COM-beroenden för en kosmetisk artefakt.
 Leverera patch som idempotent `.py` (CRLF-exakt matchning), inte `.ps1`.
+
+### LB.24 — Validera mot FRYST original, aldrig mot arbetskopian
+**Symptom:** `verify_dataprep` mot `Pipeline\...\data\0828_*.csv` gav DuckDB-krasch ("not latin-1")
+och en P_CH-fil på 179 byte (bara header). Facit verkade trasigt.
+**Rotorsak:** Den katalogen är inte facit — den skrivs av `export_b4b_for_model.py` (överskrevs
+2026-05-25): P_C om-encodades UTF-8, P_CH tömdes. Det orörda facit ligger i OneDrive-originalet
+(53,8 MB P_C, latin-1, dec 2025).
+**Regel:** Validera alltid mot det frusna originalet (`BCG_orginal_V2_New\...`), aldrig mot en katalog
+som pipelinen själv skriver till. Alla verify_tool-defaults pekar på OneDrive-originalet. Symptom som
+"om-encodad" eller "header-only-fil" = du tittar på en arbetskopia som drivit, inte på facit.
+
+### LB.25 — Misstänk korr 1,0 tills källoberoende är bekräftat
+**Symptom:** Data prep gav korr 1,000000 mot facit. Frestande att lita på direkt.
+**Rotorsak:** Perfekt korrelation kan vara ett cirkelbevis — om vår "output" i hemlighet läser samma fil
+som facit, matchar de trivialt utan att bevisa något.
+**Regel:** Innan du litar på korr 1,0, bekräfta att källorna är oberoende. Här: verifierat att
+`00_read.sql` läser rå `transaction_data.parquet` + DW-dimensioner, INTE BCG:s 0828-fil. Belägg för
+äkta oberoende: olika sorteringsordning, olika kolumnantal (vår 11 / facit 13, facit har extra
+`TotalNetXVat`/`Productive_time_per_site`), olika talformatering. Korr 1,0 + oberoende källor = äkta
+match. Korr 1,0 + samma källa = inget bevis.
+
+### LB.26 — verify-wrappers ärver `sys.executable` — kör med rätt interpreter
+**Symptom:** `verify_dataprep`/`verify_blend` kraschade med `ModuleNotFoundError: No module named 'duckdb'`
+när de kördes från `.venv`. Verktyget var rätt, miljön fel.
+**Rotorsak:** Wrappers anropar `replicate_dataprep.py`/`fallback_blend.py` med SAMMA interpreter som kör
+wrappern (`sys.executable`). Beroendena (duckdb/pandas) lever i **global Python 3.11**, inte i `.venv`
+och inte i 3.13.
+**Regel:** Kör hela verify_tool-sviten med `py -3.11` explicit. `.venv` saknar duckdb; global 3.11 har
+allt (duckdb 1.5.3, pandas 3.0.1, openpyxl, numpy). Dokumenterat i verify_tool README:s Environment-sektion.
+*(FAS T-skuld: miljön bor i global Python, ej isolerad venv — ej reproducerbar för efterträdare.)*
+
+### LB.27 — Windows Store `python3.13.exe`-aliaset är en interpreter-fälla
+**Symptom:** `python script.py` plockade `C:\Users\...\WindowsApps\python3.13.exe` (Store-aliaset) i
+stället för rätt 3.11. `--excel`-kvittot skapades aldrig, för 3.13 saknar både duckdb och openpyxl.
+**Rotorsak:** Windows lägger ett `python3.13.exe`-alias högt i PATH via WindowsApps. Skriver man bara
+`python` får man det, inte den interpreter pipelinen behöver.
+**Regel:** Använd alltid `py -3.11` (launchern väljer rätt explicit), aldrig bara `python`. Samma
+interpreter-disciplin-familj som venv-fällan (LB.13/LB.26) i ny förklädnad.
+
+### LB.28 — Hel-fil-kopia mellan modellfamiljer är farligt — mät hash, kopiera aldrig blint
+**Symptom:** Vid G7-fixen frestande att kopiera cluster:s nya `constants.py` rakt över site + bundle
+(de "är ju samma kod, olika data").
+**Rotorsak:** De är INTE identiska. SHA256 skilde site från bundle. Bundle har `Product_Code_var='Bundle_code'`,
+`Cluster_Granularity='Clusters'` (plural) + extra `Cluster_Granularity2`; cluster/site har `ItemCode`/`Cluster`.
+Dessutom laddar site/bundle `constants.py` `config.yml` vid import (`import yaml`); cluster:s gör inte.
+En hel-fil-kopia hade tyst skrivit över bundles granularitet och brutit modellen.
+**Regel:** Jämför `Get-FileHash` innan du kopierar en fil mellan modeller. Skiljer de sig → applicera
+fixen kirurgiskt (bara de rader som ska ändras), bevara varje fils särart. Verifiera efteråt att det
+unika står kvar (bundle ska fortfarande visa `Bundle_code`/`Clusters`). Mät, gissa inte — igen.
 
 ---
 
