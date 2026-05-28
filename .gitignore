@@ -99,3 +99,5 @@ gitignore_inventory.txt
 
 # Session 8: step 6 working folder (copied BCG input + generated Excel output)
 _step6_run/
+
+verify_tool/receipts/

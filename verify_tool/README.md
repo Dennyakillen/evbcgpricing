@@ -59,6 +59,42 @@ proof than validating the intermediate feature choice.
 
 ---
 
+
+## Run everything at once + receipt
+
+`run_all.py` is an orchestrator: it runs the five validators above in milestone
+order, streams each one's full output, prints a consolidated milestone table at
+the end, and (with `--excel`) writes a dated Excel receipt.
+
+```powershell
+cd "C:\Projekt\BCG\verify_tool"
+py -3.11 run_all.py            # full chain, console only
+py -3.11 run_all.py --excel    # full chain + dated receipt in receipts\
+```
+
+The receipt is a single "Logg" sheet: the run's raw stdout verbatim, in Consolas
+monospace so stdout's own column alignment is preserved (one log line per cell,
+'='-lines forced to text so they aren't read as formulas). It is a frozen snapshot
+of one run, named `verify_receipt_YYYY-MM-DD.xlsx`.
+
+## Check the environment first
+
+`verify_infra.py` answers "is everything in place to run the suite?" *before* you
+trust any proof. Run it when returning to the project, on a new machine, or before
+a live demo:
+
+```powershell
+py -3.11 verify_infra.py
+```
+
+It checks, in order: (1) Python 3.11 has duckdb/pandas/openpyxl/numpy; (2) the suite
+files are present; (3) the frozen BCG facit files exist (the untouched original);
+(4) our produced artefacts exist; (5) a structure audit of repo root + verify_tool
+(EXPECTED / STRAY / MISSING / UNKNOWN); (6) a deep file-by-file audit of the folders
+we own (each model's `code\` + `code\src\`, dataprep `scripts\`) - naming every
+stray log/backup and flagging any missing core file. It reports; it never deletes.
+
+
 ## How to read the output
 
 Every validator leads with a **SUMMARY** of the reliable measures, then keeps full
