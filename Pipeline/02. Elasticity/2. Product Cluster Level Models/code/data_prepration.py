@@ -562,7 +562,7 @@ if __name__ == '__main__':
     df_with_features = create_month_end_week(df_with_features, start_date=START_DATE, end_date=END_DATE)
     df_with_features['unit_temp']=np.where(df_with_features['month_end_week']==1,None,df_with_features[UNIT])
     print(df_with_features.shape)
-    df_with_features=inflate_missing_weeks(df_with_features,START_DATE,'2025-06-23','Monday')
+    df_with_features=inflate_missing_weeks(df_with_features,START_DATE,END_DATE,'Monday')
     
     df_with_features = rolling_seasonality(df_with_features, 'unit_temp', KEY, DATE, 6, 3, "fwbw")
     print(df_with_features.shape)

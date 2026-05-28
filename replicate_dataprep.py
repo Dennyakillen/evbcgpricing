@@ -113,6 +113,25 @@ def sniff_encoding(path: str) -> str:
         return "latin-1"                     # cp1252/latin-1 single-byte (the 0828 case)
 
 
+def _inject_dates(script: str, fname: str) -> str:
+    """G7 (FAS F, Jens Palmo): if BCG_START_DATE/BCG_END_DATE are set, rewrite the
+    hardcoded SQL date window in-memory. The SQL FILE ON DISK STAYS VERBATIM, so
+    FR-1 reproduces exactly when no env vars are set. Only 01_process.sql has a
+    date window. Logs any override so it never happens silently."""
+    start = os.environ.get("BCG_START_DATE")
+    end = os.environ.get("BCG_END_DATE")
+    if not (start or end):
+        return script
+    new = script
+    if start:
+        new = new.replace("DATE '2022-07-01'", f"DATE '{start}'")
+    if end:
+        new = new.replace("DATE '2025-06-28'", f"DATE '{end}'")
+    if new != script:
+        log("G7", f"{fname}: SQL date window overridden -> start={start or 'orig'} end={end or 'orig'}")
+    return new
+
+
 def run_sql_files(con: duckdb.DuckDBPyConnection, scripts_dir: str) -> None:
     """Execute the three BCG SQL files whole, in order, verbatim (no edits)."""
     for fname in SQL_FILES:
@@ -121,6 +140,7 @@ def run_sql_files(con: duckdb.DuckDBPyConnection, scripts_dir: str) -> None:
             raise FileNotFoundError(f"SQL file not found: {path}")
         with open(path, "r", encoding="utf-8") as fh:
             script = fh.read()
+            script = _inject_dates(script, fname)
         t0 = time.time()
         con.execute(script)  # duckdb runs all ;-separated statements, comments included
         log("RUN", f"{fname} executed in {time.time() - t0:6.1f}s")

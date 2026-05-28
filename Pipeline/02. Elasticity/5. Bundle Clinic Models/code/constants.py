@@ -1,3 +1,5 @@
+import os
+from datetime import datetime, timedelta
 import yaml
 with open(r".\code\src\config.yml") as file:
     config = yaml.safe_load(file)
@@ -13,12 +15,13 @@ OCCASION = "OCCASION"
 YEAR = "YEAR"
 MONTH = "MONTH"
 WEEK = 'WEEK'
-START_DATE = '2022-07-01'
-END_DATE = '2025-06-29'
-END_DATE2 = '2025-06-30'
+START_DATE = os.environ.get("BCG_START_DATE", "2022-07-01")
+END_DATE   = os.environ.get("BCG_END_DATE",   "2025-06-29")
+END_DATE2  = (datetime.strptime(END_DATE, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
 ### Special weeks where sweden clinics experienced low mewdia coverage
-SPECIAL_WEEKS = ['2025-01-27','2024-03-11','2024-03-18','2024-03-25','2024-04-01','2024-04-08','2024-04-15','2024-04-22']
+_DEFAULT_SPECIAL_WEEKS = '2025-01-27,2024-03-11,2024-03-18,2024-03-25,2024-04-01,2024-04-08,2024-04-15,2024-04-22'
+SPECIAL_WEEKS = [w.strip() for w in os.environ.get("BCG_SPECIAL_WEEKS", _DEFAULT_SPECIAL_WEEKS).split(",") if w.strip()]
 SPECIAL_WEEK_PERIOD_1 =  ['2025-01-27' ]
 SPECIAL_WEEK_PERIOD_2 = ['2024-03-11','2024-03-18','2024-03-25','2024-04-01','2024-04-08','2024-04-15','2024-04-22']
 ### Major Holiday List
