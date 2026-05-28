@@ -12,6 +12,35 @@ and how much it differs is what makes a clean result trustworthy.
 
 ---
 
+## Environment — IMPORTANT, read before running
+
+The validators run with the Python that has the pipeline dependencies
+(duckdb, pandas, openpyxl). On this machine that is **global Python 3.11**
+(duckdb 1.5.3, pandas 3.0.1) — NOT the `.venv` under `Pipeline\02. Elasticity`
+and NOT Python 3.13; neither has duckdb.
+
+Run the suite with 3.11 explicitly:
+
+```powershell
+cd "C:\Projekt\BCG\verify_tool"
+py -3.11 verify_dataprep.py
+py -3.11 verify_model.py --family cluster
+py -3.11 verify_blend.py
+py -3.11 verify_fallback.py
+```
+
+Why this matters: `verify_dataprep.py` and `verify_blend.py` shell out to
+`replicate_dataprep.py` / `fallback_blend.py` using the SAME interpreter that
+runs the wrapper (`sys.executable`). If you launch from a venv without duckdb,
+the inner call fails with `ModuleNotFoundError: No module named 'duckdb'` — the
+tool is fine, the interpreter is wrong. `verify_model.py` and `verify_fallback.py`
+need only pandas/numpy/openpyxl, so they are less fragile, but run them all with
+3.11 for consistency.
+
+> **Tech-debt (FAS T):** the replication env lives in global Python 3.11, not an
+> isolated venv. It works but is not reproducible for a successor. A pinned venv
+> (or requirements.txt + fresh venv) belongs on the FAS T list.
+
 ## The chain (run in this order — mirrors the README milestone tracker)
 
 | # | Validator | Phase / FR | Proves (in business terms) |
