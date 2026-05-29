@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `INSIGHTS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-05-28
+**Senast uppdaterad:** 2026-05-29
 
 ---
 
@@ -36,6 +36,7 @@ En insikt här svarar på *"vad är sant om modellen/datan, och vad betyder det 
 | IB.8 | Modellens KEY = Cluster × ItemCode | L4 bär ej kärnelasticiteten |
 | IB.9 | Grövre granularitet → starkare, renare elasticitet | Bundle > Cluster > Site i signaltäthet |
 | IB.10 | Signifikanta tecken-flip-grupper på fin nivå är svag-signal-OLS | Inte replikeringsfel; stärker IB.9 |
+| **IB.11** | **Snapshot-drift = 0.057% på fryst fönster (DW idag vs BCG 2025-07)** | **Användbart baseline-band för framtida valideringar** |
 
 ---
 
@@ -116,8 +117,10 @@ Produkten är den färska körningen, med diffar små nog att inte flippa ett to
 gammal data. Output-rimlighetsgrinden (ersätter facit när facit försvinner) hör till **färsk-data-fasen**
 (ROADMAP FAS F), inte replikeringsfasen — den byggs när det finns en färdig baslinje att kalibrera mot.
 *(2026-05-27: hela replikeringen FR-1..7 är komplett — alla familjer + F1–F7-väven körda och bit-för-bit
-validerade på gammal data inom det hårdkodade datumfönstret. Nästa stora steg mot produkten är
-G7-datumparametrisering — KLAR 2026-05-28 på branch `fas-f-fresh-data`: datumfönstret är nu env-overridable tvärs hela pipelinen (constants.py ×3, data_prepration, SQL via injektion), default = fruset fönster. Återstår före färsk körning: facit-isolering, DW-färsk källa (Spår B), datafullständighets-grind.)*
+validerade på gammal data inom det hårdkodade datumfönstret. 2026-05-28: G7-datumparametrisering klar
+på branch `fas-f-fresh-data`. 2026-05-29: Spår B operationaliserad — DW-extraktion validerad mot facit,
+växande-fönster-CSV på plats. Återstår: datafullständighets-grind, pipelinekörning på färsk data, output-
+rimlighetsvalidering.)*
 
 ### IB.7 — Elasticitet är log-log → koefficienten ÄR elasticiteten
 Både `QuantitySold(SalesTotal>0)` och `Regular_Price_fwbw_max_6` har `Transform=1` (log) i BCG:s
@@ -169,6 +172,34 @@ finare granularitet = svagare signal = fler instabila koefficienter. (3) De moti
 existens snarare än att underminera replikeringen. *(Sett vid FAS V-verifieringen 2026-05-28; Site
 rank-korr 0,91, Bundle 0,93, beslutsrelevanta 78,5 % resp. 81,4 % identiska.)*
 
+### IB.11 — Snapshot-drift mellan BCG:s extrakt och DW idag är ~0.057% (revenue, fryst fönster)
+**Observation (2026-05-29):** Att köra `export_b4b_for_model.py` med BCG:s ursprungliga fönster
+(2022-07..2025-06) mot dagens DW och jämföra mot BCG:s frusna facit (`0828_..._P_C.csv` i OneDrive)
+ger följande diffar:
+
+| Mått | Facit (BCG) | Ours (DW idag) | Diff |
+|---|---:|---:|---:|
+| Rader | 485,248 | 484,827 | -0.09% |
+| Sum TotalNet (brutto) | 6,505,893,292 | 6,502,199,267 | **-0.057%** |
+| Sum SoldQuantity | 6,439,977 | 6,482,891 | +0.67% |
+| Distinct ItemCode | 1,151 | 1,151 | 0 |
+| Distinct KEY | 4,949 | 4,930 | -19 (-0.4%) |
+
+**Per-kluster (gross TotalNet):**
+- 6 av 7 kluster inom ±0.5% (Clinics 0..1, Sjukhus A/B/C/Södran)
+- Clinics 2: +1.19% (största positiva drift)
+- Sjukhus Södran: -1.41% (största negativa drift)
+
+**Tolkning:** DW har levt vidare sedan BCG:s 2025-07-extrakt — krediteringar, sena fakturor, mix-skifte,
+klinik-omklassningar, restituerade transaktioner. Inte fel. Volym uppåt + revenue neråt = priser har gått
+ner marginellt (eller kreditmix har ändrats).
+
+**Konsekvens:** (1) Användbart **baseline-band**: 0.057% är ett rimligt snapshot-drift att förvänta sig
+framåt vid liknande tidsavstånd från en extrakt. (2) På klusternivå kan enskilda kluster drifta upp till
+~1.5% i båda riktningarna — om en framtida körning visar drift utöver detta band utan extra månader, är
+det signal på något annat (klinik öppnat/stängt, datakvalitetsproblem). (3) Detta är *grund*-driften
+för rimlighetsgrindens design (IB.6) — output-rimlighet ska inte trigga larm på drifter inom detta band.
+
 ---
 
 ## Hur listan växer
@@ -184,4 +215,5 @@ gav ny insikt som förtjänar ett `IB.N`.
 *Skapad 2026-05-26 vid dokumentstruktur-omtaget; extraherad ur SESSION_2026-05-25, NEXT_SESSION.md (PoC-2),
 TECHNICAL_PREREQUISITES.md §8. IB.9 tillagd efter att alla tre modellfamiljer körts fullt på VM. Omstrukturerad
 2026-05-27: IB.2-korrigeringen (tredje/fjärde signifikansvillkoret) invävd i IB.2 i stället för dubblerad;
-FR-7-stängning reflekterad i IB.2/IB.6.*
+FR-7-stängning reflekterad i IB.2/IB.6. IB.11 tillagd 2026-05-29 efter att Spår B operationaliserats och
+snapshot-drift mätts mot facit.*

@@ -1,309 +1,331 @@
-# BCG_PRICING_PLAYBOOK — Replikering och migrering av BCG:s prissättningsflöde
+# BCG_PRICING_PLAYBOOK — Operationell playbook
 
-Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst på
-Evidensia Djursjukvård AB. Följ `KÄRNPRINCIPER.md`, `MASTER_PYTHON.md`, `MASTER_AZURE.md`
-och `MASTER_AZURE_COMPUTE.md`. Linux/bash-handhavande: `UBUNTU_AZURE_VM.md`.
-
-> **Förbättringsloop:** Vid varje korrigering — föreslå omedelbart ny lärdom
-> (Symptom → Rotorsak → Regel) och lägg i relevant MASTER_*.md vid sessionsslut.
-
-**Syfte:** En läsare ska förstå exakt var projektet står, vilka steg vi tagit och ska ta,
-vilka beslut som är fattade och vilka som återstår — utan att rekonstruera kontext.
-
-**Projektets natur:** Replikering och migrering, inte utveckling. Vi återskapar BCG:s flöde
-faithfully (trogna namn, verbatim-kopia) och städar/rättar *längs vägen*. Designfel loggas
-i avsnitt 9 för att specas mot konsult senare — åtgärdas inte nu.
-
-**Nuläge i en mening:** Hela replikeringen (FR-1..7) är klar och bit-för-bit bevisad — dataprep,
-cluster-, site- och bundle-modellerna, steg 5-blenden och steg 6:s F1–F7-väv reproducerar BCG:s
-frusna facit (steg 6: korr 1,000000, |diff|=0, 100 % nivåmatch). Replikeringsfasen är stängd; nästa
-är FAS V (`verify_tool`), sedan färsk-data-fasen.
-
-**Senast uppdaterad:** 2026-05-27 (FR-7-stängning; topp-blocket synkat).
+**Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
+**Lokal sökväg:** `C:\Projekt\BCG`
+**Developer:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB), with AI advisor.
+**Senast uppdaterad:** 2026-05-29
 
 ---
 
-# 🧭 RIKTNING & SYNKAD STATUS (2026-05-27 — auktoritativ topp)
+## Riktningsblock (läs först)
 
-> **Läsregel:** Detta block är den **aktuella sanningen**. Allt nedanför (avsnitt 1–10 + roadmap-
-> uppdateringarna) är bevarat som **arkiv/historik** och får läsas för kontext — men där det krockar
-> med detta block **gäller detta block**. Inget har raderats; lagren är staplade i tidsordning.
->
-> **Lärdomar och insikter har egna filer:** tekniska lärdomar i `LESSONS_BCG.md` (`LB.N`),
-> domäninsikter i `INSIGHTS_BCG.md` (`IB.N`). Fas-/mognadsvy: `ROADMAP.md` (V→T→F→A). Denna playbook
-> refererar dem vid ID/namn istället för att upprepa dem. Universella principer: `KÄRNPRINCIPER.md`.
+**Dagens läge (2026-05-29):**
 
-## Affärsmålet (det enda som räknas till slut)
-Beslutsfattaren vill ha **samma modell körd på refreshad (färsk) data**, med diffar små nog att inte
-flippa ett top-line-prisbeslut (`IB.6`). Allt replikerings- och valideringsarbete är **grundläggning**
-— det bevisar att vi äger logiken; det är inte slutleveransen.
+Spår B är **operationaliserat och validerat** på två fönster:
 
-**Sekvens (bekräftad med Jens):** först **full replikering** (nu KLAR) → **därefter** bygga ut mot
-färsk data. Output-rimlighetsgrinden hör till **färsk-data-fasen** (den ersätter facit först när facit
-försvinner) — inte till replikeringsfasen.
-
-## "Full replikering så långt det är relevant" — DEFINITIONEN ÄR UPPFYLLD
-Replikeringen räknades som **full** när allt nedan var sant. **Samtliga FR-1..7 är nu klara och
-bit-för-bit bevisade.**
-
-| # | Kriterium | Status |
+| Mått | Frusen BCG-fönster (2022-07..2025-06) | Växande fönster (2022-07..2026-04) |
 |---|---|---|
-| FR-1 | Input-stegen (regular_price + data_prepration) bit-för-bit mot facit | ✅ Klar |
-| FR-2 | feature_selection + model facit-validerade (3812 grupper, korr 1,0) | ✅ Klar |
-| FR-3 | Steg 5 (`blended_logic` / cluster-fallback) logik-validerad mot facit | ✅ Klar (43/43, 618/1276) |
-| FR-4 | Cluster full körd på VM → vår egen `output_summary.xlsx` (3812 grupper) | ✅ Klar (2026-05-26) |
-| FR-5 | Site (folder 3) körd på VM → `output_summary.xlsx` (4673 grupper) | ✅ Klar (2026-05-26) |
-| FR-6 | Bundle (folder 5) körd på VM → `output_summary.xlsx` (125 grupper) | ✅ Klar (2026-05-26) |
-| FR-7 | Steg 6 (`Fall_Back_Logic.py`, F1–F7) vävd + validerad mot BCG-facit | ✅ **Klar (2026-05-27) — korr 1,000000, \|diff\|=0, 100 % nivåmatch** |
+| Rader | 484,827 (vs facit 485,248 = -0.09%) | 610,039 (+25.8% data) |
+| TotalNet | 6.50 mdr (vs facit 6.51 mdr = -0.057%) | 8.27 mdr (+27.2%) |
+| ItemCodes | 1,151 (samma) | 1,151 (samma facit-urval) |
+| KEY | 4,930 (vs facit 4,949) | 4,930 |
+| FTE NULL | 0 | 122,214 (20.03%, veckor 2025-07-07..2026-04-27) |
 
-**Hela replikeringen är stängd.** Den kvarvarande vägen mot affärsmålet (`IB.6`) är färsk data (FAS F),
-föregånget av bevis-paketering (FAS V) och IT-skuldregister (FAS T). Se `ROADMAP.md` för fas/mognad.
+`export_b4b_for_model.py` reproducerar BCG:s frusna facit med 0.057% snapshot-drift på revenue (väntat
+band) och producerar en växande-fönster-CSV som ligger på plats i Pipeline\data\. Nästa steg:
+pipelinekörning lokalt på cluster-familjen — se `NEXT_SESSION.md`.
 
-## Synkad fas-status
+**G7 (datumfönster) är klart:** `BCG_END_DATE` env-vars styr pipelinens och export_b4b:s datumfönster.
+Default = BCG:s frusna fönster (bevisat bit-identiskt). Override aktiverar växande fönster.
+Konsoliderad i denna playbook (avsnitt 6); ingen separat FAS_F_G7.md behövs.
 
-| Fas | Innehåll | Status |
+---
+
+## 1. Projektets syfte och narrativ
+
+BCG (Boston Consulting Group) levererade i 2025-07 en Python-baserad priselasticitetspipeline till
+Evidensia. Pipelinen producerar elasticitets-KPI:er per produkt × kluster (och finare nivåer) via
+OLS-regression med kombinatorisk feature-selektion, Ray-parallelliserad. Output går in i ett
+Excel-baserat prisbeslutsverktyg.
+
+Evidensias mål: **internalisera modellen.** Köra den på färsk data månadsvis, kunna förvalta den utan
+BCG-konsulter, och så småningom automatisera den i Azure.
+
+Projektets fasstruktur:
+
+| Fas | Mål | Status |
 |---|---|---|
-| 0–3 | Orientering, struktur, miljö, Ray-config + feature_selection | ✅ Klar |
-| 4 | regular_price + data_prepration + model (input + modell) | ✅ Klar — facit-validerad |
-| 7 | Validera output mot facit (KPI/population/features) | ✅ Klar |
-| 5 | `data_prep_after_model` / `blended_logic` (cluster-fallback) | ✅ Klar — facit-validerad bit-för-bit |
-| — | VM-körningspass: Cluster full + Site + Bundle | ✅ Klar (2026-05-26, FR-4..6) |
-| 6 | Fall Back Logic (F1–F7 multi-model-blend) | ✅ **Klar (2026-05-27, FR-7) — bit-för-bit mot facit** |
-| **V** | `verify_tool` — bibliotek av oberoende, repeterbara verifierare per modelldel | 🟢 **NÄSTA — moget, allt finns** |
-| **T** | Teknisk skuld → IT (VM/OOM, AppLocker, execution policy, blob-roller, G7) | 🟢 Redo (parallellt, ingen kod) |
-| — | Output-rimlighetsgrind | 🔴 Färsk-data-fasen (FAS F) — byggs mot färdig baslinje |
-| F | Färsk data: G7-datumparametrisering + SQL data prep (b4b) + FTE Väg 2 (DW) | 🟡 Delvis — SQL-bygget återstår |
-| A | Robust Azure-miljö — flytta städad struktur dit, körbar/schemalagd | 🔴 Beror på T + F |
-
-> **Korrigering mot äldre text nedan:** allt som beskriver FR-4..7 som "återstår", VM-passet eller steg 6
-> som "nästa", samt "endast steg 5 återstår" (rubrikblocket 2026-05-21) och roadmap-uppdateringen
-> 2026-05-22 (rimlighetsgrind före färsk-körning) är **överspelat**. FR-1..7 är klart; rimlighetsgrinden
-> tillhör FAS F (`IB.6`). De äldre styckena behålls oförändrade nedan som spårhistorik.
-
-## Nästa konkreta steg
-Bygg `verify_tool\` (FAS V) — ett bibliotek av fristående, repeterbara verifierare per modelldel, så
-varje resultat kan re-verifieras live på begäran. Inventera befintliga `verify_*`-script först (väv ihop,
-återuppfinn inte, `LB.1`). Detaljerad kall-start: `NEXT_SESSION.md`. Parallellt kan FAS T (IT-skuldregister)
-påbörjas — ingen kod krävs.
----
-
-## 1. Beslut (decision log)
-
-| # | Beslut | Motivering |
-|---|---|---|
-| D1 | Källa = `BCG_orginal_V2_New` | BCG:s bekräftade slutversion; innehåller v2-fixar |
-| D2 | Alteryx skippas helt | SQL-steget ersätter Alteryx; `.yxmd`/`.yxdb` kopieras ej |
-| D3 | Allt ut ur OneDrive till `C:\Projekt\BCG` | Löser venv-i-OneDrive, sync-låsning, sökvägs-strul |
-| D4 | `duckdb.exe` ersätts av duckdb-Python-paketet | AppLocker blockerar `.exe`; IT: exe är dött |
-| D5 | Ray-resurser sätts i `config.yml` (`ray:`-sektionen) per maskin | v2 flyttade parametrarna dit; inget i koden ändras |
-| D6 | Interim-input: BCG:s `0828_*` CSV:er tills SQL-steget validerats | Frikopplar modellvalidering från SQL-migrering |
-| D7 | Trogna namn, verbatim-kopia i fas 1; städning senare | Spårbarhet, minimera replikeringsfel |
-| D8 | Azure blir testmotorn (PoC) — lokal maskin räcker inte | 31 GB RAM → OOM; bevisat 2026-05-20 |
-| D9 | VM utan publik IP, i befintligt VNet, nås från kontorsnätet | Tenant-policy förbjuder publika IP:n |
-| D10 | Eget Git-repo (`evbcgpricing`), endast våra artefakter | Git för vårt arbete; data/kod bor i V2_New/Azure |
-| D11 | PoC-genväg: lånar LZ3-connectivity-subnet, VM-disk ej Blob | Bevis först, elegant drift sen |
-| **D12** | **Väg B: kör modellstegen isolerat på BCG:s mellanfil `data_for_model.csv`** | Frikopplar de tunga modellstegen från de blockerade input-stegen (saknad `InScope Mapping.xlsx`) — låter oss validera kärnan utan att vänta på Kent |
-| **D13** | **Plattformsanpassningar tillåtna när koden annars ej kan köra på Linux** | Som D4: hårdkodad Windows-sökväg (`C:\ray_spill`) är en plattformsblockerare, ej logik. Minsta möjliga ändring, loggas i §9. Modelllogik rörs aldrig |
-| **D14** | **Steg 5 (`data_prep_after_model_output.py`) körs INTE på VM:en** | `import xlwings` kräver Excel + Windows COM. Headless Linux saknar det. Steget är en Windows-/Excel-uppgift per BCG:s design (R9) — egen senare uppgift, ej VM-arbete |
-
-## Öppna beslut
-
-| # | Fråga | Behöver |
-|---|---|---|
-| O1 | Owner på `ev-openai-swce-rg-test`? | Kent — krävs för dataroller/Blob/ACR, ej för VM-PoC |
-| O3 | ~~Krävs `InScope Mapping.xlsx`?~~ | **✅ AVFÄRDAD — död config.** `regular_price.py` refererar aldrig `in_scope_data`/`competitor` (verifierat med `Select-String`). Configen deklarerar filen men koden läser den aldrig. Input-stegen körda utan den |
-| O4 | Blob + DW-vyer (spår B, drift) — när? | Efter PoC validerad |
+| **V** — Validate | Bevisa att vi reproducerar BCG:s tal bit-för-bit på BCG:s data | KLAR (commit `824c265` på main, 2026-05-26) |
+| **T** — Tech debt | Pinnad miljö, sökvägs-hygien, dokumentation, runbooks | Pågående parallellt, inte blockerande |
+| **F** — Fresh data | Köra modellen på dagens DW, inte BCG:s 2025-07-snapshot | **Pågår 2026-05** — Spår B operationaliserat, pipelinekörning återstår |
+| **A** — Azure automation | Schemalagd månatlig körning utan Jens dator | Framtid; kräver Blob-roll först |
 
 ---
 
-## 2. Migreringsfaser
+## 2. Arkitekturöversikt
 
-| Fas | Innehåll | Status |
-|---|---|---|
-| 0 | Orientering, scan, källa & rotorsaker | ✅ KLAR |
-| 1 | Replikera struktur + kopiera källor | ✅ KLAR |
-| 2 | Miljö: venv + `requirements.txt` (lokalt + Azure) | ✅ KLAR |
-| 3 | Ray-config + feature_selection (brute-force, Ray) | ✅ **KLAR — körd fullt på Azure, validerad mot facit** |
-| 8 | Azure-motor (PoC): VM, data+kod+venv+körning | ✅ **KLAR — två tunga steg körda i full skala** |
-| 4 (model) | OLS-regression per grupp | ✅ **KLAR — körd fullt, bit-för-bit-match mot facit** |
-| 7 | Validera output mot facit (KPI/population/features) | ✅ **KLAR — model + feature_selection + data_for_model validerade** |
-| **4 (input)** | **regular_price + data_prepration (producerar `data_for_model.csv`)** | ✅ **KLAR — körda; vår `data_for_model.csv` BIT-FÖR-BIT identisk med BCG:s (max diff 1e-15, floating-point-brus)** |
-| 5 | `data_prep_after_model` (xlwings/Excel) | ⬜ Windows-uppgift, ej VM (D14) |
-| 4 (SQL prep) | SQL data prep (ersätt `duckdb.exe` med Python) | ⬜ Kvar (egen fas, ej replikering utan migrering) |
-| 6 | Fall Back Logic (fixa hårdkodade sökvägar) | ⬜ Kvar |
-| 9 | Git-baslinje (eget repo) | ✅ Pågående |
-| B | DW-vyer + Blob input-folder (drift) | ⬜ Senare |
+```
+                                    +----------------------------+
+                                    | Business_Analytics          |
+                                    | (DW-extraktion + validering) |
+                                    +----------------------------+
+                                              |
+                                              v
+                                  export_b4b_for_model.py
+                                  (DW + cluster seed + facit-pairs + FTE)
+                                              |
+                                              v
+                              0828_Sweden_weekly_model_data_P_C.csv
+                                              |
+                                              v
+                                  +-------------------------+
+                                  | C:\Projekt\BCG\Pipeline |
+                                  | (BCG:s ursprungspipeline)|
+                                  +-------------------------+
+                                              |
+              +---------------+---------------+---------------+
+              v               v               v               v
+        01_clean.sql    feature_selection   model         output_summary.xlsx
+        (DuckDB)        (Ray, OLS)          (OLS per KEY)
+                                                                |
+                                                                v
+                                                         verify_tool
+                                                         (proves vs BCG facit)
+```
 
-**Kritisk insikt:** Pipelinen delar sig i en **input-del** (steg regular_price + data_prepration,
-blockerade på externa filer från Kent) och en **modell-del** (feature_selection + model, körbara på
-vår mellanfil). VM-PoC:en validerade modell-delen. Input-delen är nästa, egen fas — den kräver
-`InScope Mapping.xlsx`. Steg 5 (efterbearbetning) är Windows/Excel, utanför VM:en (D14).
+**Tre modellfamiljer** (alla körs separat med varsin pipeline-katalog):
 
----
-
-## 3. Dagens stora lärdomar (2026-05-21)
-
-1. **Bit-för-bit-validering lyckades.** `model.py` kört fullt på Azure (3812 grupper, ~35 min),
-   `output_summary.xlsx` jämförd mot facit: elasticitet identisk på alla 3812 (max diff 0,000000,
-   korr 1,0). Replikeringen återskapar BCG:s resultat exakt. Konsulternas "solid"-beskrivning bekräftad.
-2. **OOM:en var ett RAM-tak, inte algoritmisk.** På 128 GB pegades minnet aldrig (`available` ~83 GB
-   under feature_selection, `Swap 0B` genomgående). Ray spillde ~33 GB till `/tmp/ray_spill` utan att
-   pressa OS:et. CZ.1 bekräftad i praktik: skala vertikalt, inte kluster.
-3. **feature_selection troget replikerat.** Körd fullt (3812 grupper, brute-force/Ray), validerad:
-   feature-val identiskt på 93,1%, elasticitet/Adj R2 i praktiken identisk (korr 1,0). De 263 avvikande
-   grupperna skiljer på *en* gränsfallsfeature (`negative_media_coverage_flag_jan25` / `No of Sites`)
-   utan att påverka elasticiteten — inneboende numerisk instabilitet i brute-force på tröskel-features,
-   ej replikeringsfel.
-4. **Antal grupper = 3812**, inte ~2450 som tidigare antagits. Justerar tidsförväntan.
-4b. **Hela kedjan sluten.** Input-stegen (regular_price + data_prepration) körda; vår egen
-   `data_for_model.csv` jämförd mot BCG:s: BIT-FÖR-BIT identisk (max numerisk diff 1e-15 =
-   floating-point-brus, 0 text-mismatchar). Enda filskillnaden var radslut (CRLF vs LF). Cirkeln
-   sluten: vår input → samma mellanfil → samma modellresultat → matchar facit.
-4c. **`InScope Mapping.xlsx` / competitor-data är DÖD CONFIG.** Configen deklarerar dem, men
-   `regular_price.py`/`data_prepration.py` refererar dem aldrig (verifierat). Lärdom: läs vad koden
-   *gör*, inte vad configen *påstår*. Filerna behövs ej — input-stegen körde rent utan dem.
-5. **`C:\ray_spill` hårdkodad i `feature_selection.py` (rad 43)** dödar Linux-körning. Fix: `/tmp/ray_spill`
-   (D13). Mappen måste skapas (`mkdir -p`) innan körning. → §9.
-6. **`data_prep_after_model` är xlwings-bundet** — kan ej köra på headless Linux (D14, R9 skarp).
-7. **Mojibake i produktnamn** (`VeterinÃ¤rkonsultation`) i `model_results` — `cp1252` +
-   `encoding_errors='ignore'` i `read_data` sväljer svenska tecken. Påverkar ej siffror. → §9.
-8. **tmux frikopplar långa körningar** från SSH/dator. Kör → detacha (`Ctrl+B`, `D`) → kolla utifrån.
-9. **Token-utgång bevisad** (`AADSTS70043`, 4 h). Körningen överlevde — den rör inte Azure-API:t.
-   Bekräftar Managed-Identity-regeln (CZ.3) för riktig drift.
-
----
-
-## 4. Azure-läget (fas 8)
-
-| Resurs | Värde |
-|---|---|
-| Subscription | `ev-lz3-ai (SE)` — `42f726f8-91ee-44d4-832f-9d9ec412ef8f` |
-| Resursgrupp | `ev-openai-swce-rg-test` (sandlåda, PIM Contributor) |
-| VM | `bcg-poc-vm`, `Standard_E16s_v5` (16 vCPU / 128 GB RAM), Ubuntu 22.04, 128 GB disk |
-| Privat IP | `172.18.148.4` (ingen publik — kontorsnät via SSH) |
-| VNet/subnet | `ev-lz3-swce-vnet-prod` / `ev-lz3backend-swce-snet-prod` (lånat, D11) |
-| Arbetsrot på VM | `~/bcg/cluster/` (`code/`, `data/`, `output/`, `.venv/`) |
-| Python | 3.11.9 via uv (isolerad; systemets 3.10 orörd) |
-| Status | **Deallocated** — disken består, allt arbete kvar |
-
-**Kostnadsdisciplin (KRITISKT):** VM ~8–10 kr/h igång, nära noll deallokerad. Mönster: `az vm start`
-→ jobba → `az vm deallocate`. Deallocate (ej stop) stoppar debiteringen. Driftkort i `README.md`.
-
----
-
-## 5. Vad pipelinen gör (config-/strukturnivå)
-
-Priselasticitetsmodell för efterfrågan. Beroende variabel: `QuantitySold(SalesTotal>0)`.
-Per produktgrupp (`KEY`) körs **OLS-regression** (`statsmodels`); priskoefficienten *är*
-elasticiteten (`ELASTICITY_Regular_Price_fwbw_max_6`). Feature-selection är en **brute-force
-delmängdssökning** (`itertools`) parallelliserad över Ray. Glesa grupper hanteras via
-klustring + fallback/blend (`final_elasticity`). Domänanpassningar: bemanning som kontrollvariabel,
-dummies för två negativa medieperioder (mar24/jan25).
-
-**Körordning (launcher):** regular_price → data_prepration → feature_selection → model →
-data_prep_after_model. feature_selection skriver `control_file.xlsx`; model läser den.
-
----
-
-## 6. Riskregister
-
-| ID | Symptom | Rotorsak | Status |
+| Familj | Grain | Grupper | Pipeline-katalog |
 |---|---|---|---|
-| R1 🔴→✅ | Ray OOM-krasch | Hårdkodat 80 GB i config | Löst: Azure 128 GB; minnet pegades aldrig |
-| R2 🔴 | DuckDB-steget kraschar | Blockerad `duckdb.exe` | Ersätts av Python på Linux (input-fas) |
-| R3–R5 🔵→✅ | venv/pip/CWD-strul | Diverse | Lösta |
-| R6 🟡→✅ | Hårdkodad sökväg (`C:\ray_spill`) | Ej parametriserad | Löst för Linux (D13); §9 mot konsult |
-| R7 🟡 | "Pipeline completed" vid fel | Saknad exit-code | Verifierar alltid output-fil — tillämpad genomgående |
-| R8 🟡 | "output from Alteryx" i logg | Ej omdöpt | Spec mot konsult |
-| R9 🔵→⚠️ | xlwings/pywin32 | Excel-beroende | **Skarp:** `data_prep_after_model` ej VM-körbart (D14) |
-| R10 🔵→✅ | Mojibake i `.ps1` | PS 5.1/CP1252 | Script ASCII |
-| **R12b** 🟡 | Mojibake i produktnamn (output) | `cp1252`+`encoding_errors='ignore'` | §9 — påverkar ej siffror |
-| **R13** 🔵 | UTF-16-kodad `requirements.txt` | Windows "Unicode"-spar | Löst via `iconv` (MASTER_PYTHON) |
-| **R14** 🔵 | scp bär Windows-rättigheter (`dr-x---r-x`) | OS-rättighetsmodeller | Löst: `chmod -R u+w` på egen mapp |
+| Cluster | ItemCode × Cluster (7 kluster) | 3,812 | `2. Product Cluster Level Models` |
+| Site | ItemCode × Department | 4,673 | `3. Product Site Level Models` |
+| Bundle | Varukorgar × Hospital/Clinics | 125 | `5. Bundle Clinic Models` |
+
+**Fallback-väv (steg 6, FR-7):** F1-F7-logik blandar alla tre familjers utdata till slutgiltig
+elasticitet per ProductKey. Hanterar svaga grupper genom representant-arv (IB.2).
 
 ---
 
-## 7. Ray-config (KLAR)
+## 3. Pipeline-steg och deras placering
 
-`...\code\src\config.yml`, `ray:`-sektionen. På Azure-VM (128 GB): `cpus: 14`, `memory: 32`,
-`batch: 128`. Object store = `memory × 1024³` = 32 GB; spill till `/tmp/ray_spill` (D13).
-`feature_selection.py` rörs aldrig utom den enda spill-sökvägsraden.
+Pipelinen finns i `C:\Projekt\BCG\Pipeline\02. Elasticity\`. Tre huvudsteg per modellfamilj:
 
----
+### Steg 0: Dataprep (gemensam)
+- `Sweden_Elasticity_Data_Prep_SQL\scripts\00_read.sql` — läser parquet (eller CSV i Spår B)
+- `Sweden_Elasticity_Data_Prep_SQL\scripts\01_process.sql` — DuckDB-process till veckograin
+- `replicate_dataprep.py` — orkestrerar SQL-stegen, validerar mot facit
 
-## 8. Vad nästa pass gör (efter VM-kedjan)
+### Steg 1-3: Per modellfamilj
+1. `01_clean.sql` (DuckDB) — läser `0828_..._P_C.csv` → renad parquet
+2. `feature_selection` (Python, Ray-parallelliserad OLS) — kombinatorisk feature-val per grupp
+3. `model` (Python, OLS per KEY) — slutgiltig elasticitet → `output_summary.xlsx`
 
-**Hela den VM-körbara pipelinen är klar och validerad.** Återstående arbete är inte VM-bundet:
+### Steg 4: Cluster-blend (FR-3)
+- Cluster-familjen → `fallback_blend.py` → `final_model_cluster_granularity.xlsx`
 
-1. **Steg 5 — `data_prep_after_model_output.py`** (Windows/Excel). Körs lokalt med Excel installerat
-   (xlwings, D14). Matar in i prismodell-arbetsboken. Egen Windows-session.
-2. **SQL data prep** (egen fas, migrering snarare än replikering). Ersätt DuckDB-flödet, ev. mot
-   DW-vyer (spår B). Större, eget spår.
-3. **Fall Back Logic (fas 6)** — oläst, hårdkodade sökvägar (R6). Egen session.
+### Steg 5: Bundle-blend
+- Bundle-familjen → bundle-output
 
-Varje del är nu en mindre, isolerad session som ärver den infrastruktur vi byggt. Mönstret är satt:
-rökstest → full körning → validera mot facit → dokumentera.
-
----
-
-## 9. Återbesök mot konsult (spec senare)
-
-Maskinspecifik config (delvis fixad i v2) · `.exe`-beroende · "Pipeline completed" vid fel ·
-hårdkodade Fall Back-sökvägar · **`C:\ray_spill` hårdkodad spill-katalog (rad 43 feature_selection)** ·
-hårdkodade datum i `constants.py` (START/END_DATE, SPECIAL_WEEKS) — filtrerar bort data efter jun 2025 ·
-**`cp1252`+`encoding_errors='ignore'` → mojibake i svenska produktnamn** ·
-**feature_selectionens känslighet: 263/3812 grupper väljer olika gränsfallsfeature vid numerisk drift
-(påverkar ej elasticitet)** · Alteryx-referenser i logg · död config (`reference.csv`/`baseline_control.csv`) ·
-`data_prep_after_model` xlwings-bundet (ej Linux-körbart).
+### Steg 6: Fall_Back_Logic (FR-7)
+- `6. Fall Back Logic\Fall_Back_Logic.py` — F1-F7-väv över alla tre familjer
+- Output: `Final_Fallback_Data_<timestamp>.xlsx` med slutgiltig elasticitet per ProductKey
 
 ---
 
-## 10. Nya lärdomar till MASTER-filerna
+## 4. Python-miljöer (KÄNN DEM)
 
-**MASTER_PYTHON:**
-- Windows-textfiler kan vara UTF-16 (`fffe`/`feff`-BOM + 00-byte/tecken). `xxd` före strip;
-  `iconv -f UTF-16 -t UTF-8` på HELA filen, ej bara BOM. CRLF (`0d0a`) ofarligt för pip. (R13)
-- `$Args` reserverat i PowerShell; `.ps1` ska vara ASCII (befintliga).
+Tre olika Python-miljöer med olika paket. Använd rätt för rätt jobb (LB.26/LB.27/LB.30).
 
-**MASTER_AZURE_COMPUTE:**
-- CZ.4: scp bär Windows-rättigheter → `dr-x---r-x`, `sed` failar. `chmod -R u+w ~/egenmapp`
-  (aldrig system-/delade kataloger). venv-aktivering gäller per skal — aktivera om i tmux. (R14)
-- CZ.3 bekräftad: token dog mitt i session; körning överlevde (rörde ej Azure-API:t).
-- tmux för run-to-completion: `tmux new -s namn` → kör med tee → `Ctrl+B D` → kolla utifrån.
-- Efter `az vm start`: ge VM:en ~1 min innan ssh. `Connection refused` direkt = vänta, ej fel.
-- `/tmp/ray_spill` (skapad med `mkdir -p`) för Ray-spill på Linux; ersätter hårdkodad Windows-sökväg.
+| Miljö | Sökväg | Har | Används till |
+|---|---|---|---|
+| Global 3.11 | `C:\Users\jepa02\AppData\Local\Programs\Python\Python311\` | duckdb, pandas, openpyxl, numpy, pyyaml | verify_tool, dataprep-validering |
+| Business_Analytics | `C:\Projekt\Business_Analytics\.venv` | pyodbc, pandas | DW-extraktion (export_b4b_for_model.py, compare_to_0828_facit.py) |
+| Pipeline | `C:\Projekt\BCG\Pipeline\02. Elasticity\.venv` | duckdb, Ray, statsmodels | Pipelinens beräkningar (feature_selection, model) |
 
-**Validering (generell metod):**
-- Validera mot facit i lager (population → kolumner → KPI), strikt + tolerant + korrelation.
-  Lita inte på en hårdkodad tröskeldom — visa avvikelserna och tänk på vad de betyder
-  (brute-force-feature-val kan skilja på gränsfall utan att slutresultatet rörs).
+**Inga installationer "för säkerhets skull"** — använd den venv som redan har paketet. Om en venv
+saknar ett paket: byt venv, installera inte.
 
 ---
 
-*Skapad av Jens Palmö (utvecklare) med AI-rådgivaren. Reviderad 2026-05-21 vid Azure-modellvalidering.*
+## 5. Köra hela kedjan (FAS V — replikering mot BCG facit)
+
+För att bevisa att replikeringen fortfarande håller:
+
+```powershell
+cd "C:\Projekt\BCG\verify_tool"
+py -3.11 verify_infra.py        # miljö-check
+py -3.11 run_all.py             # full kedja, FR-1..7
+py -3.11 run_all.py --excel     # +daterat Excel-kvitto i receipts\
+```
+
+Förväntat utfall (FAS V validerad 2026-05-26):
+- FR-1 (dataprep): 485,248 + 196,464 rader, corr 1.000000, diff 0
+- FR-4 (cluster): 3812/3812 grupper, median |diff| 0, rank-corr 1.000
+- FR-5 (site): 4673/4673, median |diff| 0, rank-corr ~0.91
+- FR-6 (bundle): 125/125, median |diff| 0, rank-corr ~0.93
+- FR-3 (blend): 43/43 representanter, signifikans 43/43
+- FR-7 (fallback): corr 1.000000, |diff| 0, 100% nivåmatch, 108,979 rader / 15,128 ProductKeys
 
 ---
 
-## Roadmap-uppdatering 2026-05-22 — efter Spår B
+## 6. G7 — Datumfönster-parametrisering (FAS F första milstolpe)
 
-**Strategisk omsvängning (befäst):** Målet är inte att replikera BCG exakt på gammal data (ger bara
-insikter konsulterna redan levererat) utan att köra deras LOGIK på FÄRSK data via DW, med diffar små nog
-att inte påverka top-line-beslut. Grövre DW-native gruppering än BCG:s är affärsmässigt OK och
-compute-snällare. Finare intern hierarki (Dim_Item_Extended) = uttalat senare utvecklingssteg (D-B6).
+### 6.1 Vad G7 löser
 
-**Korrekt nulägesbild:**
-- Modellen (folder 2, Cluster) = validerad bit-för-bit på Azure. Compute-risk stängd.
-- SQL-dataprep = replikerad + migrerad DW-native (b4b), validerad. G1 stängd.
-- Modellkontraktet kartlagt (log-log; KEY = Cluster × ItemCode; FTE enda genuina externa input).
+BCG:s pipeline hårdkodade datumfönstret (`2022-07-01..2025-06-29`) i flera filer. Med fresh data
+2026 skulle detta **tyst filtrera bort allt efter juni 2025** — ingen krasch, bara fel (gamla)
+resultat. G7 gör fönstret env-overridable: en färsk körning kräver **ingen kodändring**.
 
-**Kvarvarande, i ordning (kritisk väg):**
-1. PoC-2: b4b (DW) → modellkontrakt → kör modellen på vår data (control_file `RUN=YES`, några KEYs).
-2. Output-rimlighetsgrind — ersätter facit på färsk data (negativ elasticitet, trovärdiga band,
-   "skulle diffen flippa ett prisbeslut?"). Bygg före färsk-körning.
-3. Steg 5 (`data_prep_after_model_output`, xlwings/Excel) — körbar nu på validerad output. Liten Windows-session.
-4. Site (folder 3) + Bundle (folder 5) familjer.
-5. Steg 6 Fall Back Logic — fixa hårdkodade sökvägar (R6, ofarlig hygien nu); blend kräver familjerna.
-6. Färsk data: parametrisera datumfönster (G7), bygg FTE-pipeline (Quinyx).
+### 6.2 Designprincip — default reproducerar gammalt facit exakt
 
-**Notering om steg 5/6 (Jens önskemål):** legitima men nedströms. Steg 6:s path-fix är ofarlig hygien
-som kan slås in parallellt. Affärsvärdet sitter dock i PoC-2 + färsk data, inte i Excel-paketeringen.
+Med inga env-vars satta beter sig varje ändrad fil bit-för-bit som tidigare. Bevisat:
+`verify_dataprep.py` utan env → `overall=PASS`, corr 1.000000, 485,248 + 196,464 rader, diff 0.000% — FR-1
+oberörd. Vägen tillbaka till BCG:s frusna fönster är att köra utan env-vars (eller `git checkout main`).
+
+### 6.3 Körning av färskt fönster
+
+```powershell
+$env:BCG_END_DATE = '2026-04-30'   # sista datum att inkludera
+# optional:
+# $env:BCG_START_DATE = '2022-07-01'   # fast ankare (default redan detta)
+# $env:BCG_SPECIAL_WEEKS = '...'        # comma-separated media weeks; default = BCG:s
+```
+
+`END_DATE2` (exklusiv övre gräns i modell-filter) **härleds automatiskt** som `END_DATE + 1 dag` —
+sätt aldrig manuellt.
+
+**Fönstertyp:** växande fönster med fast ankare (alltid 2022-07-01, växer när månader läggs till).
+Rullande fönster (t.ex. senaste 36 månader) är ett medvetet senare analytiskt steg — inte byggt här.
+
+Tillbaka till frusen: `Remove-Item Env:BCG_END_DATE`.
+
+### 6.4 Vad ändrades (allt på branch `fas-f-fresh-data`)
+
+| Fil | Ändring |
+|---|---|
+| `constants.py` (cluster) | Datumblock → env-overridable; `END_DATE2` derived; `SPECIAL_WEEKS` env-overridable |
+| `constants.py` (site, bundle) | Samma datumblock, kirurgiskt (granularitet bevarad) |
+| `data_prepration.py` (cluster) | Hårdkodad `'2025-06-23'` → `END_DATE` (W-MON-rundning gör dem ekvivalenta) |
+| `data_prepration.py` (site, bundle) | Ingen ändring — använde redan `END_DATE` |
+| `replicate_dataprep.py` | `_inject_dates()`: env-gated in-memory rewrite av SQL-fönstret. SQL-filen på disk oförändrad |
+| `01_process.sql` | Ingen ändring — datumfönster injiceras in-memory av Python ovan |
+| `export_b4b_for_model.py` (2026-05-29) | Env-overridable `BCG_START_DATE`/`BCG_END_DATE`, FY-filter borttaget, FTE NULL-rapportering |
+
+---
+
+## 7. Output-separation (FAS F prerequisite 1 — DONE 2026-05-28)
+
+Facit-isolering, löst Jens väg: BCG-originalet ligger orört i OneDrive (det ÄR det frusna facit; vi
+skriver aldrig dit). Vår **bevisade baslinje** — VM-körningens utdata som verify_tool visade matcha
+BCG bit-för-bit — ligger kvar och är nu **read-only** så en felriktad färsk körning inte kan skriva
+över beviset:
+
+| Bevisad baslinje (read-only) | Storlek |
+|---|---|
+| `2. Product Cluster Level Models\output\azure_run_model\output_summary.xlsx` | 326,890 |
+| `3. Product Site Level Models\output\azure_run_model\output_summary.xlsx` | 398,885 |
+| `5. Bundle Clinic Models\output\azure_run_model\output_summary.xlsx` | 15,921 |
+| `_step6_run\...\Final_Fallback_Data_20260527_085906.xlsx` | step 6 |
+
+**Konvention för färska körningar:** skriv till en parallell, daterad systermapp — aldrig in i
+`azure_run_model`:
+
+```
+...\<model>\output\azure_run_model\       <- bevisad baslinje (read-only, rör aldrig)
+...\<model>\output\fresh_run_2026-05\     <- färsk körnings output (ny plats)
+```
+
+Detta håller bevisad och färsk sida vid sida: verify_tool / rimlighetskontroller kan peka på endera
+via sina `--args`, och den daterade mappen självdokumenterar vilken körning som är vilken. Den färska
+mappen skapas **när körningen sker** (inte förbyggd). Steg 6 följer samma mönster
+(`_step6_run` → `_step6_run_fresh_<date>`).
+
+För att åter-aktivera skrivning till en baslinje-fil (t.ex. för att medvetet regenerera):
+`Set-ItemProperty <file> -Name IsReadOnly -Value $false`.
+
+---
+
+## 8. Vad återstår före en riktig färsk körning
+
+G7 gör fönstret *settbart*. Det räcker inte för giltiga färska resultat — tre prerequisites kvarstår:
+
+1. **Facit-isolering** — KLAR (avsnitt 7 ovan).
+
+2. **Färsk källa, inte bara färskt fönster (Spår B)** — KLAR 2026-05-29.
+   `export_b4b_for_model.py` läser nu från DW direkt, inte BCG:s frusen parquet. Validerat mot facit
+   med 0.057% snapshot-drift.
+
+3. **Datafullständighets-grind (Nivå 1-säkerhet)** — ÅTERSTÅR.
+   Innan auto-körning av "senaste stängda månad": verifiera att DW faktiskt har komplett data för hela
+   fönstret. Att köra en ofullständig senaste månad = tyst fel. Detta är grinden som gör månatliga
+   auto-körningar säkra. (Auto-beräkning av "senaste stängda månad" är ett steg bortom env-override —
+   bygg grinden först, auto-beräkningen sen.)
+
+Efter dessa tre: kontrollerad färsk körning, följd av rimlighetsvalidering mot det isolerade facit
+(IB.6 — diffar små nog att inte flippa ett top-line-prisbeslut).
+
+---
+
+## 9. Vision (förvaltning framåt)
+
+Slutmålet: modellen kör senaste stängda månads data automatiskt; månadsuppdatering = bara kör skriptet,
+inga filändringar; på sikt i Azure utan Jens dator, körbart av kollegor utan Python-kunskap. Sekvens:
+env-override (KLAR) → auto-beräkna senaste månad + datagrind (NÄSTA) → Azure-automation (FAS A, långt
+senare). Växande fönster med fast ankare 2022-07-01 (rullande trender = medvetet senare analytiskt
+steg, inte nu).
+
+---
+
+## 10. FAS T (tech-debt — kräver ingen kod, kräver IT)
+
+Strukturera skuldregistret till IT så miljön inte bara bor i repot:
+
+- **Miljö i global Python 3.11**, inte isolerad venv — ej reproducerbar (nu även pyyaml där). Pinnad
+  venv + requirements.txt behövs (förutsättning för FAS A).
+- **Relativa sökvägar i site/bundle `constants.py`** (`.\code\src\config.yml`) — körning platsberoende,
+  kraschar från fel katalog.
+- **Frusna externa beroenden** (FTE-XLSX täcker till 2025-06, facit-pairs frusna till BCG:s urval,
+  cluster-seed frusen till 58 kliniker). Tre olika filer, frusna vid olika tidpunkter, läses av olika
+  pipeline-steg — kan inte uppdatera *en* utan att tänka på de andra två.
+- **Inget run_all-script för pipelinen** — manuell orkestrering, glöm-faktor.
+- **Två oberoende output-vägar (Spår A vs Spår B)** med samma filnamn — riskerar tyst förorening
+  (L.43/LB.29).
+- AppLocker (.exe/pip.exe), execution policy (LB.21), blob-roll-blockering (Storage Blob Data
+  Contributor, kräver Owner), lokal OOM på Stage 2 (varför VM behövs).
+
+---
+
+## 11. Decision log (utvalda beslut)
+
+### D-B1 (2026-05-22): BCG:s transaction_data-källa = dbo.Fact_BillingInvoiceRows
+Bekräftat via PBI-datasetets M-query. Stänger källtvetydigheten.
+
+### D-B2 (2026-05-22): Cluster-seed-frågan
+Beslut: använd BCG:s 0808-seed som-is för Spår B-replikering. Färska kluster är ett senare analytiskt
+steg, inte ett extraktions-spår.
+
+### D-B3 (2026-05-22): Net/brutto = brutto
+Bekräftat empiriskt via median-kvot 1.0000 mellan SalesTotal och SalesExVAT × 1.25. SalesTotal är
+modellens omsättning, brutto inkl 25% moms.
+
+### D-B6 (2026-05-22): Dim_Item_Extended kontra dbo.Dim_Item
+Beslut: använd Manual.Dim_Item_Extended för rikare hierarki, men kör coverage check innan deployment
+(noterad i `b4b_dw_weekly_elasticity.sql`).
+
+### D-F-G7 (2026-05-28): Datumfönster-parametrisering via env-vars
+Beslut: G7-mönster (env-vars med defaults = BCG:s gamla fönster) över hela pipelinen. Default
+bit-identiskt med tidigare — ingen risk att glömma och därför inte revertera.
+
+### D-F-output-separation (2026-05-28): Read-only baslinje + daterade systermappar
+Beslut: bevarad baslinje skrivskyddad, fresh-körningar skriver till `fresh_run_<datum>\` parallellt.
+Ingen robocopy-dubblering behövs.
+
+### D-F-29 (2026-05-29): export_b4b som operationaliserad DW-källa
+Beslut: använd `export_b4b_for_model.py` som permanent DW-källa för Spår B (ersätter frusen parquet).
+Validerad mot facit. Cluster-seed och FTE-XLSX kvarstår frusna (tech-debt, inte blockerande).
+
+---
+
+## Hur listan växer
+
+Nytt beslut → ny D-rad. Nytt steg i pipelinen → nytt avsnitt under §3 eller §5. Status uppdateras i
+riktningsblocket vid sessionsslut.
+
+Vid sessionsstart: läs riktningsblocket. Vid sessionsslut: uppdatera riktningsblocket och avsnitt 8
+("Vad återstår").
+
+---
+
+*Skapad 2026-05-26 som operativ playbook ovanpå pipelinens fysiska struktur. Uppdaterad löpande;
+G7-innehållet (tidigare FAS_F_G7.md) konsoliderat in 2026-05-29 — egen fas-fil avskaffad till förmån
+för NEXT_SESSION + denna playbook.*

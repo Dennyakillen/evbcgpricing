@@ -1,124 +1,154 @@
-# NEXT_SESSION — FAS F: förutsättningar för färsk körning (facit-isolering, DW-källa, datagrind)
+# NEXT_SESSION — FAS F: pipelinekörning med växande fönster (cluster-familj först)
 
 Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst på Evidensia
-Djursjukvård AB. Följ `KÄRNPRINCIPER.md`, `MASTER_AZURE.md`, `MASTER_AZURE_COMPUTE.md`,
-`MASTER_PYTHON.md`. Linux/bash: `UBUNTU_AZURE_VM.md`. Nuläge: `BCG_PRICING_PLAYBOOK.md`
+Djursjukvård AB. Följ `KÄRNPRINCIPER.md` (inkl. nya §4.6 dokumentation, §6.4 iterativ sökning),
+`MASTER_AZURE.md`, `MASTER_AZURE_COMPUTE.md`, `MASTER_PYTHON.md` (inkl. §7.2 iterativ sökningsteknik,
+L.42-L.43). Linux/bash: `UBUNTU_AZURE_VM.md`. Nuläge: `BCG_PRICING_PLAYBOOK.md`
 (läs riktningsblocket överst). Lärdomar: `LESSONS_BCG.md` (`LB.N`). Insikter: `INSIGHTS_BCG.md` (`IB.N`).
 Fasöversikt: `ROADMAP.md` (V→T→F→A). G7-fixen: `FAS_F_G7.md`.
 
 > **Förbättringsloop:** Vid varje korrigering — föreslå ny lärdom (Symptom → Rotorsak → Regel) i
 > `LESSONS_BCG.md`, eller ny insikt i `INSIGHTS_BCG.md`. Befordra till MASTER_* om generell.
 
-> **Miljödisciplin:** Varje kommandoblock etiketteras med miljö. **PowerShell** (`PS C:\`). Kör pipeline
-> + verify_tool med **`py -3.11`** (global Python har duckdb/pandas/openpyxl/numpy/yaml — `.venv` och 3.13
-> saknar dem; Windows Store `python3.13`-aliaset är en fälla, **LB.26/LB.27**). Inga `.ps1` att anropa
-> (execution policy, **LB.21**) — leverera kommandoblock eller `.py`.
+> **Sessionsstart §6.4:** Innan något nytt designas eller byggs — sök iterativt i Jens arbetsmiljö
+> efter befintliga artefakter som löser frågan. Se MASTER_PYTHON §7.2 för sökmönster.
 
-> **Princip (hårt bekräftad gång på gång):** Vår egen dokumentation kan ha halva sanningen. Det vi
-> upptäcker mot källan (`BCG_orginal_V2_New` + körande kod) trumfar alltid anteckningarna. Läs källan,
-> gissa aldrig. Räddade oss flera gånger denna session: SQL-injektionspunkten, constants.py-skillnaderna
-> mellan modeller (LB.28), `'2025-06-23'`-gåtan (W-MON-rundning).
+> **Miljödisciplin:**
+> - `export_b4b_for_model.py` körs från `C:\Projekt\Business_Analytics\.venv` (har pyodbc).
+> - `verify_tool` körs med `py -3.11` (global, har duckdb/pandas/openpyxl/numpy/yaml).
+> - Pipelinen (Pipeline\02. Elasticity\.venv) körs från sin egen venv (har duckdb).
+> - Inga installationer av paket — använd befintliga miljöer (LB.26/LB.27).
 
 ---
 
 ## Aktuellt projekt
 
-- **Repo:** https://github.com/Dennyakillen/evbcgpricing.git — `C:\Projekt\BCG`
-- **origin/main:** `824c265` — *verify_tool: run_all orchestrator (+Excel receipt) and verify_infra
-  structure audit; document both* (FAS V komplett, pushad)
-- **Arbetsbranch:** `fas-f-fresh-data` @ `3e758b2` — *FAS F / G7: parametrize date window across pipeline*
-- **Interpreter:** global Python 3.11 (`py -3.11`) — duckdb 1.5.3, pandas 3.0.1, openpyxl 3.1.5,
-  numpy 2.4.2, pyyaml 6.0.3. INTE `.venv` (saknar duckdb), INTE 3.13.
-- **Originalmapp (facit):** `C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG\BCG_orginal_V2_New`
+- **Repo (BCG):** https://github.com/Dennyakillen/evbcgpricing.git — `C:\Projekt\BCG`
+- **Repo (Business_Analytics):** https://github.com/Dennyakillen/Business_Analytics.git — `C:\Projekt\Business_Analytics`
+- **BCG-branch:** `fas-f-fresh-data` @ `<SHA efter dagens commits>` — Spår B operationaliserat
+- **Business_Analytics main:** `bac4af6` — Fas 10 + BCG inspection utilities committat 2026-05-29
 
 ---
 
-## Status vid sessionsstart
+## Status vid sessionsstart (2026-05-29)
 
-**FAS V är KLAR och pushad till main** (`824c265`): verify_tool-sviten (fem fristående verifierare +
-run_all-orkestrerare + Excel-kvitto + verify_infra struktur-revision), hela kedjan FR-1..7 bevisad
-6/6 PASS mot fryst facit.
+**Spår B är operationaliserat och validerat.** Vi har bevisat trogen DW-extraktion mot BCG:s frusna
+facit på två fönster:
 
-**G7 är KLAR och pushad till branchen** (`3e758b2`, se `FAS_F_G7.md`): datumfönstret är env-overridable
-tvärs hela pipelinen — `constants.py` (×3), `data_prepration.py` (cluster), och SQL via in-memory-injektion
-i `replicate_dataprep.py`. **Default (inga env-vars) = fruset fönster, bit-identiskt** (bevisat:
-verify_dataprep utan env → corr 1,0, ingen [G7]-rad). Override bevisad (BCG_END_DATE=2026-04-30 → SQL
-omskriven, loggad).
+| Mått | Frusen BCG-fönster (2022-07..2025-06) | Växande fönster (2022-07..2026-04) |
+|---|---|---|
+| Rader | 484,827 (vs facit 485,248 = -0.09%) | 610,039 (+25.8% data) |
+| TotalNet | 6.50 mdr (vs facit 6.51 mdr = -0.057%) | 8.27 mdr (+27.2%) |
+| ItemCodes | 1,151 (samma) | 1,151 (samma facit-urval) |
+| KEY | 4,930 (vs facit 4,949) | 4,930 |
+| FTE NULL | 0 | 122,214 (20.03%, veckor 2025-07-07..2026-04-27) |
 
-**Återgång till gammalt facit:** `git checkout main`, eller kör branchen utan env-vars.
+Snapshot-drift på frusen fönstret = 0.057% på revenue — inom snapshot-drift, inte fel.
+`compare_to_0828_facit.py` bekräftade per-kluster-uppdelning: 6 av 7 kluster inom ±0.5%,
+två (Clinics 2 +1.19%, Sjukhus Södran -1.41%) lite högre men inte alarmerande.
 
----
+**Patch som ligger i `export_b4b_for_model.py`:** Env-overridable `BCG_START_DATE` / `BCG_END_DATE`
+(G7-mönster), FY-filtret borttaget (silent date-window-risk eliminerad), FTE NULL-rapportering
+tillagd (loggrad med antal, procent, vecka-range).
 
-## Mål för denna session: de TRE förutsättningarna före en riktig färsk körning
-
-G7 gör fönstret *settbart*. Det räcker inte för giltiga färska resultat — tre saker måste på plats,
-i ordning (dokumenterat i FAS_F_G7.md "What's left"):
-
-### 1. Isolera facit till skrivskyddad referens (FÖRST — billigast, störst skydd)
-En färsk körning skriver till kataloger där BCG:s facit ligger oskyddat (2026-05-25-driften visade
-risken, **LB.24**). Kopiera BCG-originalet till en read-only referensmapp INNAN någon färsk körning rör
-de katalogerna. Detta är förutsättningen för all rimlighetsvalidering — utan fryst facit finns inget att
-mäta mot.
-
-### 2. Färsk källa, inte bara färskt fönster (Spår B)
-`00_read.sql` läser fortfarande BCG:s frusna `transaction_data.parquet`. Ett färskt fönster över en
-frusen källa har ingen färsk data att hämta. DW-native-läsningen måste byggas/verifieras så pipelinen
-läser *aktuella* transaktioner för det valda fönstret. Se modellkontrakt §8, B.4b. Enda genuina
-uppströms-input är FTE (Quinyx, IB.3) — Väg 2 = aggregera DW-vy, inte replikera BCG:s rådata-pipeline.
-
-### 3. Datafullständighets-grind (Nivå 1-säkerhet)
-Innan auto-körning av "senaste stängda månad": verifiera att DW faktiskt har komplett data för hela
-fönstret. Att köra en ofullständig senaste månad = tyst fel. Detta är grinden som gör månatliga
-auto-körningar säkra. (Auto-beräkning av "senaste stängda månad" är ETT steg bortom env-override — bygg
-grinden först, auto-beräkningen sen.)
-
-**Efter dessa tre:** en kontrollerad färsk körning, följd av rimlighetsvalidering mot det isolerade facit
-(IB.6 — diffar små nog att inte flippa ett top-line-prisbeslut).
+**Växande-fönster-CSV:n ligger på plats i Pipeline\data\.** Säkerhetskopia av frusen-fönster-CSV:n
+finns med tidsstämpel.
 
 ---
 
-## Vision (förvaltning framåt — bekräftad denna session)
+## Mål för denna session: testkörning av pipelinen på växande fönster, cluster-familjen först
 
-Slutmålet: modellen kör senaste stängda månads data automatiskt; månadsuppdatering = bara kör skriptet,
-inga filändringar; på sikt i Azure utan Jens dator, körbart av kollegor utan Python-kunskap. Sekvens:
-env-override (KLART) → auto-beräkna senaste månad + datagrind (NÄSTA) → Azure-automation (FAS A, långt
-senare). Växande fönster med fast ankare 2022-07-01 (rullande trender = medvetet senare analytiskt steg,
-inte nu).
+Vi vill se hur elasticiteten rör sig på 10 extra månaders data. Inte färdig produktion — testet är
+till för att Jens ska få en känsla för effekterna och tolkningarna. Resultatet är *empiriskt* — vi
+vet inte vad pipelinen gör med 20% NULL-FTE förrän vi kört.
+
+### Etapp 1: Lokal körning av cluster-familjen (45-90 min)
+
+Cluster-modellen är BCG:s huvudfamilj (3812 product×cluster groups). Den ska köras lokalt först:
+mindre data än stage 2 OOM-:ade på, facit-pairs filtrerar till 1151 koder × 4930 KEY × 610k rader.
+Min gissning: går lokalt. Om OOM → backa till VM.
+
+**Pipeline-steg (cluster-familjen):**
+
+1. `01_clean.sql` (DuckDB) — läs `0828_..._P_C.csv` → renad parquet
+2. `feature_selection` (Python, Ray-parallelliserad OLS) — kombinatorisk feature-val per grupp
+3. `model` (Python, OLS-regression per KEY) — slutgiltig elasticitet → `output_summary.xlsx`
+
+**Vad vi tittar efter när det körts:**
+
+- Pipelinen kraschar inte (eller kraschar med läsbart fel som vi kan diagnostisera).
+- `output_summary.xlsx` produceras med rätt grain (KEY-nivå, ELASTICITY_Regular_Price_fwbw_max_6).
+- Antal KEYs med utdata, antal som droppat pga NULL/insufficient data.
+- Förändring i elasticitet vs BCG:s frusen facit — per KEY-jämförelse med verify_model.py.
+
+### Etapp 2: Tolkning av elasticitetsförändringar (om Etapp 1 går igenom)
+
+- Hur många KEYs sign-flippade (positiv på BCG-fönster, negativ på växande, eller tvärtom)?
+- Median förändring per kluster.
+- Decision-relevant-grupper (IB.2-gate: RSQ≥0.5, p≤0.20, −10<elasticity<0) — hur många finns kvar?
+- Top-line-effekt: skulle ändrade elasticiteter flippa ett prisbeslut?
+
+### Etapp 3 (om tid): Bundle-familjen lokalt (125 grupper, snabbare)
+
+Endast om Etapp 1+2 går smidigt. Site-familjen (4673 grupper) sparas till egen session.
+
+---
+
+## Förutsättningar och frågor som måste lösas i sessionen
+
+1. **Vilket steg läser CSV:n först?** `00_read.sql` läser parquet, inte CSV. Måste verifiera om
+   det är `00_read.sql` eller `01_clean.sql` som börjar från CSV:n vi just skrev. Kör iterativ
+   sökning efter "0828_Sweden_weekly_model_data_P_C" i Pipeline-katalogen.
+
+2. **Pipelinens venv:** vilken Python? Kommandot `Pipeline\02. Elasticity\.venv\Scripts\python.exe`
+   är vad export-headern hänvisar till — verifiera att den har Ray, duckdb, statsmodels innan
+   stage 2 körs.
+
+3. **FTE-NULL-beteende:** vad gör `feature_selection` med NULL i `Sum_FTE_Interpolated`? Det är en
+   empirisk fråga. Hypoteser: (a) droppar rader → effektivt fönster blir BCG:s gamla, (b) accepterar
+   NULL → mindre tillförlitliga koefficienter, (c) kraschar med NaN-fel. Sök i pipelinens kod efter
+   `Sum_FTE_Interpolated.fillna|.dropna|.notna` innan körning.
 
 ---
 
 ## Standarder särskilt relevanta nu
 
-- **LB.24** — validera mot fryst original, aldrig arbetskopia pipelinen skriver till.
-- **LB.25** — misstänk korr 1,0 tills källoberoende bekräftat (cirkelbevis-risk).
-- **LB.26/LB.27** — kör `py -3.11`, aldrig bara `python` (venv/Store-alias-fällor).
-- **LB.28** — mät hash före fil-kopia mellan modeller; de skiljer sig (bundle `Bundle_code`/`Clusters`).
-- **KÄRNPRINCIPER** — läs källan före bygge; grindar som rapporterar; mät, gissa inte.
+- **KÄRNPRINCIPER §6.4 + MASTER_PYTHON §7.2** — iterativ sökning innan design. Sessionen börjar med
+  att söka efter befintliga svar på de tre frågorna ovan.
+- **LB.24** — validera mot fryst original, aldrig arbetskopia.
+- **LB.25** — misstänk corr 1,0 tills källoberoende bekräftat.
+- **L.43** — två parallella spår kan skriva filer med samma namn i olika kataloger. Verifiera
+  validatorns sökväg före tolkning av PASS/FAIL.
+- **L.39** — läs vad koden GÖR, inte vad configen PÅSTÅR (gäller särskilt pipelinens `config.yml`).
 
 ---
 
-## FAS T (tech-debt, parallellt — kräver ingen kod, kräver IT)
+## FAS T (tech-debt — fortfarande relevant)
 
-Strukturera skuldregistret till IT så miljön inte bara bor i repot:
-- **Miljö i global Python 3.11**, inte isolerad venv — ej reproducerbar (nu även pyyaml där). Pinnad
-  venv + requirements.txt behövs (förutsättning för FAS A).
-- **Relativa sökvägar i site/bundle `constants.py`** (`.\code\src\config.yml`) — körning platsberoende,
-  kraschar från fel katalog.
-- AppLocker (.exe/pip.exe), execution policy (LB.21), blob-roll-blockering (Storage Blob Data
-  Contributor, kräver Owner), lokal OOM på Stage 2 (varför VM behövs).
+- **Miljö i global Python 3.11** — ej reproducerbar (pinnad venv + requirements.txt behövs för FAS A).
+- **Relativa sökvägar i `constants.py`** (`.\code\src\config.yml`) — körning platsberoende.
+- **Frusna externa beroenden** (FTE-XLSX, facit-pairs, cluster-seed) — tre olika filer, frusna vid
+  olika tidpunkter, läses av olika pipeline-steg.
+- **Inget run_all-script för pipelinen** — manuell orkestrering, glöm-faktor.
+- **Två oberoende output-vägar (Spår A vs Spår B)** med samma filnamn — riskerar tyst förorening
+  (L.43).
+- **Blob Storage-roll fortfarande blockerad** (Storage Blob Data Contributor, kräver Owner).
 
 ---
 
 ## Vid sessionsslut
 
-1. Committa på `fas-f-fresh-data` (inte main förrän färsk körning är bevisad). Inga `.bak-g7` med.
+1. Committa på `fas-f-fresh-data` (inte main förrän hela pipelinen är validerad färskt end-to-end).
 2. `git status` — rent.
-3. Uppdatera denna fil: ny SHA + nästa mål.
+3. Uppdatera denna fil: ny SHA + nästa mål (förmodligen bundle eller site, eller felsökning av
+   cluster om den inte gick igenom).
 4. Nya lärdomar → `LESSONS_BCG.md`; insikter → `INSIGHTS_BCG.md`.
-5. Städa `.bak-g7` ENDAST efter att hela G7-vägen körts färskt end-to-end (de är rollback tills dess).
+5. Om elasticitet-förändringar är intressanta — dokumentera observationer i `INSIGHTS_BCG.md` som
+   förberedelse till framtida samtal med beslutsfattare.
 
 ---
 
-*Skapad 2026-05-28 vid FAS F / G7-passets slut (branch fas-f-fresh-data @ 3e758b2). FAS V klar på main
-(824c265). G7 klar på branchen — datumfönstret parametriserat, default bit-identiskt, override bevisad.
-Nästa: de tre förutsättningarna (facit-isolering → DW-källa → datagrind) före en riktig färsk körning.*
+*Skapad 2026-05-29 vid avslut av session där Spår B operationaliserades: export_b4b validerat mot
+frusen facit (0.057% drift), växande-fönster-CSV producerad (2022-07..2026-04, +27% data, 20% NULL-FTE).
+KÄRNPRINCIPER och MASTER_PYTHON uppdaterade med §4.6 (dokumentation som sök-yta) och §6.4 (iterativ
+filsökning), plus L.42-L.43. Nästa: pipelinekörning lokalt på cluster-familjen.*
