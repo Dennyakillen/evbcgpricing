@@ -101,3 +101,15 @@ gitignore_inventory.txt
 _step6_run/
 
 verify_tool/receipts/
+
+# Local-only directories (added 2026-06-02)
+Pipeline/02. Elasticity/2. Product Cluster Level Models/_archive_growing_2026-04-27/
+Pipeline/02. Elasticity/2. Product Cluster Level Models/_archive_*/
+Pipeline/02. Elasticity/2. Product Cluster Level Models/_run_logs/
+Pipeline/02. Elasticity/2. Product Cluster Level Models/_backup_*/
+_share_to_claude/
+
+# Ignore backup files generally
+*.bak
+*.bak_*
+*.bak[0-9]*
