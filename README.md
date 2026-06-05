@@ -147,6 +147,7 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 | `FAS_F_G7.md` | Date window parametrization design |
 | `UBUNTU_AZURE_VM.md` | Linux/bash specifics for Azure VM operations |
 | `verify_tool/README.md` | Verification suite documentation |
+| `LOCKED_ASSUMPTIONS.md` | Låsta förutsättningar (LF.N) — proaktiva designbeslut som inte revideras impulsivt, för stabil affärs-referensram |
 
 External standards governing this project:
 - `KÄRNPRINCIPER.md` — universal principles (search-before-build, documentation-as-search-surface)
