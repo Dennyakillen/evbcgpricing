@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `PROJECT_LESSONS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-05-29
+**Senast uppdaterad:** 2026-06-02
 
 ---
 
@@ -60,6 +60,13 @@ plattform, replikeringsdetaljer. Varje lärdom har ett stabilt `LB.N`-ID och for
 | LB.28 | Mät hash före fil-kopia mellan modeller | constants.py skiljer sig |
 | **LB.29** | **verify_tool jämför fel CSV om sökvägar divergerar** | **Två script skriver samma filnamn i olika kataloger** |
 | **LB.30** | **Två venv:er, olika paket — använd rätt för rätt jobb** | **ModuleNotFoundError trots installerad miljö** |
+| **LB.31** | **Tee-Object i PS 5.1 fångar inte stderr även med `2>&1`** | **Pipeline-progress saknas i loggfilen, syns bara i terminal** |
+| **LB.32** | **Ray-OOM plateau ≠ återhämtning, mät CPU-tidens tillväxttakt** | **Stabil RAM tolkas som "Ray jobbar" men är "Ray gav upp"** |
+| **LB.33** | **Smoke-extrapolation underskattar Ray:s peak-RAM icke-linjärt** | **Smoke 50 KEY ok → full 1521 KEY OOM:ar** |
+| **LB.34** | **`/tmp/ray_spill` försvinner vid VM-omstart, måste skapas vid varje session** | **Pipeline kraschar vid Ray-start på "ny" VM** |
+| **LB.35** | **Imports propageras inte automatiskt vid str_replace-patch** | **NameError efter "lyckad" patch som la till funktion-anrop** |
+| **LB.36** | **`data_prepration.py`:s "Shape"-print loggar input, inte output (~50% diff)** | **Loggrad 523k rader, faktisk fil 259k rader** |
+| **LB.37** | **PowerShell multi-line-regex är opålitlig på Python-källkod, använd Python själv** | **`-replace` matchar inte över newlines utan `(?s)`-flagga** |
 
 ---
 
@@ -257,6 +264,91 @@ redan har paketet. Konkret mappning:
 - `verify_tool/*.py` → global Python 3.11 via `py -3.11`
 - Pipelinens steg → `C:\Projekt\BCG\Pipeline\02. Elasticity\.venv`
 
+### LB.31 — Tee-Object i PS 5.1 fångar inte stderr även med `2>&1`
+**Symptom:** Pipeline-logg `step3_FULL_*.log` innehöll bara PowerShell:s eget felmeddelande om
+Ray:s startup, inte Ray:s faktiska progress-rader (`(process_model_group pid=...) 762`) trots
+`python feature_selection.py 2>&1 | Tee-Object -FilePath $log`. Progress-raderna syntes live i
+terminalen men hamnade aldrig i loggfilen.
+**Rotorsak:** `Tee-Object` i PowerShell 5.1 fångar bara stdout, inte stderr — även när stderr
+omdirigerats till stdout med `2>&1`. Kvarvarande bug/begränsning i PS-versionen Jens kör.
+**Regel:** För Python-körning där stderr-output måste loggas:
+- På VM (bash): använd `python ... 2>&1 | tee logfile.txt` (fungerar korrekt).
+- Lokalt PS 5.1: använd `Start-Transcript` eller `*>&1`-omdirigering, INTE `2>&1 | Tee-Object`.
+  Eller skicka stderr separat: `python ... 2> stderr.log`.
+Generell version (PS-vs-Python pipe-mekanik): `MASTER_PYTHON L.45`.
+
+### LB.32 — Ray-OOM plateau ≠ återhämtning
+**Symptom:** Efter `dlmalloc.cc:129 GetLastError=1450` följt av `Attempting to recover 25 lost
+objects` såg dashboarden ut friskt: stabil RAM (9 GB ledigt), 16/16 python-processer kvar,
+ingen ny OOM-event på 47 minuter. Tolkades som "Ray återhämtade sig långsamt, kör vidare".
+Faktiskt: processen hängde — CPU-tid över alla workers växte med <10% av väntat per minut.
+**Rotorsak:** Ray:s recovery-flöde kan låsa workers i väntan på resurser som aldrig blir
+tillgängliga om systemet är på minneskanten. Stabil RAM + döda workers = "Ray gav upp", inte
+"Ray jobbar långsamt". Snapshot-mätningar (RAM/process-count) ljuger; det är *förändringen* över
+tid som avslöjar status.
+**Regel:** Vid Ray-OOM med "Attempting to recover" — mät **CPU-tidens tillväxttakt** över workers.
+Förväntat under faktisk körning: ~50-100% av en CPU-kärna per worker per minut. Om <10% i 5+
+minuter = avbryt körningen, processen hänger. Snapshot av RAM/process-count räcker inte.
+
+### LB.33 — Smoke-extrapolation underskattar Ray:s peak-RAM icke-linjärt
+**Symptom:** Smoke 50 KEY av `feature_selection.py` lyckades lokalt med 13 GB RAM-headroom kvar.
+Linjär extrapolation till full 1521 KEY antog ~3,4× större RAM-behov, vilket gav bedömningen
+"85% sannolikhet att lyckas". Full körning OOM:ade i praktiken vid ~50%.
+**Rotorsak:** Ray:s peak-RAM beror på antal **samtidigt aktiva workers med datakopia**, vilket
+växer icke-linjärt med batch-volym. Smoke 50 KEY körde få samtidiga workers (datat fick plats i
+worker-kvoten); 1521 KEY körde många workers parallellt → varje med en datakopia → peak-RAM
+exploderar.
+**Regel:** Pre-flight smoke är bra för "fungerar logiken?" men opålitlig för "klarar systemet
+skalan?". För Ray-pipelines på vertikalt begränsad hårdvara: testa med 30-50% av målmängd, inte
+3%. Eller acceptera att lokal körning är för riskabel och gå direkt till VM. Smoke-success bevisar
+INTE skalans framgång — bara logikens.
+
+### LB.34 — `/tmp/ray_spill` försvinner vid VM-omstart
+**Symptom:** Skapade `/tmp/ray_spill` manuellt på `bcg-poc-vm`. Stoppade VM över natten via
+`az vm deallocate`. Nästa morgon efter `az vm start`: mappen saknades. Pipeline skulle krascha
+omedelbart vid Ray-start eftersom `feature_selection.py` config pekar på `/tmp/ray_spill`.
+**Rotorsak:** Ubuntu Azure VM:s `/tmp` är inte persistent över deallocate→start-cykler — det är
+en `tmpfs` (RAM-backad) eller städas vid omstart. `CZ.5`-fixen i koden (byte från `C:\ray_spill`
+till `/tmp/ray_spill`) är path-byte, inte mkdir-fix; mappen måste finnas innan Ray startar.
+**Regel:** Vid varje VM-session (efter `az vm start` från deallocated tillstånd): kör
+`ssh azureuser@<ip> "mkdir -p /tmp/ray_spill"` innan pipeline startas. `check_env.ps1 -VmInner`
+auto-fixar detta. Generell VM-version: `MASTER_AZURE_COMPUTE CZ.9`.
+
+### LB.35 — Imports propageras inte automatiskt vid str_replace-patch
+**Symptom:** Patchade `constants.py` på VM med `END_DATE2 = (datetime.strptime(END_DATE,
+'%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')` via str_replace. Test-import kraschade
+omedelbart: `NameError: name 'datetime' is not defined`.
+**Rotorsak:** Ursprungsfilen hade inte `from datetime import datetime, timedelta`. Patchen lade
+till **användning** av `datetime` utan att lägga till **importen**. Ren str_replace ser inte
+sammanhanget och kan inte själv inferera att en ny modul behöver importeras.
+**Regel:** Patches som introducerar nya beroenden måste **explicit lägga till imports** — eller
+verifieras via `python -c "import <modul>"` direkt efter applikation. Pre-flight test-import är
+5 sek arbete som sparar 50 min av "pipeline kraschar 50 min in i körningen p.g.a. saknad import".
+
+### LB.36 — `data_prepration.py`:s "Shape"-print loggar input, inte output
+**Symptom:** Loggraden `Data for model Shape: (523172, 33)` i steg 2:s utdata. Faktisk fil
+`data_for_model.csv` skriven efter steg 2: **258,905 rader** (50% av loggat värde). Trodde först
+att en CSV var trasig.
+**Rotorsak:** Print-statementet i `data_prepration.py` är placerat **före** YOY-merge som droppar
+L4-NULL-grupper. Loggar `df_raw.shape` (input till merge), inte `df_for_model.shape` (output efter
+merge). Verkligt output är ~50% av loggat värde p.g.a. L4-NULL-dropp som BCG:s konsulter byggde
+in i mergen.
+**Regel:** Verifiera output-storlek mot **fil**, inte mot **loggrad**. `Get-Item file.csv | %{
+$_.Length }` eller `pd.read_csv(file).shape` är sanning. Loggrader kan referera till mellansteg
+även om det ser ut som slutsteg. R7-principen (utfall mot fil, inte loggrad) i pipeline-form.
+
+### LB.37 — PowerShell multi-line-regex är opålitlig på Python-källkod
+**Symptom:** Försökte patcha `check_env.py` via PowerShell `-replace` med multi-line regex för
+att ändra `subprocess.run`-anrop i `check_azure`-funktionen. Två patches misslyckades med
+"hittades inte exakt" trots verifierat korrekt sträng.
+**Rotorsak:** PowerShell `-replace` använder .NET regex som default behandlar `.` som "vilken
+char som helst utom newline". Multi-line strängar (Python-funktioner spänner flera rader)
+matchar inte utan `(?s)`-flagga eller `[regex]::Singleline`. PowerShell-strängar dessutom
+sköra på citat-escaping genom 3 lager (PS → ssh → bash → python).
+**Regel:** För patches på Python-källkod — använd ett **Python-skript** kört från PowerShell,
+inte direkt-PowerShell-regex. Python `str.replace()` är exakt strängmatchning, ingen
+regex-tolkning. Eller `re.DOTALL`-flagga vid behov. Generell version: `MASTER_PYTHON L.44`.
+
 ---
 
 ## Hur listan växer
@@ -272,4 +364,6 @@ MASTER_SQL och låt LB peka dit.
 ---
 
 *Skapad 2026-05-23 vid dokumentstruktur-omtaget; extraherad ur SESSION_*-filer. LB.29-30 tillagda
-2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.*
+2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
+LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
+förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`).*
