@@ -1,10 +1,12 @@
-# NEXT_SESSION — Fas F: Cluster-körning på Azure VM (växande fönster)
+# NEXT_SESSION — Fas F, Etapp F.7: Cluster-fallback på växande fönster
 
 Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst
 på Evidensia Djursjukvård AB. Följ KÄRNPRINCIPER.md samt relevanta MASTER_*.md.
 
 > **Förbättringsloop:** Vid varje korrigering — föreslå omedelbart ny lärdom
-> (Symptom → Rotorsak → Regel) att lägga i relevant MASTER_*.md.
+> (Symptom → Rotorsak → Regel) att lägga i relevant MASTER_*.md. Innan ett LB.X
+> föreslås — kontrollera om det är en instans av befintlig kärnprincip. Om ja:
+> följ principen, lägg inte till en ny lärdom.
 
 ---
 
@@ -12,94 +14,89 @@ på Evidensia Djursjukvård AB. Följ KÄRNPRINCIPER.md samt relevanta MASTER_*.
 
 - **Repo:** https://github.com/Dennyakillen/evbcgpricing
 - **Lokal sökväg:** `C:\Projekt\BCG`
-- **Senaste commit på origin/fas-f-fresh-data:** `74f1ab0` — *Add session_prep env-check tool (v3) and update .gitignore*
-- **Branch:** `fas-f-fresh-data` (INTE main — Fas F är pågående feature-branch)
+- **Senaste commit på origin/fas-f-fresh-data:** *(uppdateras vid commit i slutet av denna session)*
+- **Branch:** `fas-f-fresh-data`
 - **Venv:** Pipeline-venv (`Pipeline\02. Elasticity\.venv`), Python 3.11.9
-
-**Kompletterande repo:**
-- **Business_Analytics:** `C:\Projekt\Business_Analytics` på `main` @ `6ea8116`
-  (G7 env-override patchad och pushad föregående session)
 
 ---
 
 ## Status vid sessionsstart
 
-**Hela förberedelsen för cluster-körning på Azure VM är klar. Nästa session börjar med "tryck kör".**
+**Cluster-modellen körd klart på växande fönster (1521 KEY, 2022-07-04 → 2026-04-27).
+Pipeline steg 1–4 leverade output_summary.xlsx. Nu ska fallback-blenden (steg 5)
+köras på växande output för att producera den affärsanvändbara elasticiteten.**
 
-### Klart (verifierat 2026-06-02)
+### Klart (verifierat 2026-06-05)
 
-- ✅ Steg 1 (`regular_price.py`) körd lokalt på växande fönster, 84.8 MB output
-- ✅ Steg 2 (`data_prepration.py`) körd lokalt, 70 MB data_for_model.csv
-- ✅ Smoke 50 KEY på `feature_selection.py` lyckades (proof-of-concept växande fönster)
-- ✅ Full lokal körning av cluster-modell hängde på 50% (OOM på 31 GB → bekräftar VM behövs)
-- ✅ Alla 4 inputfiler uppladdade på VM (`~/bcg/cluster/`)
-- ✅ `constants.py` G7-patchad på VM (env-overridable, verifierad live)
-- ✅ Gamla frusen-resultat arkiverade till `~/bcg/cluster/_archive_frozen_2026-05-26/`
-- ✅ `/tmp/ray_spill` skapad (auto-fixas av check_env vid behov)
-- ✅ Pipeline-venv på VM funkar (Python 3.11.9, Ray 2.41.0, statsmodels 0.14.4, pandas 2.2.3)
-- ✅ check_env.py v3 byggt och pushat (`74f1ab0`)
-- ✅ Båda repon committade och pushade
+- ✅ Steg 1 (`regular_price.py`) + Steg 2 (`data_prepration.py`) körda lokalt
+- ✅ Steg 3 (`feature_selection.py`) körd på VM (~30 min, 1521 grupper, klar exit)
+- ✅ Steg 4 (`model.py`) körd på VM (~25 min, model_summary + output_summary skrivna)
+- ✅ VM deallokerad efter körning
+- ✅ Output arkiverad: `_archive_growing_2026-04-27\` (output_summary, model_summary, model_results.csv + run-loggar)
+- ✅ `compare_elasticity_runs.py` byggt — jämför växande (1521 KEY) mot BCG facit (3812 KEY)
 
-### Referensvärden från senaste check_env-körning
+### Referensvärden från växande output_summary.xlsx (Cluster, pre-fallback)
 
-| Mätning | Värde |
-|---|---|
-| Lokala filer för VM-upload | 132 MB i 4 filer |
-| `control_file.xlsx` | KEY=1521, RUN=YES=1521 |
-| `data_for_model.csv` rader | 258,905 |
-| Datafönster | 2022-07-04 → 2026-04-27 (200 veckor) |
-| Unika KEY i data | 1521 (matchar control_file) |
-| VM RAM ledigt under inventering | 124 GB av 128 GB |
-| VM disk ledigt (`/`) | 118 GB |
-| Frozen baseline (BCG-fönster) | 5.8 KB output_summary.xlsx |
+| Mätning | Växande | BCG facit |
+|---|---:|---:|
+| Antal KEY | 1521 | 3812 |
+| Gemensamma KEY (inner join) | 1310 | 1310 |
+| Signifikanta (IB.2-gate: RSQ≥0.5 AND p≤0.2) | 362 (23.8%) | 1541 (40.4%) |
+| Median elasticitet (alla) | -0.11 | (ej beräknad) |
+| Tecken-flippar mellan körningarna | 322 (24.6%) | - |
+| Max \|elasticitet\| | 12.7 | 820 (BCG har absurda svansvärden, IB.9) |
+
+**Tolkning per IB.10:** Tecken-flippar på fin nivå är svag-signal-OLS, inte fel.
+Pre-fallback är inte beslutsunderlag — fallback (steg 5/6) gör det användbart.
 
 ### Återstående pending (sessionsmål)
 
-- ⏳ Kör steg 3 (`feature_selection.py`) + steg 4 (`model.py`) på VM
-- ⏳ Hämta hem `output_summary.xlsx` för växande fönster
-- ⏳ Bygg `compare_elasticity_runs.py` (frusen vs växande rimlighetsanalys)
-- ⏳ Dokumentera dagens lärdomar (LB.31-37 + 1 master_python lärdom)
+- ⏳ Kör `fallback_blend.py` på växande output → `final_model_cluster_granularity.xlsx`
+- ⏳ Mät växande post-fallback Significant?-andel (BCG-facit: 48.4%)
+- ⏳ Bedöm rimlighet av växande post-fallback (då först blir affärs-tolkning meningsfull)
+- ⏳ Dokumentationspass: KÄRNPRINCIPER-uppdatering enligt sessionsslut 2026-06-05
 
 ---
 
 ## Mål för denna session
 
-### Primärt: Etapp F.X — Cluster-körning på växande fönster
+### Primärt: Etapp F.7 — Cluster-fallback på växande fönster
 
-**Syfte:** Producera `output_summary.xlsx` för 1521 KEY på växande fönster (2022-07-04 → 2026-04-27), validera mot frusen baseline, dokumentera resultat.
+**Syfte:** Producera `final_model_cluster_granularity.xlsx` för växande fönster
+och mäta Significant?-andel post-fallback. Detta är den första körningen där
+affärs-tolkning av elasticiteterna är meningsfull (per IB.2 och IB.10).
 
 **Leveranser:**
 
-1. **`output_summary.xlsx`** för växande fönster, hämtad lokalt och arkiverad i `_archive_growing_2026-04-27/`
-2. **`compare_elasticity_runs.py`** — script som jämför växande vs frusen output:
-   - IB.2-gate (RSQ≥0.5 AND PVALUE≤0.2): antal signifikanta KEY
-   - Top-N största elasticitets-förändringar mellan körningar
-   - Tecken-flippar (positiva som blev negativa eller tvärtom)
-   - Avvikelser > X procent
-3. **`LESSONS_BCG.md`** uppdaterad med LB.31-37
-4. **`MASTER_PYTHON.md`** uppdaterad med ny Python-lärdom (subprocess Windows)
+1. **`final_model_cluster_granularity.xlsx`** för växande fönster i `_archive_growing_2026-04-27\`
+2. **Post-fallback metrics** — antal Significant?=1 av 1276 (alla cluster-grupper),
+   distribution av elasticiteter, antal extremvärden filtrerade bort
+3. **Reasonableness-bedömning** — kan vi nu lita på modellen för affärsbeslut?
+   Decision-makers vill veta: hur många produkter har trovärdiga elasticiteter,
+   och vilka är riskprodukter med "räddade" representanter
+4. **Dokumentationspass** vid sessionsslut
 
-**Förväntad körtid på VM:**
-- Steg 3 (`feature_selection.py`): 30-50 min (1521 KEY vs BCG:s 3812 → kortare)
-- Steg 4 (`model.py`): 30-40 min
-- **Totalt: 60-90 min**
+**Datakälla:** `_archive_growing_2026-04-27\output_summary.xlsx` (just producerad)
 
-**Förväntad kostnad:** ~15 kr (VM-tid)
+**Förväntad körtid:** `fallback_blend.py` körs **lokalt** (inte Ray, inte tungt) —
+~30 sek till några minuter. Ingen VM behövs.
 
 ---
 
-## Etappstruktur Fas F
+## Etappstruktur Fas F (uppdaterad)
 
 | Etapp | Innehåll | Status |
 |---|---|---|
-| F.1 | DW-extraktion växande fönster (export_b4b_for_model.py G7) | STÄNGD |
-| F.2 | Steg 1+2 lokalt på växande fönster | STÄNGD |
-| F.3 | Smoke 50 KEY (proof-of-concept) | STÄNGD |
-| F.4 | VM-prep (filer, constants.py G7, ray_spill) | STÄNGD |
-| F.5 | check_env-verktyg byggt och validerat | STÄNGD |
-| **F.6** | **VM-körning steg 3+4, rimlighetsanalys** | **← DENNA SESSION** |
-| F.7 | Reasonableness gate på output, kalibrering | Planerad |
-| F.8 | Site- och Bundle-modeller (samma flöde) | Planerad |
+| F.1–F.5 | DW-extraktion, lokala steg, smoke, VM-prep, check_env | STÄNGD |
+| F.6 | VM-körning steg 3+4, compare-rapport | **STÄNGD 2026-06-05** |
+| **F.7** | **Cluster-fallback på växande (steg 5) + rimlighetsbedömning** | **← DENNA SESSION** |
+| F.8 | Site- och Bundle-modeller (samma VM-flöde som F.6) | Planerad |
+| F.9 | Steg 6 (`Fall_Back_Logic.py`, F1–F7-väv) på växande | Planerad efter F.8 |
+
+**Sequencing-not (Jens 2026-05-25):** Reasonableness gate kommer **sist**, efter
+full replikering. F.7 är **inte** rimlighetsgate — det är att producera och
+*första* rimlighetsbedömningen av modellen post-fallback. Slutgiltig gate
+kommer efter F.9.
 
 ---
 
@@ -111,44 +108,42 @@ på Evidensia Djursjukvård AB. Följ KÄRNPRINCIPER.md samt relevanta MASTER_*.
 |---|---|---|
 | 1 | KÄRNPRINCIPER.md | Bibliotek/ |
 | 2 | MASTER_PYTHON.md | Bibliotek/ |
-| 3 | MASTER_AZURE_COMPUTE.md | Bibliotek/ |
-| 4 | MASTER_SQL.md | Bibliotek/ |
-| 5 | NEXT_SESSION.md | denna fil |
+| 3 | NEXT_SESSION.md | denna fil |
+| 4 | INSIGHTS_BCG.md | C:\Projekt\BCG\ — innehåller IB.1, IB.2, IB.9, IB.10 |
+| 5 | LESSONS_BCG.md | C:\Projekt\BCG\ |
 
 ### Referens vid behov
 
 | # | Fil | Sökväg | Syfte |
 |---|---|---|---|
-| 6 | MASTER_AZURE.md | Bibliotek/ | Token-renewal, ProvetDiscount-kontext |
-| 7 | BCG_PRICING_PLAYBOOK.md | C:\Projekt\BCG | Modell-arkitektur referens |
-| 8 | UBUNTU_AZURE_VM.md | C:\Projekt\BCG | VM-kommando-referens |
-| 9 | LESSONS_BCG.md | C:\Projekt\BCG | Projektspecifika lärdomar |
+| 6 | BCG_PRICING_PLAYBOOK.md | C:\Projekt\BCG\ | Modell-arkitektur |
+| 7 | README.md | C:\Projekt\BCG\ | Projektöversikt |
 
 ---
 
 ## Pre-flight
 
-### 1. Token-renewal (KRITISKT — token dör efter ~4h)
+### 1. Verifiera output finns och är intakt
 
 ```powershell
-az login --scope https://management.core.windows.net//.default
+cd C:\Projekt\BCG
+.\Pipeline\"02. Elasticity"\.venv\Scripts\Activate.ps1
 ```
 
 ```powershell
-az login --scope https://database.windows.net/.default
+python -c "import pandas as pd; p = r'C:\Projekt\BCG\Pipeline\02. Elasticity\2. Product Cluster Level Models\_archive_growing_2026-04-27\output_summary.xlsx'; df = pd.read_excel(p); print('Shape:', df.shape); print('KEY-unika:', df['KEY'].nunique()); print('Columns:', df.columns.tolist())"
 ```
 
-### 2. Pre-flight pre-flight — check_env
+**Förväntat:** Shape (1521, 8), 1521 unika KEY, samma 8 kolumner som BCG facit.
+
+### 2. Lokalisera `fallback_blend.py`
 
 ```powershell
-cd C:\Projekt\BCG\_session_prep
-.\check_env.ps1
+Get-ChildItem "C:\Projekt\BCG" -Recurse -Filter "fallback_blend.py" -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
 ```
 
-**Förväntat:** ~39 checks, STATUS: WARN eller PASS. Inga FAIL. WARN ok på:
-- Git: 2-3 uncommittade filer (PDF + .bak från B_A)
-- CODE_INTEGRITY: `feature_selection.py` har `C:\\` lokalt (men EJ på VM)
-- STORAGE: stora filer kvar (azure_run_dataprep_* etc)
+**Förväntat:** Filen finns (commitad i `163912e` enligt session-loggen). Hittas
+inte den — sök bredare i `OneDrive\Datastrategi\BCG` också (kärnprincip 6.4).
 
 ### 3. Git-status
 
@@ -158,74 +153,75 @@ git log --oneline -3
 git status
 ```
 
-**Förväntat:** senaste commit `74f1ab0`, branch `fas-f-fresh-data`.
-
-### 4. Full kedjekontroll med VM (~5 kr, 7 min)
-
-```powershell
-cd C:\Projekt\BCG\_session_prep
-.\check_env.ps1 -StartVm
-```
-
-**Förväntat:** Alla VM-INNER checks PASS, `/tmp/ray_spill` ev `[FIX]` (auto-skapas),
-constants.py G7-hash `[INFO]` (förväntat skiljer mot lokal — vi har patchat VM separat).
-Slutet: `VM deallocated. Ingen mer kostnad tickar.`
+**Förväntat:** Branch `fas-f-fresh-data`, working tree clean (efter F.6:s commit).
 
 ---
 
-## Sessionens huvudkörning — VM-pipeline
+## Sessionens huvudkörning — Fallback-blend på växande
 
-### A) Manuell VM-start (alternativt — om check_env -StartVm redan körts)
+### A) Förstå kontraktet (KÄRNPRINCIP: läs källan innan du bygger)
 
-```powershell
-az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
-Start-Sleep -Seconds 60
-ssh azureuser@172.18.148.4 "echo SSH OK"
-```
-
-### B) Säkerställ `/tmp/ray_spill` (försvinner efter VM-omstart, CZ.5)
+Inspektera `fallback_blend.py` — vilka argument tar den, vilka filer förväntar
+den, vart skriver den output? Detta gjordes i FAS 5-sessionen (commit `163912e`)
+mot frusen output. Vi gör samma sak men med växande output som input.
 
 ```powershell
-ssh azureuser@172.18.148.4 "mkdir -p /tmp/ray_spill && ls -ld /tmp/ray_spill"
+Get-Content <sökväg till fallback_blend.py> | Select-Object -First 60
 ```
 
-### C) Starta steg 3 (feature_selection.py) i tmux med env-override
+Avgör om scriptet tar argv-flagga för input/output-sökväg, eller om vägarna är
+hårdkodade och måste patchas/parametriseras för växande körning.
+
+### B) Backup av eventuell befintlig output
+
+Om scriptet skriver till en hårdkodad sökväg som redan har facit-validerad
+output (frusen körning från FAS 5) — backupa **innan** växande-körning, så
+facit-baselinen inte skrivs över.
 
 ```powershell
-ssh azureuser@172.18.148.4 "tmux new -d -s bcgrun 'cd ~/bcg/cluster/code && BCG_END_DATE=2026-04-27 ~/bcg/cluster/.venv/bin/python feature_selection.py 2>&1 | tee ~/run_log_fs_growing.txt'"
+$facit_output = "<sökväg till final_model_cluster_granularity.xlsx>"
+if (Test-Path $facit_output) {
+    Copy-Item $facit_output "$facit_output.facit-baseline.bak"
+}
 ```
 
-### D) Status-koll utifrån (var 10-15:e min)
+### C) Kör `fallback_blend.py` på växande input
+
+Förväntat: <5 min, lokalt, ingen Ray. Logg till fil.
 
 ```powershell
-ssh azureuser@172.18.148.4 "pgrep -af feature_selection.py; echo '---'; tail -5 ~/run_log_fs_growing.txt; echo '---'; free -h | head -2"
+python <fallback_blend.py> 2>&1 | Tee-Object -FilePath "_archive_growing_2026-04-27\run_log_fallback.txt"
 ```
 
-**Klart** = `pgrep` tomt + sista loggrad innehåller exit-info.
+**OBS Tee-Object-bugg (LB.31):** Tee fångar inte stderr i PS 5.1. Om körningen
+har viktig stderr-output — använd `*>&1` istället.
 
-### E) Steg 4 (model.py) när F klart
+### D) Verifiera output och mät metrics
 
 ```powershell
-ssh azureuser@172.18.148.4 "tmux new -d -s bcgmodel 'cd ~/bcg/cluster/code && BCG_END_DATE=2026-04-27 ~/bcg/cluster/.venv/bin/python model.py 2>&1 | tee ~/run_log_model_growing.txt'"
+python -c "
+import pandas as pd
+p = r'<sökväg till final_model_cluster_granularity.xlsx>'
+df = pd.read_excel(p)
+print('Shape:', df.shape)
+print('Columns:', df.columns.tolist())
+print('Significant?=1:', (df['Significant ?']==1).sum() if 'Significant ?' in df.columns else 'KOLUMN SAKNAS')
+print('Andel signifikanta post-fallback:', round((df['Significant ?']==1).mean()*100, 1), '%')
+"
 ```
 
-### F) Hämta hem resultat
+**Jämförvärden:**
+- BCG facit post-fallback: **618/1276 = 48.4%** (från SESSION 2026-05-25)
+- Vår pre-fallback (steg 4 output): **362/1521 = 23.8%** (från F.6)
+- Förväntat post-fallback: någonstans mellan dessa, eller högre om mer data ger bättre signal
+
+### E) Arkivera och commita
 
 ```powershell
 $dst = "C:\Projekt\BCG\Pipeline\02. Elasticity\2. Product Cluster Level Models\_archive_growing_2026-04-27"
-scp azureuser@172.18.148.4:~/bcg/cluster/output/model/output_summary.xlsx "$dst\output_summary.xlsx"
-scp azureuser@172.18.148.4:~/bcg/cluster/output/model/model_summary.xlsx "$dst\model_summary.xlsx"
-scp "azureuser@172.18.148.4:~/run_log_*_growing.txt" "$dst\_run_logs\"
+# Kopiera output till arkivet om den hamnat någon annanstans
+# (gör detta efter att fallback_blend.py-output är verifierad)
 ```
-
-### G) DEALLOCATE (KRITISKT — annars tickar kostnaden)
-
-```powershell
-az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
-az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[?starts_with(code, 'PowerState')].displayStatus" --output tsv
-```
-
-**Förväntat:** `VM deallocated`
 
 ---
 
@@ -233,69 +229,52 @@ az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-v
 
 ### Lärdomar relevanta för denna session
 
-- **CZ.5** — Hårdkodade Windows-sökvägar och saknade output-mappar. `/tmp/ray_spill`
-  måste finnas. Auto-fixas av check_env.
-- **CZ.6** — tmux för run-to-completion. Detacha med `tmux new -d -s namn`.
-  Status från utsidan via `pgrep` + `tail` + `free -h`.
-- **CZ.7** — VM löste OOM med marginal. 128 GB räcker. Mät RAM under körning för
-  att se headroom.
-- **E.3** — Azure-token dör efter 4h. Re-login vid behov mitt under session.
-- **L.16** — Verifiera tabellschema/kolumnnamn innan SQL/CSV skrivs. Gäller även
-  Python-skript som läser CSV (jag missade detta i v3 check_env initialt).
-- **L.43** — Antag aldrig att indata är vad du tror. Verifiera empiriskt.
-- **R.7** — Verifiera utfall mot fil, inte mot loggrad.
-
-### Nya lärdomar att fånga (från senaste sessionen)
-
-| ID | Titel | Var |
-|---|---|---|
-| LB.31 | Tee-Object i PS 5.1 fångar inte stderr även med `2>&1` | LESSONS_BCG.md |
-| LB.32 | Ray-OOM på Windows: plateau ≠ återhämtning, mät CPU-tidens tillväxttakt | LESSONS_BCG.md |
-| LB.33 | Pre-flight smoke-extrapolation underskattar Ray:s peak-RAM icke-linjärt | LESSONS_BCG.md |
-| LB.34 | `/tmp/ray_spill` försvinner vid VM-omstart, måste skapas vid varje session | LESSONS_BCG.md |
-| LB.35 | Imports propageras inte automatiskt vid str_replace-patch | LESSONS_BCG.md |
-| LB.36 | data_prepration.py:s "Shape"-print loggar input, inte output (~50% diff p.g.a. L4-NULL-dropp) | LESSONS_BCG.md |
-| LB.37 | PowerShell-multi-line-regex är opålitlig på Python-källkod, använd Python själv för patches | LESSONS_BCG.md |
-| L.42 | `subprocess.run([cmd, args], shell=False)` hittar inte .cmd/.bat på Windows | MASTER_PYTHON.md |
-
----
-
-## Sessionens viktigaste verktyg
-
-- `check_env.ps1` i `C:\Projekt\BCG\_session_prep\` — ~50 checks på 10 sek
-- VM_RUN_PLAYBOOK.md (denna fil tjänstgör som playbook tills separat skapas)
+- **IB.2** — `Significant?` = `RSQ≥0.5 AND p≤0.2` (inte p<0.05). Rescue sker
+  inne i blenden före flaggan räknas.
+- **IB.10** — Tecken-flippar på fin nivå är svag-signal-OLS, **rensas bort av
+  fallbacken**. Förvänta att de 322 tecken-flippar vi såg i F.6 försvinner i
+  post-fallback-output.
+- **IB.1** — Rå signifikans 17-18% på fin nivå är normaltillstånd, även hos BCG.
+  Fallback är hur 48% nås.
+- **LB.24** — Validera mot fryst original, aldrig arbetskopian. BCG-facit ligger
+  i `OneDrive\Datastrategi\BCG\BCG_orginal_V2_New\` (skrivskyddad sanning).
+- **Kärnprincip 6.4** — Bred filsökning före designresonemang. Innan ny kod
+  byggs — sök befintliga artefakter brett (både evbcgpricing-repot och
+  OneDrive).
+- **A.9** — Läs källan innan du bygger. Innan `fallback_blend.py` körs på ny
+  input — bekräfta i koden vilka argument den faktiskt tar.
 
 ---
 
 ## Risker och kända begränsningar
 
-- **Token-utgång:** Conditional Access dödar token efter ~70 min - ~4h. Re-login vid behov.
-- **Lokal körning omöjlig:** Cluster på 1521 KEY OOM:ar på 31 GB. VM är enda vägen.
-- **Tee-Object stderr-bug:** Använd bash på VM (`tee`) istället för PS Tee-Object för pipeline-loggar.
-- **tmux dör vid deallocate:** Starta ny session efter VM-omstart.
-- **`/tmp/ray_spill` försvinner:** check_env auto-fixar, men måste säkerställas innan tmux startas.
-- **`feature_selection.py` lokalt har `C:\\` kvar:** Linux-vägen finns bara på VM. Ladda inte upp lokal version utan portning.
+- **Hårdkodade sökvägar i fallback_blend.py** — om scriptet förutsätter att
+  output_summary.xlsx ligger på en specifik plats, måste antingen scriptet
+  patchas (G7-mönstret) eller filen kopieras till den platsen tillfälligt.
+  Behandla som ett designval, dokumentera.
+- **`Significant?`-kolumnnamn** — har mellanslag före frågetecknet
+  (`Significant ?`). Det är konsultarvet; bevara stavningen.
+- **Tee-Object stderr-bugg (LB.31)** — använd `*>&1` istället för `2>&1 | Tee-Object`
+  vid behov av stderr i loggfilen.
 
 ---
 
 ## Vid sessionsslut
 
-1. Committa output_summary.xlsx och compare_elasticity_runs.py på `fas-f-fresh-data`
-2. Verifiera `git status` är rent
-3. Uppdatera denna fil:
+1. Verifiera att VM är deallokerad (även om vi inte rört VM:en denna session,
+   bekräfta att den inte tickar)
+2. Committa `final_model_cluster_granularity.xlsx` för växande till arkivet
+3. Verifiera `git status` är rent
+4. Uppdatera denna fil:
    - Ny SHA
-   - Startpunkt för nästa etapp (F.7 reasonableness gate)
-   - Eventuella nya lärdomar
-4. Lägg LB.31-37 i `LESSONS_BCG.md`
-5. Lägg ny Python-lärdom i `MASTER_PYTHON.md`
-6. Säkerställ att VM är deallocated:
-   ```powershell
-   az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[?starts_with(code, 'PowerState')].displayStatus" --output tsv
-   ```
-   Förväntat: `VM deallocated`
+   - Startpunkt för Etapp F.8 (Site- och Bundle-modeller på VM)
+   - Eventuella nya lärdomar (men: lärdomshierarkin — KÄRNPRINCIPER först,
+     LB.X bara om genuint BCG-specifikt)
+5. Lägg eventuella nya insikter i `INSIGHTS_BCG.md` (om något konkret om
+   modellbeteendet upptäcktes)
 
 ---
 
-*Skapad: 2026-06-02 vid avslut av session där check_env v3 byggdes (74f1ab0).
-Inom 2 minuter ska AI:n kunna läsa filen och utan ytterligare kontext förstå exakt
-var projektet befinner sig och vad nästa session ska göra.*
+*Skapad: 2026-06-05 vid avslut av session F.6 (Cluster steg 1–4 på växande
+fönster). Inom 2 minuter ska AI:n kunna läsa filen och utan ytterligare kontext
+förstå exakt var projektet befinner sig och vad nästa session ska göra.*
