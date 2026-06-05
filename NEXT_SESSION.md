@@ -2,154 +2,156 @@
 
 **Projekt:** evbcgpricing (BCG priselasticitet, replikering + växande data)
 **Branch:** `fas-f-fresh-data`
-**HEAD:** `2ea61bc` (Cleanup: structure C:\Projekt\BCG repo root for clarity)
+**HEAD:** `ed1f88e` (NEXT_SESSION: critical 60% ItemCode dropout finding + diag scripts archived)
 **Utvecklare:** Jens Palmö
 
 ---
 
-## 🔴 KRITISK UPPTÄCKT VID SESSIONSSLUT — HÖGSTA PRIORITET
+## 🎯 ROTORSAK BEVISAD VID SESSIONSSLUT — kritisk för nästa session
 
-**60% av ItemCodes saknas i vår växande output mot BCG:s facit.**
+**72.5% av våra ItemCodes saknar ProductGroupL4Name i DW. Detta orsakar 60%-bortfallet.**
 
-| Lager | KEY | ItemCodes | AAP130 status |
-|---|---|---|---|
-| BCG fryst facit | 3812 | 1276 | ✅ finns (9 cluster-rader) |
-| Vår input CSV (växande) | — | 1151 (rader: 610,039) | ✅ finns (1407 rader, 7 cluster, 455.6 MSEK) |
-| **Vår växande output** | **1521** | **~297** | **❌ SAKNAS HELT** |
+### Den definitiva diagnosen (fyrfaldigt validerad)
 
-**Bekräftat:** AAP130 (och liknande klinik-koder som DUS, AAP-serie) finns i:
-- BCG:s 0828-facit-input (1151 ItemCodes totalt)
-- Vår DW-extraktion (samma 1151 ItemCodes, full data, alla 7 cluster, 201 veckor)
-- BCG:s output (full 9 cluster-rader per kod)
+`data_prepration.py` rad 345 (`yoy_seasonality()`) gör en **inner merge** på `service`-kolumnen
+(= ProductGroupL4Name). När `service` är NULL droppas alla rader för den ItemCode.
 
-Och saknas helt i:
-- Vår växande output (1521 KEY, ~75% av ItemCodes droppas)
+| Lager | Antal | AAP130 |
+|---|---|---|
+| Input CSV | 1151 ItemCodes / 4930 KEY | ✅ 7 cluster, 201 veckor, 455 MSEK |
+| Efter 103-veckors-filter | 3028 KEY | ✅ 7 cluster passerar |
+| Efter yoy_seasonality inner merge | ~317 ItemCodes / 1521 KEY | ❌ DROPPAS (100% NULL pg4) |
+| BCG facit | 1276 ItemCodes / 3812 KEY | ✅ Finns (9 rader) |
 
-**Slutsats:** Pipeline-bortfall, inte extraktions-bortfall. Bortfallet sker i `data_prepration.py` eller `feature_selection.py`.
+### Vad har 100% NULL pg4 i vår input?
 
-### Verifiering som finns i workspace\
-- `workspace\diagnose_missing_keys.py` — diagnos-skript
-- `workspace\check_aap_dus.py` — AAP/DUS-koll i BCG-facit
-- `workspace\check_input_layer.py` — input-lager-verifiering (AAP130 finns i input)
+**834 av 1151 ItemCodes (72.5%) har 100% NULL ProductGroupL4Name.**
 
-### Hypoteser att verifiera
+M�nstret: **klinik-tjänster** (AAP=undersökning, DUS=ultraljud, AEM=anestesi, ALB/ALT/ANALYS=labb)
+saknar mappning. **Varor** (Fingertuta SBAS0004, Övrig försäljning OVR0001) har mappning.
 
-**H1 (mest sannolik):** Pipeline filtrerar internt på `END_DATE = 2025-06-29` även när input innehåller data till 2026-04-27. constants.py rad 22 är env-overridable — kördes pipelinen med rätt `BCG_END_DATE`?
+### Affärsmässig konsekvens
 
-**H2:** `SPECIAL_WEEKS` eller annan filterlogik i `data_prepration.py` droppar ItemCodes pga interna kvalitetsgater på växande data.
+Vi har byggt en elasticitetsmodell som **systematiskt utesluter veterinärtjänster** —
+sannolikt huvudintäktskällan. Modellen visar bara elasticitet på sortimentvaror,
+inte på det som faktiskt prissätts mest aktivt (konsultationer, undersökningar, behandlingar).
 
-**H3:** `feature_selection.py` med Ray-parallellisering droppar tyst på minnesbrist eller annan run-time-anledning.
+### Rotorsak i DW-extraktionen
 
-### Diagnos-steg nästa session
+`export_b4b_for_model.py` rad 75:
+```python
+i.Master_Underkategori3 AS ProductGroupL4Name,
+```
 
-1. Verifiera `BCG_END_DATE`-environment-variabel sattes vid F.6-körning
-2. Räkna ItemCodes vid varje pipeline-steg (input → after data_prepration → after feature_selection → output)
-3. Trace AAP130 specifikt genom varje fil
-4. Pipeline-walk: kör steg för steg lokalt på smoke-set inklusive AAP130
+`Master_Underkategori3` är NULL för veterinärtjänster i `Manual.Dim_Item_Extended`.
+Detta dokumenterades redan i IB.8 (FAS 10, 2026-06-01): *"L4 (Master_Underkategori3) är halv-NULL,
+vilket inte biter på kärnelasticiteten men är relevant för gruppering"*.
+
+**Vi förstod inte konsekvensen då.** yoy_seasonality:s inner merge gör att NULL pg4 = ItemCode
+försvinner helt, inte bara att "gruppering blir trasig".
+
+### Tre möjliga lösningar för nästa session
+
+| Väg | Tid | Beskrivning |
+|---|---|---|
+| 1 | 15 min | Patcha yoy_seasonality till left merge (riskerar NaN i regression) |
+| 2 | 30 min | `COALESCE(Master_Underkategori3, 'UNCATEGORIZED')` i export-SQL |
+| 3 | 1-2 dagar | Bygg riktig L4-mappning för tjänster (kräver verksamhetskunskap) |
+
+**Rekommendation:** Väg 2 först — snabb fix, ger elasticitet på alla ItemCodes.
+Senare förfina mappningen om "UNCATEGORIZED" blir för stor grupp.
+
+### Diagnostik-skripten
+
+Sparade i `archives\diagnostics_2026-06-05\` + `workspace\`:
+- `check_aap_dus.py` — bekräftar AAP130 finns i BCG facit (1151 ItemCodes)
+- `check_input_layer.py` — bekräftar AAP130 har 1407 rader i vår input
+- `check_control_file.py` — bekräftar AAP130 saknas i control_file (downstream-konsekvens)
+- `check_pg4_dropout.py` — bevisar 834 ItemCodes har 100% NULL pg4
+- `verify_104w_filter.py` — kvantifierar 103-veckors-filtret (5.9% omsättning droppas där)
 
 ---
 
-## DAGENS FAKTISKA LEVERANS (skall hyllas innan kritiken)
+## DAGENS LEVERANS
 
 ### Output - var ligger filerna
 
-**Cluster-modellen körd på växande fönster (2022-07 → 2026-04-27, 1521 KEY):**
 ```
 C:\Projekt\BCG\Pipeline\02. Elasticity\2. Product Cluster Level Models\_archive_growing_2026-04-27\
 ```
 
-| Fil | Innehåll |
-|---|---|
-| `output_summary.xlsx` | 1521 KEY × elasticitet, p-värde, RSQ |
-| `blended_output_growing.csv` | Post-fallback (cp1252-encoded) |
-| `compare_growing_vs_bcg_2026-06-05.xlsx` | 3-flikars jämförelse mot BCG fryst facit |
-| `model_summary.xlsx` | Per-KEY modell-koefficienter |
-| `model_results.csv` | Vecko-nivå predictions (129 MB) |
-| `data_for_model.csv` | Pipeline input (73 MB) |
-| `_run_logs\` | Alla körningsloggar |
-
-**BCG fryst facit (skrivskyddad sanning):**
-```
-C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG\BCG_orginal_V2_New\02. Elasticity\2. Product Cluster Level Models\output\model\output_summary.xlsx
-```
-3812 KEY, fönster 2022-07-01 → 2025-06-28.
-
-### Commits från idag
-
-| Steg | Status | Commit |
-|---|---|---|
-| F.6: Cluster pipeline steg 1-4 på växande fönster | KLART | 5b0ac65 |
-| F.7: Cluster-fallback (steg 5) på växande | DELVIS — post = pre pga LF.1 | (inom F.6) |
-| LESSONS_BCG.md återställd (LB.29-37) | KLART | 0991aaa |
-| LOCKED_ASSUMPTIONS.md skapad med LF.1-7 | KLART | 618dd85 |
-| Repo-rot städad (24 filer flyttade) | KLART | 2ea61bc |
+OBS: Outputen representerar bara 317 ItemCodes (de med non-null pg4), inte 1151. **Använd inte
+för affärsbeslut** innan rotorsaken är fixad. Compare-rapporten är vilseledande.
 
 ### Validerad omsättning (för externa rapporter)
 
 Vår input CSV (växande fönster 2022-07 → 2026-04-27):
 - Sum TotalNet: **8,269,105,588 SEK** (brutto inkl VAT)
 - Sum TotalNetXVat: **6,615,284,470 SEK** (netto ex VAT)
-- Sum SoldQuantity: **7,970,132** enheter
+- Sum SoldQuantity: 7,970,132 enheter
+- Sum NoofUnits: 91,511,288
 
----
+Frusen fönster delmängd (2022-07-01 → 2025-06-28), för direkt jämförelse mot BCG:
+- TotalNet: 6,495,044,684 SEK (BCG: 6,505,900,000 SEK — diff 0.17%)
+- SoldQuantity: 6,473,551
 
-## URSPRUNGLIGT NÄSTA STEG (A+B) — Skjuts tills bortfallsfrågan är löst
+Per år (2022 är halvt år):
+- 2022: 975 MSEK
+- 2023: 2,217 MSEK
+- 2024: 2,280 MSEK
+- 2025: 2,134 MSEK
+- 2026 (Q1+): 662 MSEK
 
-Du valde A+B kombinerat: affärspresentation från Cluster-output + rullande 12-månaders volym.
+### Commits från idag
 
-**Detta är värdelöst innan bortfallsfrågan är löst.** Att bygga en affärs-Excel som visar elasticitet för 297 ItemCodes (av 1151) skulle leda till felaktiga slutsatser — vi vet inte vilka koder som faktiskt har förändrats vs vilka pipelinen tappat bort.
-
-**Ordning för nästa session:**
-
-1. **PRIO 1:** Diagnos av 60%-bortfall (1-3h beroende på rotorsak)
-2. **PRIO 2:** Om rotorsak är enkel (env-var saknad) — kör om pipelinen
-3. **PRIO 3:** A+B-bygget mot reparerad output
-
-**Öppen fråga:** TotalNet (omsättning brutto), SoldQuantity (enheter), eller båda i Excel? Inte besvarad. Beslut vid start av A+B.
+| Steg | Commit |
+|---|---|
+| F.6: Cluster pipeline på växande | 5b0ac65 |
+| LESSONS_BCG.md återställd | 0991aaa |
+| LOCKED_ASSUMPTIONS.md (LF.1-7) | 618dd85 |
+| Repo-rot städad | 2ea61bc |
+| NEXT_SESSION + LF | fbbb810 |
+| NEXT_SESSION + diag arkiverade | ed1f88e |
 
 ---
 
 ## VÄNTAR PÅ EXTERN INPUT
 
-- **Mail till IT skickat** angående nästa steg (hosting, Storage Blob role från Kent). **Väntar på svar.**
-- KRAVSPEC_IT.md finns i repo-rot som referens.
+- **Mail till IT skickat.** Väntar på svar.
 
 ---
 
 ## VAD SKJUTS UPP
 
-- **F.8 (Site + Bundle på växande)** — ej rätt prioritet
-- **F.9 (Steg 6 multi-modell-väv)** — beror av F.8
-- **KÄRNPRINCIPER-patch** (6.5 + 6.6) — pending manuell formulering av Jens
-- **TILL_RADERING\ permanent radering** — 1.36 GB granskning innan slutgiltig
+- **A+B-bygget** (affärspresentation + rullande volym) — blockerat till pg4-fixen är klar
+- F.8/F.9 (Site, Bundle, multi-modell-väv)
+- KÄRNPRINCIPER-patch
+- TILL_RADERING\ permanent radering
 
 ---
 
-## VIKTIGA STÅENDE PRINCIPER
+## NYA LF-KANDIDATER för LOCKED_ASSUMPTIONS
 
-- **LF.1** (cluster-hierarki 2-nivå platt) gäller
-- **LF.2** (anchor 2022-07-01) gäller
-- **LF.3** (BCG-facit + verifierade outputs skrivskyddade) gäller
-- **LF.4-7** se LOCKED_ASSUMPTIONS.md
-- **Vid lärdom under sessionen** — flytta in i rätt master-fil FÖRE sessionsslut (STÅENDE INSTRUKTION)
+### LF.8 (kandidat) — yoy_seasonality kräver non-null service
 
-### LB-kandidat för nästa session
+BCG:s pipeline förutsätter komplett `ProductGroupL4Name`-mappning. NULL-värden där betyder
+hela KEY tappas. Vår DW-mappning (Master_Underkategori3) är halv-NULL för tjänster —
+detta blockerar 72.5% av ItemCodes från modellen.
 
-**LB.XX — Validering ska inkludera täckningsgrad, inte bara matchning på producerade rader.**
-
-Symptom: Replikerade pipelinen validerades mot BCG-facit och fick korrelation 1.0 på producerade KEY. Detta sa **inget om hur stor andel av facit som faktiskt producerades**. När vi körde på växande data upptäcktes 60% bortfall flera sessioner efter validering bekräftades grön.
-
-Regel: Varje validering ska inkludera räknor på täckningsgrad (vår_output ∩ facit / facit) som separat KPI vid sidan av korrelationsmått på matchade rader.
+**Status:** Identifierat. Beslut om handling i nästa session.
 
 ---
 
 ## SNABBSTART NÄSTA SESSION
 
 1. `cd C:\Projekt\BCG && git status` — verifiera ren
-2. Öppna denna NEXT_SESSION.md för full kontext på 60%-bortfallet
-3. Börja med **diagnos-skripten i workspace\** för att återkalla läge
-4. Sedan: pipeline-walk för att identifiera var AAP130 droppas
+2. Läs ovan: pg4-NULL är rotorsaken
+3. Välj Väg 1, 2 eller 3 (rekommendation: Väg 2)
+4. Implementera, kör om pipelinen, validera
+5. **Detta är blockerande för all framtida elasticitets-analys**
 
 ---
 
-*Skapad 2026-06-05 vid sessionsslut. Branch fas-f-fresh-data @ 2ea61bc. ~7h session. Stora upptäckter: LF.1-7 formaliserade, repo strukturerad, 60%-bortfall identifierat vid sessionsslut.*
+*Skapad 2026-06-05 vid sessionsslut efter iterativ djupgrävning. ~8h session.
+Stora upptäckter: LF.1-7 formaliserade, repo strukturerad, 60%-bortfall **rotorsak bevisad**:
+ProductGroupL4Name halv-NULL → yoy_seasonality inner merge droppar 834 ItemCodes (tjänster).*
