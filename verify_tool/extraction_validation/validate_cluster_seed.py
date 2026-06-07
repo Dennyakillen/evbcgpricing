@@ -27,7 +27,7 @@ import pandas as pd
 from _validation_helpers import (
     BCG_CLUSTER_SEED_XLSX, OUR_CSV,
     fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 EXPECTED_CLUSTERS = {"Clinics 0", "Clinics 1", "Clinics 2",
@@ -35,7 +35,7 @@ EXPECTED_CLUSTERS = {"Clinics 0", "Clinics 1", "Clinics 2",
 EXPECTED_DEPT_COUNT = 58
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -125,42 +125,6 @@ def main():
     receipt_dir = get_receipt_dir()
     receipt_path = receipt_dir / f"02_cluster_seed_{timestamp_file}.xlsx"
 
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Check", "Actual", "Expected", "Status"],
-            "rows": checks,
-            "notes": [
-                f"Source file: {BCG_CLUSTER_SEED_XLSX.name}",
-                f"File hash: {file_hash_short(BCG_CLUSTER_SEED_XLSX)}",
-                "Expected: BCG's frozen mapping = 58 ID_Department in 7 named clusters",
-            ],
-        },
-        {
-            "name": "Distribution",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Cluster", "# Departments"],
-            "rows": [[r["Cluster"], int(r["n_departments"])] for _, r in distribution.iterrows()],
-            "notes": [f"Total departments mapped: {distribution['n_departments'].sum()}"],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_cluster_seed.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Seed file", str(BCG_CLUSTER_SEED_XLSX)],
-                ["Seed hash", file_hash_short(BCG_CLUSTER_SEED_XLSX)],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Cluster Seed Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
 
     overall_pass = all(c[3] == "PASS" for c in checks)
@@ -168,6 +132,20 @@ def main():
 
     return 0 if overall_pass else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"02_cluster_seed_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_cluster_seed.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

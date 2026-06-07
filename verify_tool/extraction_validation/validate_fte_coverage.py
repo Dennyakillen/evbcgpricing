@@ -31,11 +31,11 @@ import pandas as pd
 from _validation_helpers import (
     OUR_CSV, BCG_FTE_XLSX,
     fmt_msek, fmt_pct, fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -160,52 +160,25 @@ def main():
         ["Status", status, status_note],
     ]
 
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Metric", "Value", "Notes"],
-            "rows": summary_rows,
-            "notes": [
-                "FTE source: BCG's frozen interpolated file (Way 1 - faithful replication).",
-                "Way 2 (rebuild FTE from Quinyx DW) is on roadmap.",
-                "Pipeline handles NULL FTE in regression (drops or imputes per BCG logic).",
-            ],
-        },
-        {
-            "name": "Weeks_Without_FTE",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Week", "Rows", "TotalNet (SEK)"],
-            "rows": [[r["week"], int(r["rows"]), float(r["TotalNet"])]
-                     for _, r in week_rev.iterrows()],
-            "notes": [
-                f"Distinct weeks without FTE: {len(weeks_no_fte)}",
-                "These weeks fall after BCG's FTE coverage ends.",
-            ],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_fte_coverage.py"],
-                ["Run timestamp", timestamp_iso],
-                ["FTE file", str(BCG_FTE_XLSX)],
-                ["FTE hash", file_hash_short(BCG_FTE_XLSX)],
-                ["FTE coverage end", fte_max_date.strftime("%Y-%m-%d")],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "FTE Coverage Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
     print(f"  >> Result: {status}")
 
     return 0 if status == "PASS" else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"04_fte_coverage_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_fte_coverage.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -25,11 +25,11 @@ import pandas as pd
 from _validation_helpers import (
     OUR_CSV, BCG_FACIT_CSV, BCG_START, BCG_END,
     fmt_msek, fmt_pct, fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -162,65 +162,24 @@ def main():
         sub = merged[merged["_merge"] == "right_only"][["ItemCode", "bcg_TotalNet"]].head(50)
         only_bcg_rows = [[r["ItemCode"], float(r["bcg_TotalNet"])] for _, r in sub.iterrows()]
 
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Metric", "Value", "Notes", "Status"],
-            "rows": summary_rows,
-            "notes": [
-                f"Status: {status} - {status_note}",
-                "Drift caused by DW snapshot vs BCG's 2025-07 snapshot (~8 months newer).",
-            ],
-        },
-        {
-            "name": "Top_Drift",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["ItemCode", "Our TotalNet", "BCG TotalNet",
-                        "Drift (SEK)", "Drift (%)"],
-            "rows": top_drift_rows,
-            "notes": [
-                "Top 15 ItemCodes by absolute drift percentage.",
-                "Codes with very low BCG total may show high drift % even at small SEK amount.",
-            ],
-        },
-        {
-            "name": "Only_Ours",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["ItemCode", "Our TotalNet"],
-            "rows": only_ours_rows,
-            "notes": [f"{n_only_ours} ItemCodes only in our extraction (max 50 shown)."],
-        },
-        {
-            "name": "Only_BCG",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["ItemCode", "BCG TotalNet"],
-            "rows": only_bcg_rows,
-            "notes": [f"{n_only_bcg} ItemCodes only in BCG facit (max 50 shown)."],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_baseline_replication.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Frozen window", f"{BCG_START} -> {BCG_END}"],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["BCG facit file", str(BCG_FACIT_CSV)],
-                ["BCG facit hash", file_hash_short(BCG_FACIT_CSV)],
-                ["Status", status],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Baseline Replication Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
     print(f"  >> Result: {status}")
     return 0 if status == "PASS" else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"08_baseline_replication_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_baseline_replication.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

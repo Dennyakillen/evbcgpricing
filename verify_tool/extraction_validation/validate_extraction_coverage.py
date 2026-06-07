@@ -27,13 +27,13 @@ import pandas as pd
 from _validation_helpers import (
     OUR_CSV, BCG_FACIT_CSV, BCG_START, BCG_END,
     fmt_msek, fmt_pct, fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 DRIFT_TOLERANCE_PCT = 0.5
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -155,67 +155,25 @@ def main():
         [8, "INNER JOIN facit_pairs (0828)", "Python", "Restricts to 1151 ItemCodes"],
     ]
 
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Metric", "Value", "Notes"],
-            "rows": summary_rows,
-            "notes": [
-                f"Run timestamp: {timestamp_iso}",
-                f"Tolerance gate: +/- {DRIFT_TOLERANCE_PCT}% on frozen subset vs BCG facit",
-            ],
-        },
-        {
-            "name": "Yearly",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Year", "Rows", "TotalNet (SEK)", "TotalNet (MSEK)",
-                        "SoldQuantity", "ItemCodes"],
-            "rows": yearly_rows,
-            "notes": [],
-        },
-        {
-            "name": "pg4_Incremental",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["pg4 Category", "TotalNet (SEK)", "TotalNet (MSEK)", "ItemCodes"],
-            "rows": pg4_rows if pg4_rows else [["(no incremental data)", "", "", ""]],
-            "notes": ["Breakdown of revenue contributed by months beyond BCG's frozen window."],
-        },
-        {
-            "name": "Filters",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["#", "Filter", "Layer", "Purpose"],
-            "rows": filters_doc,
-            "notes": [
-                "All filters applied during extraction.",
-                "Filters 7+8 restrict to BCG's 1151 ItemCode x Cluster selection by design.",
-            ],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_extraction_coverage.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["BCG facit file", str(BCG_FACIT_CSV)],
-                ["BCG facit hash", file_hash_short(BCG_FACIT_CSV)],
-                ["BCG window", f"{BCG_START} to {BCG_END}"],
-                ["Tolerance", f"+/- {DRIFT_TOLERANCE_PCT}%"],
-                ["Result", status],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Extraction Coverage Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
     print(f"  >> Result: {status}")
 
     return 0 if gate else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"01_extraction_coverage_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_extraction_coverage.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

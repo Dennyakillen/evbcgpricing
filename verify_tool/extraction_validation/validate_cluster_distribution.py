@@ -26,11 +26,11 @@ import pandas as pd
 from _validation_helpers import (
     OUR_CSV, BCG_FACIT_CSV,
     fmt_msek, fmt_pct, fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -110,40 +110,24 @@ def main():
         for _, r in per_cluster.iterrows()
     ]
 
-    sheets = [
-        {
-            "name": "Distribution",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Cluster", "Rows", "TotalNet (SEK)", "TotalNet (MSEK)",
-                        "% Revenue", "SoldQuantity", "% Quantity",
-                        "# ItemCodes", "# Weeks"],
-            "rows": distribution_rows,
-            "notes": [
-                f"Total revenue: {total_rev/1e6:.1f} MSEK",
-                f"Total quantity: {total_qty:,.0f}",
-                f"Balance status: {status} - {note}",
-            ],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_cluster_distribution.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["Balance status", status],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Cluster Distribution Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
     print(f"  >> Result: {status}")
     return 0 if status == "PASS" else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"06_cluster_distribution_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_cluster_distribution.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

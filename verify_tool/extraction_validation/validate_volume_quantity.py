@@ -27,11 +27,11 @@ import numpy as np
 from _validation_helpers import (
     OUR_CSV,
     fmt_msek, fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -148,53 +148,26 @@ def main():
     receipt_dir = get_receipt_dir()
     receipt_path = receipt_dir / f"07_volume_quantity_{timestamp_file}.xlsx"
 
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Check", "Actual", "Expected", "Status"],
-            "rows": [[c[0], str(c[1]), str(c[2]), c[3]] for c in checks],
-            "notes": [
-                "VAT ratio confirms our SQL fallback (SalesTotal / 1.25) is in effect.",
-                "NoofUnits != SoldQuantity by definition (LB).",
-                "QuantitySold(SalesTotal>0) is constants.UNIT - the regression dep var.",
-            ],
-        },
-        {
-            "name": "Price_Stats",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Statistic", "Value (SEK per unit)"],
-            "rows": [
-                ["Min", round(p_min, 2)],
-                ["Median", round(median_price, 2)],
-                ["Mean", round(sub["price_per_unit"].mean(), 2)],
-                ["P99.9", round(p99_9, 2)],
-                ["Max", round(p_max, 2)],
-                ["Rows > 1M SEK/unit", int(n_extreme)],
-            ],
-            "notes": [],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_volume_quantity.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Volume / Quantity Consistency Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
 
     overall = not any(c[3] == "FAIL" for c in checks)
     print(f"  >> Result: {'PASS' if overall else 'FAIL'}")
     return 0 if overall else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"07_volume_quantity_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_volume_quantity.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

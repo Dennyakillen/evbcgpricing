@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from _validation_helpers import (
     now_iso, now_file_stamp, get_receipt_dir,
-    section, subsection, write_receipt,
+    section, subsection, capture_stdout, write_log_receipt,
 )
 
 
@@ -86,7 +86,7 @@ def extract_status(stdout):
     return "UNKNOWN"
 
 
-def main():
+def _run_master():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
     run_dir = Path(__file__).parent
@@ -167,47 +167,29 @@ def main():
     print()
 
     # ----- Write master receipt -----
-    receipt_dir = get_receipt_dir()
-    receipt_path = receipt_dir / f"00_master_summary_{timestamp_file}.xlsx"
-
     summary_rows = [
         [idx + 1, r["script"], r["status"], r["exit_code"],
          f"{r['duration_sec']}s", r["last_line"]]
         for idx, r in enumerate(results)
     ]
-
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["#", "Script", "Status", "Exit", "Duration", "Last line"],
-            "rows": summary_rows,
-            "notes": [
-                f"OVERALL: {overall}",
-                f"PASS: {n_pass}, REVIEW: {n_review}, FAIL: {n_fail}, INFO: {n_info}, SKIP: {n_skip}",
-                f"Receipts saved to: {receipt_dir}",
-            ],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "run_all_validations.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Total scripts", len(results)],
-                ["Overall status", overall],
-                ["Receipt directory", str(receipt_dir)],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Validation Suite - Master Summary", sheets)
-    print(f"  Master receipt: {receipt_path}")
     print()
 
     return 0 if overall == "PASS" else 1
 
+
+
+
+def main():
+    """Capture master stdout and save as single-sheet Logg receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_master()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"00_master_summary_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "run_all_validations.py", log_text)
+    print()
+    print(f"  Master receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

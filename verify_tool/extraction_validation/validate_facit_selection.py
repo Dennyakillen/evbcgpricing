@@ -27,7 +27,7 @@ import pandas as pd
 from _validation_helpers import (
     BCG_FACIT_CSV, OUR_CSV,
     fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 EXPECTED_ITEMCODES = 1151
@@ -36,7 +36,7 @@ EXPECTED_PG4_CATEGORIES = 23
 SERVICE_CODE_PATTERNS = ["AAP", "DUS", "AEM", "ALB", "ALT", "ANALYS", "ASU", "ARCCRE"]
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -156,59 +156,6 @@ def main():
     receipt_dir = get_receipt_dir()
     receipt_path = receipt_dir / f"03_facit_selection_{timestamp_file}.xlsx"
 
-    sheets = [
-        {
-            "name": "Summary",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Check", "Actual", "Expected", "Status"],
-            "rows": checks,
-            "notes": [
-                f"Source: {BCG_FACIT_CSV.name}",
-                f"File hash: {file_hash_short(BCG_FACIT_CSV)}",
-            ],
-        },
-        {
-            "name": "Cluster_Distribution",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Cluster", "# ItemCodes (pairs)"],
-            "rows": [[r["Cluster"], int(r["n_codes"])] for _, r in pairs_per_cluster.iterrows()],
-            "notes": [f"Total pairs: {pairs_per_cluster['n_codes'].sum()}"],
-        },
-        {
-            "name": "pg4_Distribution",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["pg4 Category", "# ItemCodes", "# Rows"],
-            "rows": [[str(r["ProductGroupL4Name"]), int(r["n_codes"]), int(r["n_rows"])]
-                     for _, r in pg4_dist.iterrows()],
-            "notes": [f"Total categories: {n_categories}"],
-        },
-        {
-            "name": "Service_Codes",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Pattern", "# ItemCodes found"],
-            "rows": [[p, n] for p, n in service_found],
-            "notes": [
-                "Service codes verify that clinical services (not just goods) are in facit.",
-                "AAP=undersökning, DUS=ultraljud, AEM=anestesi, ALB/ALT/ANALYS=labb",
-            ],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_facit_selection.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Facit file", str(BCG_FACIT_CSV)],
-                ["Facit hash", file_hash_short(BCG_FACIT_CSV)],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Facit Selection Validation", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
 
     overall = all(c[3] in ("PASS", "REVIEW") for c in checks) and \
@@ -216,6 +163,20 @@ def main():
     print(f"  >> Result: {'PASS' if overall else 'REVIEW/FAIL'}")
     return 0 if overall else 1
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"03_facit_selection_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_facit_selection.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())

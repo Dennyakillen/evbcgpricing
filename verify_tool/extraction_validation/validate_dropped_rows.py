@@ -35,7 +35,7 @@ import pandas as pd
 from _validation_helpers import (
     OUR_CSV, BUSINESS_ROOT,
     fmt_msek, fmt_int, now_iso, now_file_stamp, get_receipt_dir,
-    file_hash_short, section, subsection, write_receipt,
+    file_hash_short, section, subsection, capture_stdout, write_log_receipt,
 )
 
 
@@ -99,7 +99,7 @@ def parse_export_log(log_path):
     return parsed
 
 
-def main():
+def _run_validation():
     timestamp_iso = now_iso()
     timestamp_file = now_file_stamp()
 
@@ -194,62 +194,24 @@ def main():
     if not parsed_rows:
         parsed_rows = [["(no log found)", "Run after a fresh export to capture full funnel"]]
 
-    sheets = [
-        {
-            "name": "Filter_Funnel",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Stage", "Rows", "Delta", "Layer"],
-            "rows": funnel_rows,
-            "notes": [
-                "Layer = where the filter is applied (SQL = in DW query, Python = post-query in export script).",
-                "INTENTIONAL drops (LF-locked): facit_pairs restricts to BCG's 1151 ItemCode x Cluster selection.",
-                "INTENTIONAL drops: cluster seed restricts to 58 ID_Department in 7 BCG clusters.",
-            ],
-        },
-        {
-            "name": "Parsed_Log_Metrics",
-            "subtitle": f"From log: {log.name if log else 'none'}",
-            "headers": ["Metric", "Value"],
-            "rows": parsed_rows,
-            "notes": [
-                "Metrics parsed from the latest dwexport_log_*.txt file.",
-                "To regenerate: tee export_b4b_for_model.py output to Downloads next time.",
-            ],
-        },
-        {
-            "name": "Final_CSV_Stats",
-            "subtitle": f"Generated: {timestamp_iso}",
-            "headers": ["Metric", "Value"],
-            "rows": [
-                ["Total rows", fmt_int(final_rows).strip()],
-                ["Distinct ItemCodes", final_itemcodes],
-                ["Distinct KEY (Cluster x ItemCode)", final_keys],
-                ["Sum TotalNet (SEK)", f"{final_revenue:,.0f}"],
-                ["Sum TotalNet (MSEK)", f"{final_revenue/1e6:.1f}"],
-                ["Sum SoldQuantity", fmt_int(int(final_quantity)).strip()],
-            ],
-            "notes": [],
-        },
-        {
-            "name": "Metadata",
-            "subtitle": "",
-            "headers": ["Key", "Value"],
-            "rows": [
-                ["Script", "validate_dropped_rows.py"],
-                ["Run timestamp", timestamp_iso],
-                ["Export log used", str(log) if log else "none"],
-                ["Our extraction file", str(OUR_CSV)],
-                ["Our extraction hash", file_hash_short(OUR_CSV)],
-                ["Developer", "Jens Palmö, Evidensia"],
-            ],
-        },
-    ]
-    write_receipt(receipt_path, "Dropped Rows / Filter Funnel Analysis", sheets)
-    print(f"  Receipt: {receipt_path.name}")
     print()
     print(f"  >> Result: INFO (forensic analysis, no pass/fail gate)")
     return 0
 
+
+
+
+def main():
+    """Capture stdout while running validation, then save as single-sheet 'Logg' receipt."""
+    with capture_stdout() as buf:
+        exit_code = _run_validation()
+    log_text = buf.getvalue()
+    receipt_dir = get_receipt_dir()
+    receipt_path = receipt_dir / f"05_dropped_rows_{now_file_stamp()}.xlsx"
+    write_log_receipt(receipt_path, "validate_dropped_rows.py", log_text)
+    print()
+    print(f"  Receipt (Logg): {receipt_path}")
+    return exit_code if exit_code is not None else 0
 
 if __name__ == "__main__":
     sys.exit(main())
