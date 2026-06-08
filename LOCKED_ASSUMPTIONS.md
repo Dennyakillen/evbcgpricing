@@ -4,7 +4,7 @@
 **Lever i:** `C:\Projekt\BCG`
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
 **Skapad:** 2026-06-05
-**Senast uppdaterad:** 2026-06-05
+**Senast uppdaterad:** 2026-06-08
 
 ---
 
@@ -50,6 +50,7 @@ låsningar** som skyddar affärskontinuitet över sessioner och datavolymer.
 | LF.5 | IB.2-gate: `Significant?` = `RSQ ≥ 0.5 AND PVALUE ≤ 0.2` (ej p<0.05) | Signifikansrapporter blir inte jämförbara |
 | LF.6 | FTE via Way 1 (BCG:s interpolerade fil), ej Way 2 (DW-native härledning) | Modellen jagar ett rörligt mål om FTE-källan ändras |
 | LF.7 | `ProductGroupL4Name` är BCG:s bespoke kategorisering, ej DW-härledd | Service-mappningen bryts; fallback-grupperingen blir inkompatibel |
+| LF.8 | ProductGroupL4Name lyfts från BCG 0828 (ej DW Master_Underkategori3) | 73% ItemCodes droppas, tjänster försvinner |
 
 ---
 
@@ -230,6 +231,42 @@ ItemCode-mängd beroende på vilken Service-mappning som användes.
 
 ---
 
+### LF.8 — `ProductGroupL4Name` lyfts från BCG:s 0828-CSV, inte från DW
+
+**Förutsättning:** `ProductGroupL4Name` (= `service` i pipelinen) för **alla 1151 ItemCodes**
+hämtas från BCG:s frusna `0828_Sweden_weekly_model_data_P_C.csv` (`bcg_inputs\`), inte från
+`Manual.Dim_Item_Extended.Master_Underkategori3`. Mappningen lyfts i `export_b4b_for_model.py`
+via `combine_first()` efter aggregering, så DW:s pg4 används bara som fallback (i praktiken
+aldrig — BCG-mappningen har 100 % täckning för facit-populationen).
+
+**Varför låst:** `Master_Underkategori3` kommer från LEFT JOIN mot `Manual.MasterListProducts`,
+som **bara innehåller butikssortiment**. Veterinärtjänster (ItemSegment Klinisk / Lab) får NULL.
+Detta orsakar 73 %-bortfall i `data_prepration.py`s `yoy_seasonality()`-merge på `service` (rad
+345, inner merge — NaN matchar inte NaN i pandas). Resultatet: 834 av 1151 ItemCodes droppas,
+inklusive **alla** AAP, DUS, AEM, ALB, ALT, ANALYS-koder (huvudintäktskällan).
+
+Bekräftat empiriskt:
+- BCG:s 0828: **100 %** pg4-täckning för 1151 ItemCodes, 23 distinkta kategorier, 1:1-mapping
+- DW:s `Master_Underkategori3`: **27 %** täckning (317 av 1151 ItemCodes)
+
+**Vad som händer om vi bryter:** Veterinärtjänster (huvudintäktskällan) försvinner ur modellen.
+Output sjunker från ~4180 KEY till ~1521 KEY. Replikeringsbevis mot BCG-facit blir omöjligt på
+populationsnivå. AAP130 — den första empiriskt bevisade priselasticiteten för en tjänst hos
+Evidensia — försvinner helt.
+
+**Vad som skulle krävas för revision:** Egen pg4-mappning för Klinisk/Lab-segmenten byggs i DW
+(antingen genom utökning av `Manual.MasterListProducts` eller via ny tabell `Manual.Item_Pg4`).
+Tills dess: BCG:s 0828 är källan. Detta är inte ett tekniskt val utan ett affärs-/förvaltnings-
+beslut: vem äger den vetenskapliga produktkategoriseringen för Klinik/Lab-tjänster framåt?
+
+**Datum låst:** 2026-06-05 (efter F.6-bortfallets diagnos)
+**Källa:** Iterativ 10-stegs djupgrävning, kommiterad i `7e0f11f` (FINAL DIAGNOSIS) +
+`cb64dd6` (ROOT CAUSE PROVEN). Patch implementerad i `export_b4b_for_model.py` rad 75 + 110.
+End-to-end-bevisad 2026-06-08 på VM: pipeline producerar 4180 KEY inklusive AAP130 med
+elasticitet -0.52 (p=0.001) på Clinics 0.
+
+---
+
 ## Hur posten levs
 
 Listan **lever**. Nya LF identifieras när:
@@ -254,3 +291,4 @@ En LF revideras genom:
 | Datum | Vad |
 |---|---|
 | 2026-06-05 | Fil skapad med LF.1-7 vid avslut av FAS F.7 (cluster-fallback på växande). LF.1 identifierad efter observation att post-fallback Significant?=362/1521 = pre-fallback p.g.a. saknad CH-mellannivå — Jens beslut: behåll 2-nivå-hierarki, inte återskapa CH. LF.2-7 retroaktivt formaliserade från tidigare sessioner. |
+| 2026-06-08 | LF.8 tillagd. ProductGroupL4Name lyfts från BCG:s frusna 0828-CSV efter end-to-end-bevis 2026-06-08 (VM-körning producerade 4180 KEY med veterinärtjänster inkluderade, AAP130 elasticitet -0.52 p=0.001). |

@@ -175,3 +175,181 @@ storlek + tidsstämpel) med `ls -la`. En klar full körning ger `output_summary.
 | Logg | `~/run_log_PC_full.txt` |
 
 Driftrutin (start/stopp/kostnad) finns i `README.md` → "Daglig drift".
+
+---
+
+## 10. PowerShell → SSH → bash quote-helvete (känd fälla, fastnat 5+ ggr)
+
+Det enklast skrivna inline-kommandot kan vara det mest tidskrävande att felsöka när tre
+språk-tolkar (PowerShell, SSH-klient, bash på VM) ska enas om var citationstecken slutar
+och börjar. Den här regeln slipper genvägar:
+
+**Aldrig:** flerradiga `ssh "..."` med `\$()`, `\"`, escape-tecken eller nestade quotes.
+PowerShell tolkar `\$()` lokalt **innan** kommandot skickas till SSH, vilket nästan alltid
+trasar sönder det avsedda bash-uttrycket.
+
+**Alltid en av:**
+
+**(a) Enrads-kommandon utan escapes (för snabba kontroller):**
+```powershell
+ssh azureuser@172.18.148.4 "tail -5 ~/run_log_step3.txt"
+ssh azureuser@172.18.148.4 "tmux ls"
+ssh azureuser@172.18.148.4 "wc -l ~/run_log_step3.txt"
+```
+Inga `$()`. Inga `\"`. Inga radslut. Tre separata kommandon är alltid bättre än ett komplicerat.
+
+**(b) Bygg .sh lokalt, scp över, kör:**
+```powershell
+$scriptContent = @'
+#!/bin/bash
+cd ~/bcg/cluster
+source .venv/bin/activate
+echo "Running with date: $(date)"
+python code/script.py 2>&1 | tee ~/log.txt
+'@
+
+# CRLF -> LF (kritiskt på Linux)
+$scriptContent = $scriptContent -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText("$env:USERPROFILE\Downloads\run.sh", $scriptContent)
+
+scp "$env:USERPROFILE\Downloads\run.sh" azureuser@172.18.148.4:~/run.sh
+ssh azureuser@172.18.148.4 "bash ~/run.sh"
+```
+
+**(c) Multi-step status:** Lista 3-4 enkla enrads-ssh-kommandon istället för ett komplext
+chained-kommando.
+
+**Hang >30 sek = avbryt med Ctrl+C, det är ALDRIG VM:n som hänger.** Det är alltid quote-tolkningen
+som blivit galen. Om SSH-klienten själv blockerar är det din lokala terminal som tappat tråden,
+inte VM:ens process. Avbryt och försök igen med (a) eller (b).
+
+---
+
+## 11. scp och paths — tre snubblestenar
+
+### 11.1 Trailing backslash escaper citationstecken
+```powershell
+$archive = "C:\Projekt\BCG\..."
+scp "azureuser@vm:~/file.xlsx" "$archive\"   # ❌ trasig
+scp "azureuser@vm:~/file.xlsx" $archive       # ✅ fungerar
+```
+`\` precis före `"` blir en escape-sekvens i scp:s argument-parser. PowerShell-variabler **utan
+trailing slash** och **utan citationstecken** runt destinationen är robust.
+
+### 11.2 Pathvariabler i SSH-kommandon behöver inte escape
+```powershell
+ssh azureuser@vm "ls -la ~/bcg/cluster/output/"   # ✅
+ssh azureuser@vm 'ls -la ~/bcg/cluster/output/'   # ✅ också OK
+```
+`~` expanderas av bash på VM:n, inte av PowerShell. Båda citerings-stilar fungerar lika bra för
+enkla kommandon.
+
+### 11.3 Stora filer (>300 MB) via VPN tar tid
+För `model_results.csv` (~338 MB): cirka 10-15 sekunder över Evidensia-VPN. För `data_original.csv`
+(~177 MB): cirka 5-8 sekunder. Acceptabelt — vänta ut det, avbryt inte.
+
+---
+
+## 12. tmux mönster för pipelinekörning (säkert mönster)
+
+Föredra **enkellinje-anrop** till färdigt sparade .sh-filer framför inline-kommandon:
+
+```powershell
+# 1) Bygg .sh lokalt (se §10b)
+# 2) scp över
+# 3) Starta i tmux med ett rent enkelradigt kommando:
+ssh azureuser@vm "tmux new-session -d -s NAMN 'bash ~/run.sh' && sleep 3 && tmux ls"
+```
+
+**Kritiska tmux-detaljer:**
+- `-d` = detached (sessionen körs utan att din SSH attachar)
+- `-s NAMN` = namnge sessionen (kort, unikt: `fs`, `m4`, `prep`)
+- Kommandot inom `' '` körs **i** sessionen. Måste vara EN sträng (kan vara `bash ~/x.sh`).
+- `sleep 3` ger Python tid att starta innan vi pollar (annars `run_log` är fortfarande 0 bytes)
+- `tmux ls` direkt efter bekräftar att sessionen lever
+
+**Status-poll utan att attacha (skadar inte körningen):**
+```powershell
+ssh azureuser@vm "tmux ls"
+ssh azureuser@vm "tail -10 ~/run_log_stepX.txt"
+ssh azureuser@vm "ps -eo etime,pcpu,args | grep python.*scriptnamn | grep -v grep"
+```
+
+**Tre signaler på att jobbet är klart:**
+1. `tmux ls` returnerar `no server running on /tmp/tmux-1000/default`
+2. `tail` visar `Exit code: 0` eller motsvarande slut-rad
+3. Förväntad output-fil finns (`ls -la /sökväg/till/output.xlsx`)
+
+Lita inte enbart på (2) — `tee` buffrar sista raderna ibland och `End:` syns inte alltid även när
+skriptet exited normalt.
+
+---
+
+## 13. `tee` buffrar ofta sista raderna i lång körning
+
+**Symptom:** Skriptet exited (tmux dör, output-fil finns), men `tail -10 ~/run_log_stepX.txt`
+visar inte slutraderna (t.ex. `Exit code: 0` eller `End: $(date)`) som skriptet borde ha skrivit.
+
+**Rotorsak:** `tee` använder line-buffered I/O som default. Om scriptet exitar utan en final
+newline-flush kan de sista 1-3 raderna ligga kvar i bufferten och förloras när processen dör.
+
+**Regel:** Verifiera klart-status genom **två oberoende signaler**:
+1. Tmux-sessionen är borta (`tmux ls` returnerar tomt)
+2. Förväntad output-fil finns på rätt path med rimlig storlek
+
+Använd inte "Exit code: 0 i log" som ENDA bevis. Om du behöver explicit "Exit code" i loggen,
+skriv den efter `python ...` med en `echo "Exit code: $?" 2>&1 | tee -a log.txt` (tee-append),
+inte i en pipeline efter `tee`.
+
+---
+
+## 14. VM startar långsammare än check_env väntar
+
+**Symptom:** `check_env.ps1 -StartVm` startar VM, väntar 15 sekunder, försöker SSH, får timeout,
+loggar FAIL och deallokerar automatiskt. VM hinner inte boot:a klart innan SSH testas.
+
+**Rotorsak:** Kall start av Standard_E16s_v5 tar 60-120 sekunder för komplett OS-init + SSH-daemon-
+start. check_env:s 15-sekunders-vänta är inte tillräckligt vid första boot efter deallokering.
+
+**Regel:** För riktiga körningar (inte bara koll), starta VM manuellt och polla SSH i loop:
+```powershell
+az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+# Vänta 60 sek, försök sedan SSH manuellt:
+ssh azureuser@172.18.148.4 "hostname && uptime"
+```
+Om SSH svarar = klar att gå vidare. För automation: bygg en explicit poll-loop med 10s mellanrum,
+max 3 min, **utan** `BatchMode=yes` (det blockerar password fallback och kan hänga obegränsat).
+
+---
+
+## 15. f-strings i `python -c` kraschar på backslash
+
+**Symptom:** `python -c "import pandas as pd; df = pd.read_excel(r'$path'); print(f'KEY: {df[\"KEY\"].count()}')"`
+returnerar `SyntaxError: f-string expression part cannot include a backslash`.
+
+**Rotorsak:** Python f-strings (`f"..."`) tillåter inte `\` inom uttrycks-delen (`{...}`). PowerShell
+escape-sekvenser av citationstecken (`\"`) blir backslash i den slutgiltiga Python-koden, vilket
+bryter f-string-parsern.
+
+**Regel:** Använd **inte** `python -c "..."` för någonting med f-strings + dataaccess. Bygg en .py-fil
+lokalt och kör direkt:
+```powershell
+$content = @'
+import pandas as pd
+from pathlib import Path
+df = pd.read_excel(Path(r"C:\path\to\file.xlsx"))
+print(f"KEY count: {len(df)}")
+'@
+$content = $content -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText("$env:USERPROFILE\Downloads\inspect.py", $content)
+python "$env:USERPROFILE\Downloads\inspect.py"
+```
+Samma princip som §10b för .sh-filer: bygg lokalt, kör direkt. Inga escapes.
+
+---
+
+*§10-15 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. Återkommande
+PowerShell→SSH-quote-problem (fastnat 5+ ggr under en enda session) konsoliderade till §10
+för att en gång för alla etablera mönstret. §11-15 är följder av samma kärnproblem: när tre
+språk-tolkar (PowerShell, SSH, bash) ska enas om escape-tecken är det säkrare att bygga
+artefakten lokalt och scp:a över.*

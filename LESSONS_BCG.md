@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `PROJECT_LESSONS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-06-02
+**Senast uppdaterad:** 2026-06-08
 
 ---
 
@@ -67,6 +67,12 @@ plattform, replikeringsdetaljer. Varje lärdom har ett stabilt `LB.N`-ID och for
 | **LB.35** | **Imports propageras inte automatiskt vid str_replace-patch** | **NameError efter "lyckad" patch som la till funktion-anrop** |
 | **LB.36** | **`data_prepration.py`:s "Shape"-print loggar input, inte output (~50% diff)** | **Loggrad 523k rader, faktisk fil 259k rader** |
 | **LB.37** | **PowerShell multi-line-regex är opålitlig på Python-källkod, använd Python själv** | **`-replace` matchar inte över newlines utan `(?s)`-flagga** |
+| **LB.38** | **"Biter inte på kärnelasticiteten" ≠ harmless** | **Datakvalitetsbrist minimerades, ledde till 73% bortfall vid yoy_seasonality** |
+| **LB.39** | **Validering på producerade rader fångar inte populations-bortfall** | **verify_dataprep PASS dolde 834 droppade ItemCodes** |
+| **LB.40** | **load_or_create_feature_control_file Gren B saknar return (BCG-bug)** | **feature_selection.py kraschar AttributeError NoneType, kringgås via körningsordning** |
+| **LB.41** | **control_file.xlsx regenereras INTE av steg 2 (`data_prepration.py`)** | **Skapas först i steg 3, rensning före steg 2 skapar inte ny fil** |
+| **LB.42** | **output_summary.xlsx ligger i `output/model/` (inte `output/`)** | **scp-kommandon med fel path får "No such file"** |
+| **LB.43** | **`ls -la` mapp-datum kan misstolkas som fil-datum** | **Använd `find -newer` istället för att läsa ls-output** |
 
 ---
 
@@ -350,6 +356,86 @@ inte direkt-PowerShell-regex. Python `str.replace()` är exakt strängmatchning,
 regex-tolkning. Eller `re.DOTALL`-flagga vid behov. Generell version: `MASTER_PYTHON L.44`.
 
 ---
+### LB.38 — "Biter inte på kärnelasticiteten" ≠ harmless
+**Symptom:** Vid FAS 3 och FAS 10 dokumenterades `Master_Underkategori3` som halv-NULL (IB.8 sade
+"relevant för gruppering, inte för kärnelasticitet"). Detta minimerade konsekvensen. Resultatet
+2026-06-05: 73 % av ItemCodes droppades faktiskt ur modellen — inklusive hela tjänstesidan.
+**Rotorsak:** Pipeline-stegen *efter* regressionen (yoy_seasonality inner merge på `service`) droppar
+hela KEY för rader med NULL pg4. Påståendet "påverkar inte regressionen" stämmer för de KEY:n som
+överlever till regressionen — men förutsätter att de inte droppas av en upstream merge. Vi tittade
+på regressionssteget isolerat och drog en allmän slutsats om hela pipelinen.
+**Regel:** När en datakvalitetsbrist flaggas — fråga **"vid vilket pipeline-steg används denna
+kolumn, med vilken merge-typ?"** innan slutsatsen "harmless". `pandas.merge(how="inner")` på
+NULL-värden = total dropout (NaN matchar inte NaN). Spåra varje kolumns liv från källa till
+regressionsinput. *(Princip: "mät, gissa inte", KÄRNPRINCIPER.)*
+
+### LB.39 — Validering på producerade rader fångar inte populations-bortfall
+**Symptom:** `verify_dataprep.py` rapporterade FR-1 PASS med corr=1.0 mot BCG:s 0828-facit i flera
+sessioner före 2026-06-05. Detta dolde att 834 av 1151 ItemCodes droppades senare i pipelinen.
+Verify-suiten var "grön" medan modellen exkluderade veterinärtjänster (huvudintäktskällan).
+**Rotorsak:** Verify mäter "matchar de rader vi har" — inte "matchar vi alla rader vi *borde* ha".
+Korrelation på en delmängd kan vara 1.0 medan delmängden själv är ofullständig. Klassisk
+selektion-bias: vi validerar det vi producerade, inte det vi missade.
+**Regel:** Varje pipeline-steg ska logga **ItemCode-count in vs ut**. Avvikelse > 1 % kräver
+explicit förklaring. Verify-suiten bör inkludera **täckningsgrad-KPI**:
+`vår_codes ∩ facit_codes / facit_codes`. Detta är komplement till befintliga
+likhetsvalideringar — inte ersättning. Lade till `validate_extraction_coverage.py` 2026-06-07
+som åtgärd: jämför vår ItemCode-count mot BCG-facitets, flaggar avvikelse > 0.5 %.
+
+### LB.40 — `load_or_create_feature_control_file()` Gren B saknar `return`
+**Symptom:** `feature_selection.py` (steg 3) kraschar med `AttributeError: 'NoneType' object has
+no attribute 'melt'` på rad 504 (i `check_nulls()` rad 630). Inträffar bara på **första körningen**
+efter att `control_file.xlsx` raderats.
+**Rotorsak:** Funktionen `load_or_create_feature_control_file()` (rad 114-158 i BCG:s kod) har
+två grenar: Gren A (rad 134-135) — filen finns → `return control_file` ✅; Gren B (rad 138-158) —
+filen saknas → skapa, spara till disk → **glömmer `return`** ❌. Gren B faller igenom till
+funktionens slut och returnerar `None` (Python-default). Den nyss skapade filen finns på disk men
+returneras aldrig till anropssidan. Nästa rad 630 (`check_nulls(df_raw, control_file)`) tar emot
+`None` och kraschar på första `df_control.melt(...)`.
+**Regel:** Använd **Lösning A** vid problem: pipeline-skriptet körs om. Andra gången tas Gren A
+(filen finns från första körningen) och funktionen returnerar korrekt. **Patcha inte BCG-koden**
+(LF.3: BCG-original skrivskyddad). Workaround: om du behöver "rensa state" inför ny körning,
+radera ALDRIG `control_file.xlsx` direkt — istället låt steg 2 köra normalt först (det skapar
+inte filen), kör steg 3 första gången (Gren B skapar filen + kraschar — accepterat), kör steg 3
+andra gången (Gren A returnerar — fungerar). Detta är `crash-recovery-mönster` — inte en bug-fix.
+
+### LB.41 — `control_file.xlsx` regenereras INTE av steg 2 (`data_prepration.py`)
+**Symptom:** Förväntade att rensa stale `control_file.xlsx` före VM-körning skulle automatiskt
+regenerera den med ny KEY-population från steg 2. Den skapas istället först i steg 3.
+**Rotorsak:** BCG:s pipeline har `control_file.xlsx` som **input till steg 3**, inte output från
+steg 2. Steg 2 (`data_prepration.py`) producerar `data_for_model.csv` med 4180 KEY men skriver
+ingen control-fil. Steg 3 (`feature_selection.py`) rad 158 är där control_file skapas (om den inte
+finns) baserat på `data_for_model.csv`s `model_group`-kolumn.
+**Regel:** Rensning av `control_file.xlsx` är säker före steg 3, inte före steg 2. Schema:
+steg 1, 2: kör utan att röra control_file; steg 3 första körning: skapar `control_file.xlsx`
+baserat på steg 2:s output (kombinerat med LB.40: kraschar på Gren B → kör om → Gren A fungerar);
+steg 4: läser den färdiga control_file.
+
+### LB.42 — Output_summary.xlsx ligger i `output/model/` (inte `output/`)
+**Symptom:** `find ~/bcg/cluster -name 'output_summary.xlsx'` returnerar fil i fel mapp första
+gången du letar. scp-kommandon som antar `output/output_summary.xlsx` får "No such file".
+**Rotorsak:** BCG-pipelinens output-struktur är hierarkisk: `output/data/` (input om bearbetad),
+`output/data_preparation/` (steg 2-artefakter), `output/regular_price/` med mellanslag på vissa
+system (steg 1-output), `output/feature_selection/` (steg 3-artefakter), **`output/model/`** (steg
+4 producerar `output_summary.xlsx`, `model_summary.xlsx`, `model_results.csv`), `output/model/automl/`
+(feature-selection-mellanresultat), `output/model/model objects/` (sparade modellobjekt, mellanslag).
+**Regel:** `output_summary.xlsx` ligger alltid i `~/bcg/<modellfamilj>/output/model/`. För scp:
+`scp azureuser@vm:~/bcg/cluster/output/model/output_summary.xlsx $archive`. Verifiera med
+`find ~/bcg/cluster -name 'output_summary*' -newer <referensfil>` om datum är osäkert (LB.43).
+
+### LB.43 — `ls -la` mapp-datum kan misstolkas som fil-datum
+**Symptom:** `ls -la output/model/` 2026-06-08 visade mapp `Jun 5 08:23` och fil `Jun 8 08:41`.
+Vid snabb avläsning trodde jag att `output_summary.xlsx` var från 5 juni (gammal) tills jag läste
+om — den var faktiskt 8 juni (ny).
+**Rotorsak:** Första kolumnen efter rättigheter i `ls -la` är mapp-/fil-datum. När en mapp och
+en fil listas tillsammans är det lätt att läsa fel rad. Mapp-datum är när **mappen senast
+modifierades** (= ny fil skapades i den), inte när **innehåll modifierades senast**.
+**Regel:** Använd `find -newer` för att hitta filer modifierade efter en referenspunkt:
+`find ~/bcg -name 'output_summary*' -newer ~/bcg/cluster/code/control_files/control_file.xlsx`.
+Detta filtrerar bort allt äldre och visar bara dagens. Säkrare än manuell datum-tolkning av
+`ls -la`-output.
+
+---
 
 ## Hur listan växer
 
@@ -366,4 +452,4 @@ MASTER_SQL och låt LB peka dit.
 *Skapad 2026-05-23 vid dokumentstruktur-omtaget; extraherad ur SESSION_*-filer. LB.29-30 tillagda
 2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
-förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`).*
+förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`).*
