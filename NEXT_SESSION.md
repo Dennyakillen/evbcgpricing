@@ -1,315 +1,106 @@
-# NEXT_SESSION — Patcha export_b4b + kör om Cluster på VM
+# NEXT_SESSION — F.9 Bundle på växande data (datakedja första gången)
 
 **Projekt:** evbcgpricing (BCG priselasticitet, växande data)
 **Branch:** `fas-f-fresh-data`
-**HEAD:** `ed1f88e` (NEXT_SESSION: critical 60% ItemCode dropout finding + diag scripts archived)
 **Utvecklare:** Jens Palmö
-**Beräknad tid:** 3-4 timmar
+**Beräknad tid:** 2.5-4 timmar (premiärkörning — felsökningsmarginal inräknad)
+
+> Du agerar som senior teknisk rådgivare för Jens Palmö, Senior Business Analyst
+> på Evidensia Djursjukvård AB. Följ `KÄRNPRINCIPER.md` samt relevanta MASTER_*.md.
+>
+> **Förbättringsloop:** Vid varje korrigering — föreslå omedelbart ny lärdom
+> (Symptom → Rotorsak → Regel) och lägg i relevant master-fil vid sessionsslut.
 
 ---
 
 ## SESSIONEN I EN MENING
 
-Patcha `export_b4b_for_model.py` så `ProductGroupL4Name` lyfts från BCG:s 0828-CSV istället för
-DW:s `Master_Underkategori3` — sedan kör om hela cluster-pipelinen på VM och få ut elasticiteter
-för alla 1151 ItemCodes (inklusive 834 tjänster som idag droppas).
+Bygg och kör Bundle-datakedjan (mapp 4 + mapp 5) på växande data för **första gången** —
+från `sweden_master_data.parquet` via Bundle-SQL-dataprep och Ray-varukorgsbygge till
+Bundle-modellen på VM, sedan steg 5 lokalt. Detta är det sista modellsteget innan F.10 (Step 6)
+kan köras.
 
 ---
 
-## ORSAKSSAMBANDET (visualiserat)
+## STATUS VID SESSIONSSTART
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ ORSAK: Manual.Dim_Item_Extended.Master_Underkategori3 är NULL för       │
-│        tjänster eftersom kolumnen kommer från MasterListProducts-       │
-│        joinen, som bara har butikssortiment. Tjänster (Klinisk/Lab)     │
-│        får inte denna mappning.                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│ EXTRAKTION: export_b4b_for_model.py rad 75:                             │
-│             i.Master_Underkategori3 AS ProductGroupL4Name               │
-│                                                                          │
-│   → 834 av 1151 ItemCodes får NULL pg4 i input-CSV (73%)                │
-│   → Tjänster: AAP, DUS, AEM, ALB, ALT, ANALYS, ASU, ARCCRE, ...         │
-└─────────────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│ PIPELINE: data_prepration.py rad 345 yoy_seasonality():                 │
-│           df.merge(df_seasonality, on=['service', 'WEEK'])              │
-│           (default = inner merge)                                        │
-│                                                                          │
-│   → NaN matchar inte med NaN i pandas merge → rader droppas             │
-│   → ItemCodes med 100% NULL pg4 → HELT borta från output                │
-└─────────────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│ KONSEKVENS: F.6-output 1521 KEY från 317 ItemCodes                      │
-│             (BCG facit: 3812 KEY / 1276 ItemCodes)                      │
-│                                                                          │
-│   → 73% av ItemCodes saknas — alla veterinärtjänster                    │
-│   → Compare-rapporten är vilseledande (jämför olika populationer)       │
-│   → Affärsmässigt: modellen utesluter huvudintäktskällan                │
-└─────────────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│ LÖSNING: Lyft pg4 från BCG:s 0828-CSV (samma fil vi redan läser för    │
-│          facit_pairs). 0828 har 100% komplett pg4-mappning för alla    │
-│          1151 ItemCodes över 23 distinkta kategorier.                   │
-│                                                                          │
-│   Verifierat:                                                            │
-│   - 1:1 mapping (0 mixed, 0 multi-value per ItemCode)                   │
-│   - Inga NULL i 0828                                                     │
-│   - 23 kategorier inkluderar tjänster (Consult, Imaging, Surgery, ...)  │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+**2 av 3 modellfamiljer klara på växande data:**
+- ✅ **F.7 Cluster** — step 5 fallback-blend körd (4180 KEY, 33.4%→45.2% signifikans).
+- ✅ **F.8 Site** — KLAR 2026-06-10. Steg 1-4 på VM (~70 min, 6624 KEY), steg 5 lokalt på Windows.
+  Slutleverans `Excel_Outputs/Sweden_Sitecode_level_elasticity_summary.xlsx` (83 MB).
+- 🟡 **F.9 Bundle** — KARTLAGD, ej körd. **Denna sessions uppgift.**
+
+**Datafundament klart och bevisat:**
+- `transaction_data.parquet` regenererad till 2026-04-30 (27,4M rader).
+- G7-parametrisering komplett (SQL-dataprep + VM constants.py per familj).
+- `Sweden_masterdata.csv` (~7,6 GB) producerad växande — Bundle hänger på denna.
 
 ---
 
-## EXAKT PATCH (export_b4b_for_model.py)
+## F.9 BUNDLE — KARTLAGD KEDJA (se LESSONS_BCG, INSIGHTS, minnet)
 
-### Ändring 1 — `load_facit_selection()` läser även pg4
+Bundle-SQL-dataprep (`4. Bundle Clinic Data Prep/Sweden_Bundling_Data_Prep/scripts/00_read.sql`)
+läser **`sweden_master_data.parquet`** — INTE `transaction_data.parquet` direkt. Och
+`sweden_master_data` = **samma fil cluster/site-SQL-dataprep producerar** (`Sweden_masterdata.csv`),
+som redan är växande. Det gör F.9 mindre arbete än befarat.
 
-Hitta funktionen (omkring rad 110-117). Ersätt med:
+**Statiska inputs (i BCG-original `4. Bundle Clinic Data Prep`, återanvänds som de är):**
+- `sweden_bundle_analysis.csv` (18,67 MB) — varukorgsdefinition (`sweden_bundles`).
+- `Sweden_Clinic_Cluster_Mapping.csv` — cluster-mappning.
+- FTE (`Sweden_Interpolated_Productivity_time.csv`, tak 2025-06 → väntad NULL i nyaste månaderna).
 
-```python
-def load_facit_selection():
-    fac = pd.read_csv(FACIT_CSV, encoding="cp1252", encoding_errors="ignore",
-                      usecols=["ItemCode", "Cluster", "ProductGroupL4Name"],
-                      low_memory=False)
-    fac["ItemCode"] = fac["ItemCode"].astype(str).str.strip().str.upper()
-    fac["Cluster"] = fac["Cluster"].astype(str).str.strip()
-    pairs = fac[["ItemCode", "Cluster"]].drop_duplicates()
-    pg4_map = (fac.dropna(subset=["ProductGroupL4Name"])
-                  .drop_duplicates("ItemCode")[["ItemCode", "ProductGroupL4Name"]]
-                  .rename(columns={"ProductGroupL4Name": "ProductGroupL4Name_BCG"}))
-    print(f"Facit selection: codes={pairs['ItemCode'].nunique()} KEY={len(pairs)}")
-    print(f"Facit pg4 mapping: {len(pg4_map)} ItemCodes have BCG pg4")
-    return pairs, pg4_map
-```
+**Kedja att köra:**
+1. Konvertera växande `Sweden_masterdata.csv` → `sweden_master_data.parquet` (Bundle-format).
+2. Lägg statiska filer i Bundle-SQL-dataprep `input/`.
+3. Kör Bundle-SQL-dataprep (egen `duckdb.exe` + `run.ps1` i `Sweden_Bundling_Data_Prep/scripts/`).
+4. Kör Ray-varukorgsbygge (`2.Sweden_Bundle_Clinic_Model_Data_Creation.py` + `bundle_utils.py`).
+5. Kör Bundle-modell (mapp 5) på VM — egna kolumnnamn (`basket_price`/`Bundle_code`/`Clusters`, LB.28).
+6. Kör Bundle steg 5 lokalt (samma xlwings-mönster som Site, LB.44-45).
 
-### Ändring 2 — `main()` tar emot båda returvärden
-
-Hitta raden (omkring rad 145):
-```python
-    facit_pairs = load_facit_selection()
-```
-Ersätt med:
-```python
-    facit_pairs, pg4_map = load_facit_selection()
-```
-
-### Ändring 3 — Override DW pg4 med BCG pg4 efter aggregering
-
-Hitta `grouped["QuantitySold(SalesTotal>0)"] = grouped["SoldQuantity"]` (omkring rad 175).
-Lägg till DIREKT EFTER:
-
-```python
-    # Override DW pg4 (Master_Underkategori3, NULL for services) with BCG's frozen pg4
-    grouped = grouped.merge(pg4_map, on="ItemCode", how="left")
-    grouped["ProductGroupL4Name"] = grouped["ProductGroupL4Name_BCG"].combine_first(
-        grouped["ProductGroupL4Name"]
-    )
-    grouped = grouped.drop(columns=["ProductGroupL4Name_BCG"])
-    n_filled = grouped["ProductGroupL4Name"].notna().sum()
-    print(f"pg4 coverage after BCG fill: {n_filled}/{len(grouped)} = "
-          f"{100*n_filled/len(grouped):.1f}%")
-```
-
-### Förväntat utfall efter patch
-
-```
-Facit selection: codes=1151 KEY=4949
-Facit pg4 mapping: 1151 ItemCodes have BCG pg4
-...
-pg4 coverage after BCG fill: 484XXX/484XXX = 100.0%
-```
+**Att vara medveten om (premiärkörning):**
+- Bundle har egna kolumnnamn — kopiera ALDRIG constants/config rakt från Cluster (LB.28).
+- feature_selection tvåpass-control_file gäller även Bundle (LB.40) — radera stale, kör två pass.
+- VM constants.py för Bundle måste vara G7-patchad innan körning.
+- Excel-steget (5) körs lokalt, inte på VM (LB.44).
 
 ---
 
-## KÖRNINGSSEKVENS (linjär, 3-4h)
-
-### Steg 1 — Patcha lokalt (5 min)
+## PRE-FLIGHT (VM)
 
 ```powershell
-cd C:\Projekt\Business_Analytics
-& ".\.venv\Scripts\Activate.ps1"
-# Öppna export_b4b_for_model.py och applicera Ändring 1, 2, 3 ovan
-# (Eller låt Claude leverera färdig fil)
+# KRITISKT: rätt subscription först (LB.46)
+az account show --query "{user:user.name, subscription:name}" -o table
+az account set --subscription "ev-lz3-ai (SE)"
+
+az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+Start-Sleep -Seconds 90; ssh azureuser@172.18.148.4 "hostname && uptime"
 ```
 
-### Steg 2 — Pre-flight (5 min)
-
-```powershell
-cd C:\Projekt\BCG\_session_prep
-.\check_env.ps1
-# Förväntat: 16+ PASS, inga FAIL
-```
-
-### Steg 3 — Kör DW-extraktion lokalt (10 min)
-
-```powershell
-cd C:\Projekt\Business_Analytics
-$env:BCG_END_DATE = "2026-04-27"
-az login --scope https://database.windows.net/.default
-python export_b4b_for_model.py
-```
-
-Förväntat: `Saved: C:\Projekt\BCG\Pipeline\02. Elasticity\2. Product Cluster Level Models\data\0828_Sweden_weekly_model_data_P_C.csv`
-**Verifiera pg4 coverage rad: ~100%**
-
-### Steg 4 — Verifiera den nya CSV:n (1 min)
-
-```powershell
-python C:\Projekt\BCG\workspace\check_pg4_dropout.py
-```
-Förväntat: `ItemCodes med 100% NULL pg4: 0`
-
-### Steg 5 — Pre-flight inför VM (5 min)
-
-```powershell
-cd C:\Projekt\BCG\_session_prep
-.\check_env.ps1 -StartVm
-```
-
-### Steg 6 — Ladda upp till VM (5 min)
-
-(Använd samma scp-mönster som F.6 från sessions-historik)
-
-### Steg 7 — Kör pipeline på VM (2-3h)
-
-```bash
-# På VM:
-ssh azureuser@172.18.148.4
-cd ~/bcg/cluster
-source .venv/bin/activate
-export BCG_END_DATE=2026-04-27
-
-# Skapa output-mappar (CZ.5)
-mkdir -p output/model/automl/results output/regular\ price
-
-# Radera gamla control_file.xlsx (KRITISKT — annars 1521-stalen ärvs!)
-rm -f code/control_files/control_file.xlsx
-
-# Steg 1
-python code/regular_price.py 2>&1 | tee ~/run_log_step1.txt
-
-# Steg 2
-python code/data_prepration.py 2>&1 | tee ~/run_log_step2.txt
-# Förväntat: "Unique Key Beginning = ~4500-5000" (jämfört med 3027 idag)
-# Förväntat: "Unique Key Data for model = ~4500-5000"
-
-# Steg 3 (feature_selection — VM-tung, 60-90 min, kör i tmux)
-tmux new-session -d -s fs 'python code/feature_selection.py 2>&1 | tee ~/run_log_step3.txt'
-
-# När klar: Steg 4
-python code/model.py 2>&1 | tee ~/run_log_step4.txt
-```
-
-### Steg 8 — Hämta hem (2 min)
-
-```powershell
-# Lokalt: scp tillbaka output_summary, model_summary, control_file, model_results
-```
-
-### Steg 9 — Deallokera VM (1 min)
-
-```powershell
-az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
-```
-
-### Steg 10 — Validera (10 min)
-
-```powershell
-cd C:\Projekt\BCG\verify_tool
-py -3.11 run_all.py
-# FR-1..4 ska fortfarande PASS (samma frusen-replikering, inga regressioner)
-
-cd C:\Projekt\BCG
-python fallback_blend.py --output-summary "..." --prod-file "..." --facit "..." --out "..."
-
-python compare_elasticity_runs.py
-# NU jämför vi äkta populations — ~4000+ KEY vs BCG:s 3812
-```
-
-### Steg 11 — Arkivera (2 min)
-
-Skapa ny arkivmapp `_archive_growing_2026-04-27_v2` med samma struktur som dagens.
+VM pipeline-Python: `~/bcg/cluster/.venv/bin/python` (delas av alla familjer, se UBUNTU §18).
+**Deallocera VM när klart** (LB-påminnelse): `az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm`.
 
 ---
 
-## DOKUMENTATION FÖR DENNA SESSION (gör vid sessionsslut)
+## EFTER F.9
 
-### Nya LB-kandidater att lägga in i LESSONS_BCG.md
-
-**LB.XX — "Biter inte på kärnelasticiteten" ≠ "harmless"**
-
-*Symptom:* Vid FAS 3 och FAS 10 noterades Master_Underkategori3 som halv-NULL. IB.8 dokumenterade
-"relevant för gruppering, inte för kärnelasticitet". Detta minimerade konsekvensen.
-
-*Rotorsak:* Pipeline-stegen efter regression (yoy_seasonality inner merge) droppar hela KEY för
-NULL-pg4-rader. "Påverkar inte regression" stämmer för kvarvarande KEY, men förutsätter att KEY:n
-överlever till regressionen.
-
-*Regel:* När en datakvalitetsbrist flaggas — fråga "vid vilket pipeline-steg används denna kolumn,
-med vilken merge-typ?" innan slutsatsen "harmless". `pandas.merge(how="inner")` på NULL-värden =
-total dropout.
-
-**LB.XX — Validering på producerade rader fångar inte populations-bortfall**
-
-*Symptom:* `verify_dataprep.py` rapporterade FR-1 PASS med corr=1.0 mot BCG:s 0828. Detta dolde
-att 834 av 1151 ItemCodes droppades senare i pipelinen.
-
-*Rotorsak:* Validering mäter "matchar de rader vi har" — inte "matchar vi alla rader vi *borde* ha".
-
-*Regel:* Varje pipeline-steg ska logga **ItemCode-count** in vs ut. Avvikelse > 1% kräver
-förklaring. Verify-suiten bör inkludera täckningsgrad-KPI: `vår_codes ∩ facit_codes / facit_codes`.
-
-### Ny LF-kandidat till LOCKED_ASSUMPTIONS.md
-
-**LF.8 — pg4 lyfts från BCG:s 0828-CSV, inte från DW**
-
-*Förutsättning:* `ProductGroupL4Name` för pipelinen hämtas från BCG:s frusna 0828-CSV
-(`bcg_inputs\0828_Sweden_weekly_model_data_P_C.csv`), inte från `Manual.Dim_Item_Extended.
-Master_Underkategori3`.
-
-*Varför låst:* `Master_Underkategori3` kommer från `Manual.MasterListProducts`-joinen som bara
-har butikssortiment-mappning. Tjänster (Klinisk/Lab) får NULL där. Detta orsakar 73%-bortfall i
-yoy_seasonality:s inner merge.
-
-*Vad som händer om vi bryter:* 834 ItemCodes (alla veterinärtjänster) droppas från modellen.
-
-*Vad krävs för revision:* Egen L4-mappning för Klinisk/Lab byggs i DW. Tills dess: BCG:s 0828
-är källan.
-
-*Datum låst:* 2026-06-05 (efter F.6-bortfallets diagnos)
+- **F.10 Step 6** (`Fall_Back_Logic.py`) — multi-modell-blend, kräver alla tre familjers
+  output_summary. Körs lokalt (Windows/xlwings, som steg 5).
+- **Output-rimlighetsgrind** — MBAS0703-outlier (−320) + de 7 REVIEW-utfallen från
+  rationality-suiten (verify_tool/output_rationality/) att utreda. Efter F.10.
+- **Drift-visualisering** fruset facit vs växande, alla familjer.
+- **Fas Z** produktionalisering (FD.1-4) + projektavslut (FD.10).
 
 ---
 
-## VALIDERINGSPUNKTER (rött ljus om någon faller)
+## VID SESSIONSSLUT
 
-| Punkt | Förväntat värde | Var |
-|---|---|---|
-| pg4-coverage efter export | 100% | Steg 3 log |
-| ItemCodes i ny CSV med 100% NULL pg4 | 0 | Steg 4 check |
-| Unique KEY in data_prepration | 4500-5000 | Steg 7 log |
-| ItemCodes i output_summary | 1100-1150 | Steg 8 |
-| AAP130 i output_summary | 7 rader | Excel-kontroll |
-| FR-1..4 verify | PASS | Steg 10 |
-
-Om någon punkt faller — stoppa, diagnostisera, rapportera. Kör inte vidare.
+1. Committa Bundle-arbetet (dataprep-config, ev. patchar, output-referenser).
+2. Flytta dagens lärdomar till master-filerna INNAN sessionen stängs (LESSONS_BCG / UBUNTU / KÄRNPRINCIPER).
+3. Uppdatera denna NEXT_SESSION.md med Bundle-utfall och nästa steg (F.10).
+4. Deallocera VM. Bekräfta `VM deallocated`.
 
 ---
 
-## VAD SOM FORTFARANDE SKJUTS UPP
-
-- A+B-bygget (affärspresentation + rullande volym) — NU kan vi göra det med riktig data
-- F.8/F.9 (Site, Bundle, multi-modell-väv)
-- KÄRNPRINCIPER-patch
-- TILL_RADERING\ permanent radering
-
----
-
-*Skapad 2026-06-05 efter iterativ 10-stegs djupgrävning. Proppen lokaliserad till en kodrad
-i export_b4b_for_model.py (rad 75). Patchen är 3 ändringar, ~10 rader. VM-körning är identisk
-med F.6 men producerar ~4000+ KEY istället för 1521.*
+*Uppdaterad 2026-06-10 efter F.8 Site klar + F.9 Bundle kartlagd. Ersätter föregående
+NEXT_SESSION (output rationality-detaljgranskning) — den uppgiften flyttad till efter F.10,
+eftersom F.8/F.9/F.10 prioriterades (bygg klart alla familjer först, validera rimlighet sen).*

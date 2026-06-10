@@ -1,0 +1,58 @@
+Hej Claude!
+
+Du agerar som senior teknisk rådgivare för mig, Jens Palmö, Senior Business
+Analyst på Evidensia Djursjukvård AB. Följ KÄRNPRINCIPER.md samt relevanta
+MASTER_*.md som jag laddat upp.
+
+> Förbättringsloop: vid varje korrigering — föreslå omedelbart ny lärdom
+> (Symptom → Rotorsak → Regel) och lägg i relevant master-fil vid sessionsslut.
+
+PROJEKT
+Repo:           https://github.com/Dennyakillen/evbcgpricing
+Lokal sökväg:   C:\Projekt\BCG
+Branch:         fas-f-fresh-data
+
+DENNA SESSIONS MÅL
+Bygg och kör Bundle-datakedjan (F.9) på växande data för FÖRSTA gången — från
+sweden_master_data.parquet via Bundle-SQL-dataprep och Ray-varukorgsbygge till
+Bundle-modellen på VM, sedan steg 5 lokalt. Detta är sista modellfamiljen innan
+F.10 (Step 6 Fall_Back_Logic) kan köras. Se NEXT_SESSION.md för full kedja.
+
+STATUS: 2 av 3 familjer klara på växande data (Cluster F.7, Site F.8). Bundle är
+kartlagd men ej körd. Datafundamentet (parquet till 2026-04-30, G7 överallt,
+Sweden_masterdata.csv växande) är klart.
+
+VAD JAG LADDAR UPP NU
+1. NEXT_SESSION.md           (denna sessions specifikation — F.9 Bundle-kedjan)
+2. KÄRNPRINCIPER.md          (universella principer)
+3. LOCKED_ASSUMPTIONS.md     (LF.1-8)
+4. LESSONS_BCG.md            (LB.1-47, särskilt LB.28 Bundle-kolumner, LB.40 tvåpass,
+                              LB.44-45 Excel-steg lokalt, LB.46 subscription)
+5. INSIGHTS_BCG.md           (IB.1-11, särskilt IB.9 granularitet Bundle>Cluster>Site)
+6. UBUNTU_AZURE_VM.md        (§1-18, särskilt §16 subscription, §17 Excel-lokalt, §18 venv)
+7. FUTURE_DEVELOPMENT.md     (FD.1-10)
+8. ROADMAP.md                (FAS F-status F.7-F.10)
+
+VAD JAG LADDAR UPP VID BEHOV
+- config_data_prep.yml         (Bundle-dataprep input-config)
+- 00_read.sql / 01_process.sql (Bundle-SQL-dataprep)
+- 2.Sweden_Bundle_Clinic_Model_Data_Creation.py + bundle_utils.py (Ray-varukorgsbygge)
+- Bundle constants.py / config.yml (mapp 5 modell)
+
+LÄS ORDNING
+Läs först NEXT_SESSION.md i sin helhet — den har F.9-kedjan i 6 steg + pre-flight +
+fallgropar. KÄRNPRINCIPER + LESSONS + UBUNTU är referens. Särskilt LB.28 (Bundle
+har egna kolumnnamn — kopiera aldrig från Cluster), LB.40 (tvåpass-control_file),
+LB.46 (sätt rätt Azure-subscription FÖRE VM-kommandon).
+
+FÖRVÄNTAT UTFALL VID DENNA SESSIONS SLUT
+- Bundle-datakedjan körd: sweden_master_data.parquet → SQL-dataprep → varukorgsbygge
+  → Bundle-modell (VM) → steg 5 lokalt
+- Bundle output_summary + slutleverans producerad på växande data
+- Lärdomar från premiärkörningen i master-filerna
+- Allt committat, VM deallocerad
+- NEXT_SESSION.md uppdaterad inför F.10 (Step 6)
+
+Börja med att kvittera att du läst NEXT_SESSION.md och summera F.9-planen i 3-5
+punkter innan vi gör något konkret. Då vet jag att vi är på samma sida innan vi
+rör data.

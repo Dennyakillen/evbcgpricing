@@ -235,7 +235,7 @@ def write_df_preserve_named_range(
         # Ensure the target sheet exists
         try:
             ws = wb.sheets[sheet_name]
-        except KeyError:
+        except Exception:
             ws = wb.sheets.add(name=sheet_name, after=wb.sheets[-1])
 
         # Clear current block and write data (headers + values)
@@ -250,7 +250,7 @@ def write_df_preserve_named_range(
         new_block = ws.range(start_cell).expand("table")
         try:
             wb.names[named_range].refers_to = f"='{ws.name}'!{new_block.address}"
-        except KeyError:
+        except Exception:
             wb.names.add(name=named_range, refers_to=f"='{ws.name}'!{new_block.address}")
 
         # Optional: refresh pivots so slicers see the new rows

@@ -44,7 +44,9 @@ so it is safe to tee to a log and paste back. Tee + filter pattern (token-safe):
 
 from __future__ import annotations
 import argparse
+import datetime
 import os
+import re
 import sys
 import time
 
@@ -113,24 +115,58 @@ def sniff_encoding(path: str) -> str:
         return "latin-1"                     # cp1252/latin-1 single-byte (the 0828 case)
 
 
+def _fiscal_year_flags(start_date: str, end_date: str) -> list[str]:
+    """G7 helper (FAS F, Jens Palmo): derive BCG's "12M ending Jun NN" YearFlag labels
+    spanned by [start_date, end_date]. BCG fiscal year ends 30 Jun: a date in Jul..Dec
+    belongs to FY (year+1), Jan..Jun to FY (year). NN is the two-digit FY-end year.
+    Example: 2022-07-01..2026-04-30 -> FY23,24,25,26 -> four flag strings."""
+    def fy_end(d: datetime.date) -> int:
+        return d.year + 1 if d.month >= 7 else d.year
+    s = datetime.date.fromisoformat(start_date)
+    e = datetime.date.fromisoformat(end_date)
+    return [f"12M ending Jun {fy % 100:02d}" for fy in range(fy_end(s), fy_end(e) + 1)]
+
+
 def _inject_dates(script: str, fname: str) -> str:
     """G7 (FAS F, Jens Palmo): if BCG_START_DATE/BCG_END_DATE are set, rewrite the
     hardcoded SQL date window in-memory. The SQL FILE ON DISK STAYS VERBATIM, so
-    FR-1 reproduces exactly when no env vars are set. Only 01_process.sql has a
-    date window. Logs any override so it never happens silently."""
+    FR-1 reproduces exactly when no env vars are set. 01_process.sql has TWO date
+    locks that must move together or fresh (e.g. 2026) data is silently dropped --
+    the G7 trap:
+      (1) the weekly_base week-window  DATE '2022-07-01' .. DATE '2025-06-28'
+      (2) the YearFlag IN (...) fiscal-year whitelist (filtered_master + fallback,
+          and the bundle dataprep's raw_data filter)
+    The original injector handled only (1); (2) is the HARDER lock -- it is an
+    upstream filter, so moving the week-window alone had nothing left to bite on.
+    Both are handled here now. Logs every override so it never happens silently (R7).
+
+    Spacing note: the cluster/site 01_process.sql writes the list as
+    '...23', '...24', '...25' (space after comma); the bundle one writes
+    '...23','...24','...25' (no space). One regex matches both."""
     start = os.environ.get("BCG_START_DATE")
     end = os.environ.get("BCG_END_DATE")
     if not (start or end):
         return script
     new = script
+    # (1) week-window literals (present only in the cluster/site 01_process.sql)
     if start:
         new = new.replace("DATE '2022-07-01'", f"DATE '{start}'")
     if end:
         new = new.replace("DATE '2025-06-28'", f"DATE '{end}'")
+    # (2) YearFlag whitelist -- rebuild the full FY list spanned by the window and
+    #     swap it in regardless of the original's internal spacing. If only one of
+    #     start/end is set, the other defaults to BCG's frozen bound for FY derivation.
+    eff_start = start or "2022-07-01"
+    eff_end = end or "2025-06-28"
+    flags = _fiscal_year_flags(eff_start, eff_end)
+    new_list = ", ".join(f"'{f}'" for f in flags)
+    pat = re.compile(r"YearFlag\s+IN\s*\(\s*(?:'12M ending Jun \d{2}'\s*,?\s*)+\)")
+    n_yf = len(pat.findall(new))
+    new = pat.sub(f"YearFlag IN ({new_list})", new)
     if new != script:
-        log("G7", f"{fname}: SQL date window overridden -> start={start or 'orig'} end={end or 'orig'}")
+        log("G7", f"{fname}: date window overridden -> start={start or 'orig'} "
+                  f"end={end or 'orig'} | YearFlag=[{new_list}] ({n_yf} match)")
     return new
-
 
 def run_sql_files(con: duckdb.DuckDBPyConnection, scripts_dir: str) -> None:
     """Execute the three BCG SQL files whole, in order, verbatim (no edits)."""

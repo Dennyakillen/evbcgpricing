@@ -2,7 +2,7 @@
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
 **Repo:** https://github.com/Dennyakillen/evbcgpricing.git
-**Senast uppdaterad:** 2026-05-27 (vid FR-7-stängning, commit `96fe7a3`)
+**Senast uppdaterad:** 2026-06-10 (F.8 Site klar på växande data; F.9 Bundle kartlagd)
 
 Detta dokument visar **var projektet står** och **vart det bär** — för Jens som genomförare och för
 beställare/beslutsfattare. Varje fas har en mognadsbedömning: är vi redo att börja, eller beror den på
@@ -59,19 +59,30 @@ Strukturera de hinder som tvingat fram work-arounds, så IT kan ge en hållbar m
 **Bevisar (för IT):** En motiverad investering, inte en önskelista. Förutsättning för FAS A.
 **Mognad:** Klar att sammanställas — all kunskap finns i `LESSONS_BCG.md` / `TECHNICAL_PREREQUISITES.md`.
 
-### 🟡 FAS F — Färsk data — DELVIS (en blockerare måste byggas först)
-Köra samma logik på 2026-data i stället för BCG:s arkiverade input.
-- **G7-parametrisering** — `constants.py` hårdkodar `START_DATE 2022-07-01 / END_DATE 2025-06-29`; färsk
-  2026-data filtreras annars **tyst** bort. Enskilt största spärren mot affärsmålet.
+### 🟡 FAS F — Färsk data — PÅGÅR (2 av 3 modellfamiljer klara på växande data)
+Köra samma logik på 2026-data i stället för BCG:s arkiverade input. **Stora datafundamentet är byggt
+och bevisat** (2026-06-10): `transaction_data.parquet` regenererad till 2026-04-30 (27,4M rader),
+G7-parametrisering komplett på alla nivåer (SQL-dataprep `replicate_dataprep.py` + VM:ens `constants.py`
+per familj). Site-CSV verifierad nå 2026-04-27.
+
+Delsteg (F.7-F.10):
+- **F.7 Cluster** ✅ KLAR — step 5 fallback-blend körd på växande data (4180 KEY, 33.4%→45.2% signifikans).
+- **F.8 Site** ✅ KLAR (2026-06-10) — steg 1-4 på VM (~70 min, 6624 KEY), steg 5 lokalt på Windows
+  (Excel/xlwings). Slutleverans `Excel_Outputs/Sweden_Sitecode_level_elasticity_summary.xlsx` (83 MB).
+  Arkitektonisk lärdom: Excel-stegen (5 + Step 6) körs lokalt, modellstegen (1-4) på VM (LB.44).
+- **F.9 Bundle** 🟡 KARTLAGD, ej körd — Bundle-SQL-dataprep läser `sweden_master_data.parquet` (= samma
+  fil cluster/site producerar, redan växande). Statiska inputs (varukorgsdef, cluster-mapping, FTE) i
+  BCG-original, återanvänds. Kedja: masterdata-csv → parquet → Bundle-SQL-dataprep → Ray-varukorgsbygge
+  → Bundle-modell (mapp 5, VM) → steg 5 lokalt. Mindre arbete än befarat (master finns redan växande).
+  **Nästa sessions huvuduppgift.**
+- **F.10 Step 6** (`Fall_Back_Logic.py`, multi-modell-blend) — kräver alla tre familjers output, körs
+  lokalt. Blockerad tills Bundle klar.
 - **Output-rimlighetsgrind** — på färsk data finns inget facit; grinden blir "är elasticiteten negativ,
-  inom trovärdiga band, skulle diffen flippa ett prisbeslut?". Byggs INNAN första färsk-körning.
-- **SQL_data_prep / DW-vy (B.4b)** — BCG:s metod på vår DW-fakta + DW-hierarki, modellkontrakt
-  (`TECHNICAL_PREREQUISITES §8`). **Detta är den del som inte finns än** — DW-vyn är specad, inte byggd.
-- **FTE Väg 2** — enda genuina uppströms-inputen (`IB.3`), från `Manual.Fact_Quinyx_DayClinic`. Eget
-  delprojekt, blockerar ej.
-**Bevisar:** Vi kan producera färska elasticiteter — själva produkten.
-**Mognad:** Gul. G7 + rimlighetsgrind är moget; SQL_data_prep (B.4b) kräver bygge innan "egen data via SQL"
-ens är möjligt. Att hävda att vi kör "på vår egen data" innan denna del finns vore en halvsanning.
+  inom trovärdiga band, skulle diffen flippa ett prisbeslut?". Efter F.10. MBAS0703-outlier (−320) att utreda.
+- **FTE Väg 2** — enda genuina uppströms-inputen (`IB.3`). Eget delprojekt (FD.7), blockerar ej; FTE-tak
+  2025-06 ger väntad NULL i nyaste månaderna.
+**Bevisar:** Vi kan producera färska elasticiteter — själva produkten. 2 av 3 familjer klara.
+**Mognad:** Gul→grön. Återstår F.9 Bundle (kartlagd) + F.10 Step 6 + rimlighetsgrind.
 
 ### 🔴 FAS A — Robust Azure-miljö — INTE REDO (beror på T + F)
 Flytta den städade strukturen till en hållbar Azure-miljö, körbar och ev. schemalagd — så replikeringen

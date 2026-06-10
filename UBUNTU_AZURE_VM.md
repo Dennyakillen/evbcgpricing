@@ -348,8 +348,77 @@ Samma princip som §10b för .sh-filer: bygg lokalt, kör direkt. Inga escapes.
 
 ---
 
+---
+
+## 16. Azure subscription cachas mellan sessioner (subscription-fällan)
+
+**Symptom:** Ny dag, `az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm` ger
+`AuthorizationFailed ... does not have authorization to perform action`. Ser ut som utgången token
+eller behörighetsförlust.
+
+**Rotorsak:** `az` minns senast satta subscription mellan sessioner. Har man jobbat i en annan
+subscription emellan (t.ex. `ev-lz1-hybrid` för ProvetDiscount-projektet) sitter man kvar där nästa
+dag. BCG-VM:en finns inte i den subscriptionen → AuthorizationFailed. INTE utgången token.
+
+**Regel:** Kör alltid `az account show` FÖRE VM-kommandon (mät, gissa inte). Sätt rätt subscription
+först:
+```powershell
+az account set --subscription "ev-lz3-ai (SE)"
+az account show --query "{user:user.name, subscription:name}" -o table
+```
+BCG-VM:en bor i `ev-lz3-ai (SE)` (id `42f726f8-91ee-44d4-832f-9d9ec412ef8f`), RG
+`ev-openai-swce-rg-test`. (OBS: `MASTER_AZURE.md` listar `ev-lz1-hybrid` som default — det gäller
+ProvetDiscount, inte BCG. Sätt alltid ev-lz3-ai för VM-arbete.)
+
+---
+
+## 17. Excel-efterbearbetningssteg körs LOKALT på Windows, inte på VM:en
+
+**Princip:** Pipelinens 5 steg delas i två världar:
+- **Steg 1-4** (regular_price → data_prepration → feature_selection → model): tung Ray-beräkning →
+  **Azure Linux-VM**.
+- **Steg 5** (`data_prep_after_model_output.py`) + **Step 6** (`Fall_Back_Logic.py`): Excel-COM via
+  xlwings → **lokalt på Windows** (kan inte köras på Linux).
+
+**Varför:** xlwings styr en faktisk Excel-instans via COM (`xw.App`, `SaveAs XLSB`, `RefreshAll`).
+Det kräver Windows + installerad Excel. På VM:en kraschar steg 5 på `import xlwings`. launcher.py
+inkluderar steg 5 i sekvensen, så på VM kraschar det steget alltid — väntat; modelloutputen (steg 4)
+är klar dessförinnan.
+
+**Arbetsflöde (gäller alla familjer):**
+1. Kör steg 1-4 på VM (tmux), hämta hem `output/model/`-filerna + `output/regular price/`-filen +
+   raw-data-CSV:n (växande).
+2. Lägg filerna på config-förväntade platser lokalt (`output/model/`, `output/regular price/`, `data/`).
+3. Kör steg 5 lokalt från **modellfamiljens rot** (inte `code/`): `py -3.11 code\data_prep_after_model_output.py`
+   med `BCG_START_DATE`/`BCG_END_DATE` satta.
+4. Verifiera slutleveransen i `Excel_Outputs/` (R7: kontrollera filstorlek, inte bara "Completed").
+
+**Fallgropar (se LESSONS_BCG LB.44-47):** lokal raw-data-CSV måste vara VÄXANDE (inte frusen);
+`write_df_preserve_named_range` måste com_error-fixas (`except Exception`); fjärrfil med mellanslag
+hämtas via `cp` till ren sökväg först.
+
+---
+
+## 18. Pipeline-venv: Site delar Cluster:s (ingen egen venv per familj)
+
+Site har **ingen egen venv** — den delar Cluster:s. Pipeline-Python på VM =
+`~/bcg/cluster/.venv/bin/python` (3.11.9, Ray 2.41.0, pandas 2.2.3, statsmodels, numpy, openpyxl,
+yaml). Systemets `/usr/bin/python3` (3.10) saknar Ray — använd aldrig den.
+
+`launcher.py` kör de 5 stegen via `subprocess.run([sys.executable, ...])` → **vilken Python man
+startar launcher med kör allt**. `BASE_DIR` är relativ, så Site-scripten hittar sin egen
+config/constants även när de körs med Cluster-venv:en. Starta alltså Site så här:
+```bash
+cd ~/bcg/site/code
+export BCG_START_DATE=2022-07-01 BCG_END_DATE=2026-04-30
+~/bcg/cluster/.venv/bin/python launcher.py 2>&1 | tee ~/bcg/site/run_site.log
+```
+
+VM:ens `constants.py` per familj måste vara G7-patchad före körning (backup `.bak-before-g7`) —
+annars filtreras växande data tyst bort (LB-motsvarighet till G7-låset).
+
 *§10-15 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. Återkommande
 PowerShell→SSH-quote-problem (fastnat 5+ ggr under en enda session) konsoliderade till §10
 för att en gång för alla etablera mönstret. §11-15 är följder av samma kärnproblem: när tre
 språk-tolkar (PowerShell, SSH, bash) ska enas om escape-tecken är det säkrare att bygga
-artefakten lokalt och scp:a över.*
+artefakten lokalt och scp:a över. §16-18 tillagda 2026-06-10 efter F.8 Site end-to-end: subscription-fällan, Excel-steg-lokalt-arkitekturen, och pipeline-venv-delning (Site delar Cluster:s).*

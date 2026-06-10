@@ -398,6 +398,7 @@ returneras aldrig till anropssidan. Nästa rad 630 (`check_nulls(df_raw, control
 radera ALDRIG `control_file.xlsx` direkt — istället låt steg 2 köra normalt först (det skapar
 inte filen), kör steg 3 första gången (Gren B skapar filen + kraschar — accepterat), kör steg 3
 andra gången (Gren A returnerar — fungerar). Detta är `crash-recovery-mönster` — inte en bug-fix.
+**Bekräftat på Site (2026-06-09):** Samma tvåpass-mönster gäller varje modellfamilj på nytt KEY-set — Site (6624 KEY) kraschade pass 1, kördes om, Gren A laddade control_file pass 2 och fortsatte. Regeln är familje-oberoende.
 
 ### LB.41 — `control_file.xlsx` regenereras INTE av steg 2 (`data_prepration.py`)
 **Symptom:** Förväntade att rensa stale `control_file.xlsx` före VM-körning skulle automatiskt
@@ -435,6 +436,69 @@ modifierades** (= ny fil skapades i den), inte när **innehåll modifierades sen
 Detta filtrerar bort allt äldre och visar bara dagens. Säkrare än manuell datum-tolkning av
 `ls -la`-output.
 
+### LB.44 — Excel-efterbearbetningssteg (steg 5 + Step 6) körs LOKALT på Windows, aldrig på Linux-VM
+**Symptom:** `data_prep_after_model_output.py` (steg 5) kraschar på VM med
+`ModuleNotFoundError: No module named 'xlwings'` direkt vid `import xlwings` (rad 8), innan någon
+logik körts. Samma fil i Cluster har identisk import.
+**Rotorsak:** Steg 5 och `Fall_Back_Logic.py` (Step 6) använder xlwings med äkta Excel-COM-anrop
+(`xw.App`, `wb.api.SaveAs(FileFormat=XLSB)`, `wb.api.RefreshAll()`). Detta kräver Windows +
+installerad Excel — xlwings styr en faktisk Excel-instans via COM och **kan inte köras på Linux**,
+oavsett om paketet installeras. Modellberäkningen (steg 1-4, Ray) hör hemma på VM:en; Excel-
+efterbearbetningen hör hemma lokalt. Detta är en arkitektonisk gräns som gäller ALLA modellfamiljer.
+**Regel:** Kör steg 1-4 på Azure-VM (tung Ray-beräkning), steg 5 + Step 6 lokalt på Windows.
+För lokal steg 5-körning: `py -3.11` (har xlwings 0.33.20 + Excel finns). **Kör från modellfamiljens
+ROT, inte från `code/`** — lokala `constants.py` har CWD-relativ config-sökväg (`.\code\src\config.yml`),
+så `cd` till roten och kör `py -3.11 code\data_prep_after_model_output.py`. Sätt `BCG_START_DATE`/
+`BCG_END_DATE` så datumfönstret matchar växande data. **Lokal raw-data-CSV (`data/0902_..._site_level.csv`)
+MÅSTE vara den växande (180 MB), inte frusen (130 MB)** — annars blir joinen mot växande modelloutput
+fel (R7-fälla, tyst). launcher.py inkluderar steg 5 i sekvensen — på VM kraschar det steget alltid,
+vilket är väntat; modelloutputen (steg 4) är klar innan dess och hämtas hem för lokal steg 5-körning.
+
+### LB.45 — `write_df_preserve_named_range` fångar `KeyError` men xlwings kastar `com_error`
+**Symptom:** Steg 5 (`data_prep_after_model_output.py`) kraschar på rad 252/237 med
+`pywintypes.com_error: (-2147352567, 'Undantag inträffade', ...)` när målmallen
+(`Sweden_Sitecode_level_elasticity_summary.xlsx`) är tom/ny och saknar förväntade ark/namngivna områden.
+**Rotorsak:** Funktionen `write_df_preserve_named_range` har en fallback: `try: wb.sheets[name]` /
+`except KeyError: wb.sheets.add(...)` (och samma mönster för `wb.names[range]`). Avsikten är "använd
+om finns, skapa annars". Men när arket/området saknas kastar xlwings ett `pywintypes.com_error` —
+**inte** `KeyError` — så fallbacken (skapa) nås aldrig och felet bubblar upp. På BCG:s förformaterade
+mall (där ark/områden redan finns) tas if-grenen och buggen syns aldrig; den triggas bara på en
+tom/ny mall (t.ex. första körning på ny maskin).
+**Regel:** Byt `except KeyError:` mot `except Exception:` (3 ställen i funktionen). Då fångas
+COM-felet och fallbacken bygger ark/område från grunden → steg 5 blir självförsörjande, oberoende av
+en förformaterad mall. Backup togs som `.bak-before-comfix`. *(Detta är en faktisk kod-fix i en
+lokal arbetskopia, inte BCG-original — LF.3 gäller inte lokala körkopior.)*
+
+### LB.46 — Azure CLI cachar aktiv subscription mellan sessioner (subscription-fällan)
+**Symptom:** Ny dag, `az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm` ger
+`AuthorizationFailed ... does not have authorization to perform action ... over scope`. Ser ut som
+behörighetsförlust eller utgången token.
+**Rotorsak:** `az` minns senast satta subscription mellan sessioner. Hade man jobbat i en annan
+subscription emellan (t.ex. `ev-lz1-hybrid` för ProvetDiscount) sitter man kvar där. VM:en finns inte
+i den subscriptionen → AuthorizationFailed. Det är INTE en utgången token och INTE behörighetsförlust
+— bara fel aktiv subscription. (`MASTER_AZURE.md` anger `ev-lz1-hybrid` som default, vilket förvärrar
+det för BCG-arbetet som bor i `ev-lz3-ai`.)
+**Regel:** Kör alltid `az account show` FÖRE VM-kommandon (mät, gissa inte). VM:en bor i
+subscription `ev-lz3-ai (SE)` (id `42f726f8-91ee-44d4-832f-9d9ec412ef8f`), RG
+`ev-openai-swce-rg-test`. Sätt rätt subscription först: `az account set --subscription "ev-lz3-ai (SE)"`.
+
+### LB.47 — scp av fjärrfil med mellanslag i sökväg: `cp` till ren sökväg på VM först
+**Symptom:** `scp azureuser@vm:"'~/bcg/site/output/regular price/ivc_sweden_price.csv'" "$dest"`
+ger `No such file or directory` trots att filen finns — mellanslaget i mappnamnet (`regular price`)
+överlever inte genom PowerShell→scp→bash-citatlagren. Dessutom: `~` expanderas INTE inom enkla citat
+i bash.
+**Rotorsak:** Tre citat-tolkar (PowerShell, scp-argumentparser, fjärr-bash) ska enas om var
+mellanslaget hör hemma, och `~` inom `'...'` förblir literal. Kombinationen är praktiskt taget
+omöjlig att få rätt inline.
+**Regel:** `cp` filen till en mellanslagsfri sökväg på VM:en först (med full sökväg, inte `~`), hämta
+sedan därifrån:
+```powershell
+ssh azureuser@vm "cp '/home/azureuser/bcg/site/output/regular price/fil.csv' /home/azureuser/fil.csv"
+scp azureuser@vm:/home/azureuser/fil.csv "C:\full\lokal\sökväg\fil.csv"
+```
+Samma kärnprincip som §10b/§11 i UBUNTU_AZURE_VM: undvik att tvinga komplexa sökvägar genom flera
+citat-lager — bygg/flytta till en enkel sökväg först.
+
 ---
 
 ## Hur listan växer
@@ -452,4 +516,4 @@ MASTER_SQL och låt LB peka dit.
 *Skapad 2026-05-23 vid dokumentstruktur-omtaget; extraherad ur SESSION_*-filer. LB.29-30 tillagda
 2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
-förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`).*
+förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`).*
