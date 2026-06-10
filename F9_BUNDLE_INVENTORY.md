@@ -44,15 +44,40 @@ Bundle steg 5 lokalt (xlwings, som Site — LB.44-45)
 
 ## 3. TRE BLOCKARE SOM MÅSTE LÖSAS FÖRE/UNDER KÖRNING
 
-### Blockare 1 — sweden_master_data.parquet måste regenereras växande
+> **LÖST UNDER KARTLÄGGNING 2026-06-10 — Blockare 1 och 2 var överskattade.** Den faktiska
+> masterdata-kedjan hittades och bevisades enklare än inventeringen antog. Se nedan. Endast
+> Blockare 3 (Ray-patchar, VM-sidan) återstår som verkligt arbete.
 
-Ligger i `Pipeline\01. Clustering\Sweden_clustering_SQL\parquet\sweden_master_data.parquet` (~536 MB).
-Datumstämpel 2025-12-08 indikerar att den är BCG-original/oförändrad sedan leverans — inte uppdaterad
-sedan din `transaction_data.parquet`-regenerering till 2026-04-30.
+### Blockare 1 — sweden_master_data.parquet regenereras via BEVISAD G7-runner (inte Clustering-wrapper)
 
-**OBS — LB.24/LF.3-skydd FÖRST:** att regenerera = att skriva över. Den nuvarande filen är den enda
-fysiska kopian av BCG-original i din miljö (OneDrive-originalet ligger separat men ska aldrig röras
-direkt). Backup + skrivskydd före regenerering:
+**Den verkliga kedjan (kartlagd 2026-06-10):**
+
+```
+transaction_data.parquet  (1091 MB, REDAN växande 2026-06-09)
+   ligger i Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL\parquet\
+   (frusen facit-version: transaction_data_frozen_facit_2025-06.parquet, 968 MB — LB.24 redan tillämpad)
+        ↓
+replicate_dataprep.py  (C:\Projekt\BCG\, repo-roten — DEN BEVISADE RUNNERN)
+   kör Sweden_Elasticity_Data_Prep_SQL\scripts\ 00→01→02 via duckdb-Python (AppLocker-rent, LB.2)
+   _inject_dates() (rad 130) skriver G7-fönstret in-memory på YearFlag-filtren (LB.22)
+        ↓
+output\Sweden_masterdata.csv  (komma-separerad, växande)
+        ↓
+convert_masterdata_to_parquet.py  (NY, C:\Projekt\BCG\ — CSV→parquet, schemaverifierad)
+   skriver sweden_master_data.parquet till BÅDE Bundle- och Clustering-parquet\
+        ↓
+Bundle/Clustering 00_read.sql  read_parquet(...)
+```
+
+**Varför detta är enklare än inventeringen sa:** `replicate_dataprep.py` är samma runner som redan
+producerade växande P_C/site-data för F.7 Cluster och F.8 Site. Den har en komplett G7-injektor
+(`_inject_dates` + `_fiscal_year_flags`, byggd av Jens under FAS F) som vid `BCG_END_DATE`-override
+skriver om YearFlag-whitelisten in-memory. Ingen SQL-patch behövs (se Blockare 2). Den frusna 536 MB
+`sweden_master_data.parquet` i Clustering-mappen är BCG-original — men den är en KOPIA av runnerns
+CSV-output, inte en oberoende artefakt. Vi regenererar den, vi patchar ingen wrapper.
+
+**LB.24/LF.3-skydd FÖRST:** backup + skrivskydd på den frusna parqueten innan den skrivs över. Den
+ligger i Clustering-mappen; Bundle-mappens parquet finns inte än (skapas av konverteringsscriptet).
 
 ```powershell
 $src = "C:\Projekt\BCG\Pipeline\01. Clustering\Sweden_clustering_SQL\parquet\sweden_master_data.parquet"
@@ -63,26 +88,54 @@ Set-ItemProperty $bak -Name IsReadOnly -Value $true
 Get-ChildItem $bak | Select-Object FullName, Length, IsReadOnly
 ```
 
-Verifiera att backup-filen finns, är 536 MB, och har IsReadOnly=True INNAN
-regenererings-kommandot körs. Backup är billig (~30 sek lokal kopia); förlust av frusen baseline
-är inte återställbar utan att gå till OneDrive-originalet.
+Verifiera 536 MB + IsReadOnly=True INNAN regenerering. Förlust av frusen baseline är inte
+återställbar utan OneDrive-originalet.
 
-**Regenerering:** kör Clustering-SQL-dataprepens wrapper med `BCG_END_DATE=2026-04-30` (samma mönster
-som Cluster/Site — etablerat). `[VERIFIERA]` att wrappern finns och har G7-stöd (§5 block B).
+**Regenerering (kör från SQL prep-mappen så input/ parquet/ output/ resolverar):**
 
-### Blockare 2 — YearFlag-filter i Bundle-SQL (G7-skuld i SQL, inte constants)
+```powershell
+cd "C:\Projekt\BCG\Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL"
+$env:BCG_END_DATE = "2026-04-30"
+py -3.11 "C:\Projekt\BCG\replicate_dataprep.py" --base-dir "C:\Projekt\BCG\Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL"
+Remove-Item Env:BCG_END_DATE
+```
 
-`Sweden_Bundling_Data_Prep/scripts/01_process.sql` rad 20 + 105 + 116:
-`WHERE YearFlag IN ('12M ending Jun 23','12M ending Jun 24','12M ending Jun 25')`
+Runnern loggar `VERIFY output/Sweden_masterdata.csv ... bytes -> OK` (R7, rad 185) vid lyckad körning.
 
-Med växande data filtreras allt efter juni 2025 TYST bort (samma fälla som G7 löste i Cluster/Site,
-fast i SQL här). Två lösningar beror på om växande masterdata har `'12M ending Jun 26'`-flaggan:
+**Konvertera CSV → parquet (NY fil, levererad denna session):**
 
-- (a) flaggan finns → patcha SQL att inkludera den
-- (b) saknas → skriv om datumbaserat (`InvoiceDate >= START_DATE AND < END_DATE2`) via
-  `_inject_dates`-mönster
+```powershell
+cd "C:\Projekt\BCG"
+py -3.11 convert_masterdata_to_parquet.py --dry-run
+```
 
-**`[VERIFIERA]`** YearFlag-population i regenererad parquet (§5 block A) → avgör (a) vs (b).
+Dry-run rapporterar schema + YearFlag-population utan att skriva. Bekräfta att utskriften visar
+`G7: '12M ending Jun 26' PRESENT`. Sedan skarp körning utan flagga:
+
+```powershell
+cd "C:\Projekt\BCG"
+py -3.11 convert_masterdata_to_parquet.py
+```
+
+Scriptet skriver `sweden_master_data.parquet` växande till både Bundle- och Clustering-parquet\.
+
+### Blockare 2 — LÖST: G7-injektorn i replicate_dataprep.py täcker YearFlag-filtren
+
+**Bekräftat 2026-06-10:** Bundle/Clustering-SQL filtrerar på YearFlag, men den filtreringen sker
+i `Sweden_Elasticity_Data_Prep_SQL\scripts\01_process.sql` (rad 138 + 377), och `replicate_dataprep.py`
+har en regex i `_inject_dates()` (rad 163) som fångar och skriver om BÅDA `YearFlag IN (...)`-ställena
+till den datumhärledda FY-listan. YearFlag-GENERATORN (01_process.sql rad 22-33) är dessutom redan
+dynamisk — den producerar `'12M ending Jun 26'` automatiskt för 2025-07..2026-04-rader.
+
+Patchväg (b) från tidigare resonemang är alltså redan implementerad i runnern. **Ingen SQL-patch
+behövs.** Bundle:s eget `01_process.sql` (rad 20) ärver bara redan-filtrerad data via masterdata-
+parqueten, så dess YearFlag-villkor blir verkningslöst (datan är redan inom fönstret).
+
+> **Restpunkt att verifiera empiriskt efter körning, ej blockerande:** `01_process.sql` rad 465
+> (`WHERE YearFlag = '12M ending Jun 25'`) fångas INTE av injektor-regexen (matchar bara `IN (...)`).
+> Logiskt är det korrekt — den bygger `SalesTotal_YearEnding25`, en fast referenskolumn för
+> fallback-rankning som SKA peka på ett fast år. Verifiera att den kolumnen ser rimlig ut i
+> fallback-output, men patcha den inte utan skäl (LF-stabilitet).
 
 ### Blockare 3 — Ray-init hårdkodad i bundle_utils.py (utanför config)
 
@@ -130,23 +183,22 @@ az account show --query "{user:user.name, subscription:name}" -o table
 ```
 
 ```powershell
-# A) YearFlag-population i FRUSEN masterdata (avgör SQL-patch a vs b)
-# Primärt: oneliner. Om PS bryter på citat-escape (LB.21/KÄRNPRINCIPER §5) — kör script-versionen.
-py -3.11 -c "import duckdb; print(duckdb.connect().execute(\"SELECT YearFlag, COUNT(*) n FROM read_parquet('C:/Projekt/BCG/Pipeline/01. Clustering/Sweden_clustering_SQL/parquet/sweden_master_data.parquet') GROUP BY YearFlag ORDER BY YearFlag\").df())"
-```
-
-```powershell
-# A-fallback om oneliner bryts:
+# A) [UTFÖRT 2026-06-10] YearFlag-population i FRUSEN masterdata
+# Utfall: '12M ending Jun 17'..'25', INGEN Jun 26 → frusen bekräftad. check_yearflag_population.py
+# levererad som .py-fallback (oneliner funkade men scriptet är robustare för upprepning).
 py -3.11 "C:\Projekt\BCG\check_yearflag_population.py"
 ```
 
 ```powershell
-# B) Clustering-SQL-dataprepens kodbas (finns regenererings-wrapper med G7-stöd?)
-Get-ChildItem "Pipeline\01. Clustering\Sweden_clustering_SQL" -Recurse -Include "*.py","*.sql","*.ps1" | Select-Object @{N='RelPath';E={$_.FullName.Replace("$PWD\Pipeline\01. Clustering\Sweden_clustering_SQL\",'')}}, @{N='KB';E={[math]::Round($_.Length/1KB,1)}}, LastWriteTime | Sort-Object RelPath | Format-Table -AutoSize -Wrap
+# B) [UTFÖRT 2026-06-10] Var byggs masterdata? Clustering-SQL bygger den INTE — den konsumerar.
+# Byggaren = Sweden_Elasticity_Data_Prep_SQL\scripts\01_process.sql, körd av replicate_dataprep.py
+# (repo-roten, bevisad G7-runner). Se Blockare 1.
+Get-ChildItem "Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL" -Recurse -Include "*.py","*.sql","*.ps1" | Select-Object @{N='RelPath';E={$_.FullName.Replace("$PWD\Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL\",'')}}, @{N='KB';E={[math]::Round($_.Length/1KB,1)}}, LastWriteTime | Sort-Object RelPath | Format-Table -AutoSize -Wrap
 ```
 
 ```powershell
-# C) Bundle Ray-init + ray_spill (bekräfta patchställen)
+# C) [UTFÖRT 2026-06-10] Bundle Ray-init + ray_spill — patchställen bekräftade
+# feature_selection.py rad 39: "C:\ray_spill"; bundle_utils.py rad 14: object_store_memory=2*1024**3
 Select-String -Path "Pipeline\02. Elasticity\4. Bundle Clinic Data Prep\1.Data_Pre_Processing\code\*.py" -Pattern "ray_spill|object_store_memory|directory_path|C:\\\\" | Select-Object @{N='File';E={Split-Path $_.Path -Leaf}}, LineNumber, Line
 ```
 
@@ -157,18 +209,20 @@ Select-String -Path "Pipeline\02. Elasticity\4. Bundle Clinic Data Prep\1.Data_P
 | Steg | Tid | Risk |
 |---|---|---|
 | Backup + read-only på frusen masterdata (Blockare 1) | 1 min | Låg |
-| Regenerera sweden_master_data.parquet växande | 30-60 min | Låg (etablerat mönster) |
-| Verifiera YearFlag + besluta SQL-patch (a/b) | 5-15 min | Låg |
-| Patcha 01_process.sql (YearFlag/datumfilter) | 15-30 min | Medel (premiär) |
+| Regenerera Sweden_masterdata.csv växande (replicate_dataprep.py, bevisad G7-runner) | 30-60 min | Låg (etablerat mönster) |
+| Konvertera CSV → parquet (convert_masterdata_to_parquet.py, dry-run + skarp) | 5 min | Låg |
+| ~~Patcha 01_process.sql YearFlag~~ — UTGÅR, G7-injektorn täcker det | — | — |
 | Patcha feature_selection.py ray_spill (VM) | 5 min | Låg (= Cluster) |
 | Hårdpatcha bundle_utils.py object_store_memory till 8 GB | 5 min | Låg (beslutat) |
-| Bundle SQL-dataprep-körning (Python-wrapper) | 30-60 min | Medel (premiär lokalt) |
+| Bundle SQL-dataprep-körning (Python-wrapper, ej run.ps1/duckdb.exe — LB.2) | 30-60 min | Medel (premiär lokalt) |
 | Ray-varukorgsbygge | 30-60 min | Medel (premiär) |
 | Bundle-modell VM (steg 1-4) | 60-90 min | Medel (Site tog ~70 min) |
 | Bundle steg 5 lokalt (xlwings) | 30-45 min | Låg (beprövat) |
 
-**Realistiskt: 3.5-5.5h för clean körning.** Premiär över hela kedjan → räkna med felsökning ovanpå.
-(NEXT_SESSION:s 2.5-4h antog "regenerera + kör"; den underskattade SQL-G7 + Ray-patcharna.)
+**Realistiskt: 3-4.5h för clean körning.** Premiär över hela kedjan → räkna med felsökning ovanpå.
+(Nedreviderad efter kartläggning 2026-06-10: SQL-G7-patchen utgick — `replicate_dataprep.py`:s
+befintliga `_inject_dates()` täcker YearFlag-filtren. Dataprep-sidan kräver noll nya patchar; kvar
+är konvertering + Ray-patcharna på VM-sidan.)
 
 ---
 
@@ -185,13 +239,18 @@ Select-String -Path "Pipeline\02. Elasticity\4. Bundle Clinic Data Prep\1.Data_P
 - **LB.44-45** Excel-steg (5) körs lokalt, com_error-fix i write_df_preserve_named_range
 - **LB.46** Azure subscription cachas → `az account show` + sätt ev-lz3-ai FÖRE VM
 - **LF.3** BCG-original/verifierad baseline skrivskyddas — mönstret som backup-steget följer
-- **G7** datumfönster env-överstyrbart (constants klart för Bundle-modell; SQL-dataprep är skulden)
+- **G7** datumfönster env-överstyrbart — `replicate_dataprep.py._inject_dates()` (rad 130) skriver om
+  YearFlag-filtren in-memory (LB.22); Bundle-modellens constants.py separat G7-patchad. SQL-skulden
+  visade sig redan löst i runnern, inte en kvarvarande patch.
+- **LB.22** replicate_dataprep injicerar datum in-memory — grunden till att ingen SQL-patch behövs
 
 ---
 
-*Sammanställd 2026-06-10. Reviderad samma dag efter senior review: (1) backup + IsReadOnly före
-regenerering tillagt i Blockare 1 (LB.24/LF.3); (2) Blockare 3 design-val beslutat — hårdpatch 8 GB,
-config-driven flyttad till FD.11; (3) §5 kommando A kompletterat med .py-fallback för LB.21-säkerhet.
-De tre `[VERIFIERA]`-fälten (YearFlag-population, Clustering-wrapper-recept, Ray-patchställen)
-bekräftas med §5-kommandona i början av nästa session — billiga läs-operationer som avgör exakt
-arbetsmängd innan VM:en tickar.*
+*Sammanställd 2026-06-10. Reviderad samma dag i två omgångar.*
+*Omgång 1 (senior review): backup + IsReadOnly före regenerering (LB.24/LF.3); Blockare 3 beslutat —
+hårdpatch 8 GB, config-driven → FD.11; §5 kommando A .py-fallback (LB.21).*
+*Omgång 2 (full kedje-kartläggning): Blockare 1 + 2 LÖSTA innan VM. Verklig masterdata-byggare hittad
+(`Sweden_Elasticity_Data_Prep_SQL\01_process.sql`, körd av `replicate_dataprep.py` från repo-roten —
+bevisad G7-runner, ej Clustering-wrapper som antogs). YearFlag-genereringen redan dynamisk; G7-injektorn
+täcker filtren → ingen SQL-patch. Nytt steg: `convert_masterdata_to_parquet.py` (CSV→parquet, levererad).
+Kvar som verkligt arbete före VM: regenerera + konvertera. På VM: Ray-patcharna (Blockare 3).*
