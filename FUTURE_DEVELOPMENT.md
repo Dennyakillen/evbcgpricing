@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde)
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
 **Skapad:** 2026-06-08
-**Senast uppdaterad:** 2026-06-08
+**Senast uppdaterad:** 2026-06-11
 
 ---
 
@@ -52,6 +52,9 @@ fas**.
 | FD.8 | DW-native L4-mappning (ersätt LF.8-beroende) | Idé |
 | FD.9 | `check_env.ps1 -StartVm` med flagga för riktiga körningar | Idé |
 | FD.10 | Projekt-avslutande städnings- och konsoliderings-fas | Specad |
+| FD.11 | Bundle-modellens färdigställande (parkerat, väv-beroende) | Pausad |
+| FD.12 | Bundle Ray-init till config-driven (matcha Cluster/Site) | Idé |
+| FD.13 | Sandbox-Excel: dynamisk metodik-förklaring mot beslutsfattare | Specad |
 
 ---
 
@@ -264,6 +267,124 @@ att gräva i sessions-historik.
 
 ---
 
+### FD.11 — Bundle-modellens färdigställande (PARKERAT — väv-beroende, ej avfärdat)
+
+**Idé:** Köra den tredje modellfamiljen (Bundle / varukorgar) end-to-end på växande data:
+Ray-varukorgsbygge → Bundle-modell (steg 1-4 på VM) → steg 5 lokalt. Dataprep-källan är redan
+klar (se nedan); det som återstår är varukorgsbygget + modellen.
+
+**Beslut 2026-06-11: parkera, men förbered återbesök.** Cluster (F.7) och Site (F.8) är klara på
+växande data och täcker huvudsortimentet. Bundle bedöms inte vara på kritiska vägen mot affärsbeslut
+på växande data *just nu* — men beslutet är datadrivet och har en tydlig återbesöks-trigger (se nedan),
+inte ett permanent avförande. Bollen: färska affärselasticiteter på huvudsortimentet snabbare, inte
+teknisk fullständighet (ROADMAP-tesen, IB.6).
+
+**Materialitet (uppmätt 2026-06-11, `assess_bundle_materiality.py`):**
+- Total växande omsättning (brutto, ankare ≥2022-07-01): **12,15 mdr**.
+- Alla varukorgs-*transaktioner*: 2,91 mdr (23,9% av total) — MEN detta överlappar Cluster/Site
+  (samma pengar, alternativ prissättning), är INTE additivt.
+- Av 63 737 definierade varukorgar markerade BCG endast **98** som värda att modellera
+  (`To_run_elasticity_analysis=1` = 0,15%).
+- De 98 modellerade varukorgarnas omsättning: **526 M** (~4,3% av total, 11,5% av all
+  varukorgs-def-omsättning). Detta är den relevanta materialiteten — inte 23,9%.
+- Service-mix (var varukorgarna koncentreras): Imaging 32%, Anaesthesia 24%, Hospitalisation 20%,
+  Other 12%, Surgery 7%, Consult 6%. → Sjukhustjänster som ofta säljs tillsammans i ett besök.
+
+**Vad som brister utan Bundle:** Per-varukorgs-prissättning på ~526 M i sjukhustjänster (röntgen +
+sövning + inläggning säljs ofta ihop). På produkt×klinik-nivå (Cluster/Site) kan enskilda komponenter
+ha tunn prisvariation → bli insignifikanta. Som varukorg KAN elasticiteten vara mätbar där komponenten
+inte är det. Utan Bundle saknas alltså en möjlig räddningskälla för just dessa KEY:n i fallback-väven.
+
+**Vad utvecklingen öppnar för:** Om sjukhustjänsternas KEY:n visar sig tunna/insignifikanta på
+Cluster/Site-nivå, blir Bundle den enda källan som räddar dem i FR-7-väven → varukorgs-prissättning
+för hospital-segmentet blir möjlig.
+
+**Återbesöks-trigger (datadriven):** Kör rimlighetsgrinden + Step 6 på Cluster+Site först. **Om**
+Imaging/Anaesthesia/Hospitalisation-KEY:n ofta blir insignifikanta eller saknar källa i väven → lyft
+Bundle tillbaka till kritiska vägen (då räddar det dem). **Om** de redan prissätts väl av Cluster/Site
+→ Bundle förblir parkerat. Bundles sanna drivande effekt = hur ofta det blir *vald källa* i väven,
+vilket är strukturellt omätbart utan Step 6 (cirkulärt: Step 6 kräver Bundle-output). Rimlighetsgrinden
+ger den fullare domen.
+
+**Redan gjort (dataprep-källan, klar och committad 2026-06-11, commit `1daf093`):**
+- Växande `sweden_master_data.parquet` på plats i Bundle-parquet-mappen (27,4M rader, YearFlag t.o.m.
+  Jun 26).
+- Bundle-SQL-dataprep körd växande via `run_bundle_dataprep.py` (duckdb-Python, AppLocker-rent, LB.2).
+  Output `Raw_Data_Clinic_Hospital.csv` verifierat växande (`verify_bundle_growing.py` → max-week
+  2026-04-27).
+- YearFlag-kapningen i `01_process.sql` patchad till konstant-ankare-filter (ingen tyst kapning framåt,
+  `patch_bundle_yearflag.py`).
+- Tre statiska inputs lokaliserade + recept dokumenterat (`input/README.md`).
+
+**Återstår (kartlagt 2026-06-11, ej löst — den tekniska skulden):**
+- **Ray-varukorgsbygget** (`2.Sweden_Bundle_Clinic_Model_Data_Creation.py` + `bundle_utils.py`) har
+  UK-rester och otestade input-kontrakt:
+  - Config-nyckel `uk_bundles` läses som `sweden_bundles` av scriptet → **KeyError** vid körning.
+  - `config_data_prep.yml` pekar på BCG:s frusna `0826_*`/`0825_*`-filnamn, inte våra växande outputs.
+    `data/`-mappen är tom — våra outputs måste placeras med rätt namn.
+  - `build_bundle_for_type` joinar `txn.ProductCode` mot `uk_bundles["Product Code"]` — varukorgs-input
+    ska vara den EXPLODERADE `Bundle_Clinic_Data.csv` (en rad per Bundle×ProductCode), inte
+    `sweden_bundle_analysis.csv` (komma-separerad Bundle-sträng).
+  - FTE trippel-mismatch: scriptet gör `pd.read_excel` + förväntar `Clusters`/`FTE`-kolumner; vår
+    dataprep gav CSV med `Cluster`/`total_FTE`. Kräver en format- och kolumn-bro.
+- **VM-patchar** (samma som Cluster/Site): `feature_selection.py` ray_spill C:\→/tmp (LB.34),
+  `bundle_utils.py` object_store 2GB→8GB (se FD.12).
+
+**Estimerad omfattning:** Medel-Hög (UK-kod-broar + premiär VM-körning av tredje familjen).
+
+**Status:** Pausad (dataprep-källa klar; varukorgsbygge + modell kvarstår som väv-beroende utveckling).
+
+**Datum identifierad:** 2026-06-11 / efter materialitetsmätning + UK-kod-kartläggning.
+
+---
+
+### FD.12 — Bundle Ray-init till config-driven mönster
+
+**Idé:** `bundle_utils.py` rad 14 har `object_store_memory=2 * 1024**3` hårdkodat, utanför
+config.yml. Cluster löste Ray-minne via `config.yml ray: memory: 8` (LB.4), men Bundle lade init i
+separat fil → config/env biter inte. Migrera Bundle-Ray-init till att läsa från config (som
+Cluster/Site), så Ray-minnet styrs konsekvent på ett ställe.
+
+**Värde:** Konsekvent Ray-konfiguration över alla tre familjer; inga gömda hårdkodade minnesgränser
+som kväver kombinatoriken på VM.
+
+**Beror på:** FD.11 (relevant först när Bundle-modellen körs).
+
+**Estimerad omfattning:** Låg (~1h). Vid premiär-körning gjordes medvetet hårdpatch till 8 GB istället
+(scope-disciplin — config-migrering är inte premiär-arbete).
+
+**Status:** Idé.
+
+**Datum identifierad:** 2026-06-10 / Bundle Ray-inventering (Blockare 3 i F9_BUNDLE_INVENTORY).
+
+---
+
+### FD.13 — Sandbox-Excel: dynamisk metodik-förklaring mot beslutsfattare
+
+**Idé:** En dynamisk Excel-fil där modellens alla steg hänger ihop med **exempeldata** (sandbox-tänk):
+transaktion → veckoaggregering → regular-price → feature-selektion → OLS-elasticitet → fallback-väv
+→ slutelasticitet per ProductKey. Grov men sammanhängande — inte exakt replik, utan så att en
+beslutsfattare kan *följa* hur en prisförändring propagerar genom kedjan och förstå var elasticiteten
+kommer ifrån. Steg synliga, formler spårbara, exempel man kan ändra och se effekten.
+
+**Värde:** Översätter en komplex Python/Ray/DuckDB-pipeline till något verksamheten kan följa och
+LITA på. Skillnaden mellan "modellen funkar tekniskt" och "verksamheten vågar prisbesluta på den".
+Särskilt värdefullt för fallback-väven (FR-7), som är svårast att förklara muntligt — i Excel kan
+man visa hur en KEY får sin elasticitet från Cluster, Site eller Bundle beroende på signifikans.
+Knyter an till bollen: affärsbeslut på växande data kräver att besluts­fattare förstår underlaget.
+
+**Beror på:** Inget hårt — kan börjas när som helst. Mognar bäst när Step 6-väven är körd på växande
+data (då finns riktiga exempel att grovmodellera kring).
+
+**Estimerad omfattning:** Medel (1-2 dagar för en genomtänkt, sammanvävd sandbox med exempeldata och
+spårbara formler per steg).
+
+**Status:** Specad (idé formulerad 2026-06-11).
+
+**Datum identifierad:** 2026-06-11 / sessionsdialog om metodik-förståelse mot beslutsfattare.
+
+---
+
 ## Hur posten levs
 
 Ny FD läggs till när:
@@ -283,3 +404,4 @@ En FD revideras eller flyttas:
 | Datum | Vad |
 |---|---|
 | 2026-06-08 | Fil skapad. Initiala FD.1-10 dokumenterade efter VM-körningens slut. |
+| 2026-06-11 | FD.11-13 tillagda. FD.11 Bundle-modellen PARKERAD (dataprep-källa klar + committad `1daf093`, varukorgsbygge/modell kvarstår) — beslut datadrivet: 98 modellerade varukorgar = 526 M (~4,3%), överlappar Cluster/Site, sann väv-effekt avgörs av rimlighetsgrind (återbesöks-trigger: sjukhustjänsters signifikans). FD.12 Bundle Ray-config. FD.13 sandbox-Excel för metodik-förståelse mot beslutsfattare. |

@@ -501,6 +501,61 @@ citat-lager — bygg/flytta till en enkel sökväg först.
 
 ---
 
+### LB.48 — läs *runnern* som producerade artefakten innan du deklarerar "datakedjan kräver patch X"
+**Symptom:** F.9-inventeringen slog fast att Bundle-masterdatan behövde en G7-datumpatch i SQL för att bli
+växande. Fel — `replicate_dataprep.py` (runnern som faktiskt producerar masterdatan) hade redan en komplett
+G7-datuminjektor (`_inject_dates`/`_fiscal_year_flags`) som skriver om `YearFlag IN(...)` in-memory när
+`BCG_END_DATE` är satt. Patchen vi planerade var redan löst en nivå upp.
+**Rotorsak:** Antagandet byggde på att läsa SQL-filen isolerat, inte scriptet som kör SQL:en. SQL:en såg
+hårdkodad ut, men runnern muterade den vid körning. Att läsa halva kedjan gav en falsk slutsats.
+**Regel:** Innan du planerar en patch mot en datakedja — spåra artefakten bakåt till scriptet som
+*faktiskt skapar* den och läs det helt. Patcha aldrig mot en mellanfil utan att veta vad som skriver den.
+*(Drev hela F.9-omkalibreringen 2026-06-10; jfr KÄRNPRINCIPER search-before-build.)*
+
+---
+
+### LB.49 — masterdata CSV→parquet: läs med `all_varchar=true`, typning hör hemma hos konsumenten
+**Symptom:** `read_csv_auto` kraschade vid CSV→parquet-konvertering — DuckDB:s sample-baserade typgissning
+satte `ItemType` till BIGINT, men ett missformat citerat produktnamn (rad 654262) innehöll text → cast-fel
+mitt i en 7 GB-fil.
+**Rotorsak:** DuckDB samplar de första N raderna för typinferens och ser inte hela filen. En enda avvikande
+rad långt ner spränger en typgissning som "såg rätt ut" i samplet.
+**Regel:** Läs rå masterdata-CSV med `all_varchar=true` vid parquet-konvertering. Konsumenten (`00_read.sql`)
+CASTar ändå allt till rätt typer — typning är dess ansvar, inte konverterarens. Noll radförlust, ingen
+sample-krasch. Bekräftat: `diagnose_masterdata_csv.py` läste alla 27,4M rader med `all_varchar` utan bortfall.
+
+---
+
+### LB.50 — dubbel fönsterdefinition är en tyst-fel-fälla; ersätt med konstant-ankare utan övre gräns
+**Symptom:** Bundle-SQL-output kapades tyst vid Jun 2025 trots att masterdatan var växande t.o.m. Jun 2026.
+`verify_bundle_growing.py` → CAPPED, max_week 2025-06-30.
+**Rotorsak:** Två oberoende steg filtrerade *samma* tidsfönster — masterdatans G7-injektor (växande) OCH
+`01_process.sql` rad 20 med hårdkodad `YearFlag IN('...23','...24','...25')`. När bara det ena uppdaterades
+divergerade de, och det snävare (SQL:ens whitelist) vann tyst utan fel eller varning.
+**Regel:** När två steg filtrerar samma fönster är det ena redundant och en framtida tyst-fel-källa. Ta bort
+det redundanta filtret; ersätt med konstant-ankare utan övre gräns: `CAST(week_starting_monday AS DATE) >=
+DATE '2022-07-01'`. Då ärvs fönstret från källan, kan aldrig kapa tyst, och kräver ingen årlig redigering.
+*(Patchad via `patch_bundle_yearflag.py`; jfr LF.2 konstant-ankare. Detta är en DRIFT-fälla: konfiguration
+på två ställen som tyst glider isär.)*
+
+---
+
+### LB.51 — BCG-kod har UK-rester, tomma config-nycklar och aldrig-körda steg; verifiera config mot scriptets faktiska anrop före körning
+**Symptom:** Bundle-Ray-varukorgsbygget (`2.Sweden_Bundle_Clinic_Model_Data_Creation.py`) skulle krascha med
+KeyError: scriptet läser `config['model_data_creation']['sweden_bundles']`, men `config_data_prep.yml` har
+nyckeln `uk_bundles`. Config pekade dessutom på frusna BCG-filnamn (`0826_*`/`0825_*`) som inte finns; `data/`
+var tom; `build_bundle_for_type` förväntade en exploderad Bundle×ProductCode-input, inte den komma-separerade
+`sweden_bundle_analysis.csv`; FTE-formatet var XLSX i kod men CSV i vår dataprep.
+**Rotorsak:** Koden är UK-arv (variabler heter `uk_bundles`, `D:\IVC E Phase 1`-sökvägar i kommentarer),
+aldrig körd på svenska sidan, config aldrig synkad med scriptets faktiska anrop. Den "ser körbar ut" men har
+aldrig exekverats i vår kontext.
+**Regel:** Innan du kör ett aldrig-testat BCG-steg: (1) `grep` scriptets `config[...]`-anrop och matcha varje
+nyckel mot config-filen; (2) verifiera att varje input-sökväg pekar på en faktisk fil, inte ett fruset
+BCG-original; (3) kontrollera format-antaganden (`read_excel` vs `read_csv`) och kolumnnamn mot vad uppströms
+faktiskt producerar. Anta aldrig att BCG-kod är körklar — den är ofta UK-rester med död config.
+
+---
+
 ## Hur listan växer
 
 Ny lärdom läggs till när vi snubblar över en teknisk fälla — miljö, infrastruktur, kod-mekanik,
@@ -516,4 +571,4 @@ MASTER_SQL och låt LB peka dit.
 *Skapad 2026-05-23 vid dokumentstruktur-omtaget; extraherad ur SESSION_*-filer. LB.29-30 tillagda
 2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
-förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`).*
+förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`). LB.48-51 tillagda 2026-06-11 efter F.9 Bundle-dataprep körd växande + Bundle-modellen datadrivet parkerad (FD.11): läs runnern före patch-deklaration (LB.48), all_varchar vid masterdata-parquet-konvertering (LB.49), dubbel-fönster-fällan/konstant-ankare (LB.50, DRIFT), BCG-kod UK-rester + config-verifiering före körning (LB.51). Bundle-dataprep committad i `1daf093`.*
