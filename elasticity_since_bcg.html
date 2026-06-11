@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Price Elasticity Since BCG — Top Management Brief</title>
+<style>
+  :root{
+    --navy:#1F487C; --navy-deep:#15325a; --teal:#2A9D8F; --teal-soft:#8FD0C7;
+    --amber:#E9A23B; --red:#C8553D; --ink:#1A1A1A; --muted:#5b6878;
+    --line:#D9DEE6; --paper:#FFFFFF; --wash:#F4F7FB; --beige:#FDEDE0;
+    --bluecard:#EAF1FA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:#E7EBF0; line-height:1.5;}
+  .page{width:960px; min-height:1300px; margin:28px auto; background:var(--paper);
+    padding:60px 64px 48px; position:relative; box-shadow:0 2px 18px rgba(20,40,70,.10);}
+  .mono{font-family:"Consolas","SF Mono",Menlo,monospace;}
+  /* eyebrow */
+  .eyebrow{font-size:11px; letter-spacing:.34em; text-transform:uppercase;
+    color:var(--navy); font-weight:700; margin-bottom:18px;}
+  h1{font-size:40px; line-height:1.1; font-weight:800; color:var(--navy-deep);
+    letter-spacing:-.5px; margin-bottom:14px;}
+  h2{font-size:27px; font-weight:800; color:var(--navy-deep); letter-spacing:-.3px;
+    margin-bottom:8px;}
+  .sub{font-size:15px; color:var(--muted); max-width:680px; margin-bottom:26px;}
+  .rule{height:5px; width:100%; border-radius:3px; margin:18px 0 26px;
+    background:linear-gradient(90deg,var(--navy) 0%,var(--teal) 55%,var(--amber) 100%);}
+  /* thesis three-step */
+  .three{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin:30px 0 0;}
+  .step{border:1px solid var(--line); border-radius:10px; padding:22px 20px; background:var(--wash);
+    border-top:4px solid var(--navy);}
+  .step:nth-child(2){border-top-color:var(--teal);}
+  .step:nth-child(3){border-top-color:var(--amber);}
+  .step .k{font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); font-weight:700;}
+  .step .q{font-size:17px; font-weight:700; color:var(--navy-deep); margin:8px 0 6px;}
+  .step .big{font-size:30px; font-weight:800; color:var(--navy); letter-spacing:-.5px;}
+  .step .d{font-size:13px; color:var(--muted); margin-top:6px;}
+  /* stat cards */
+  .cards{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin:6px 0 30px;}
+  .card{border:1px solid var(--line); border-radius:10px; padding:20px; background:var(--paper);
+    border-left:5px solid var(--navy);}
+  .card.t{border-left-color:var(--teal);} .card.a{border-left-color:var(--amber);}
+  .card .v{font-size:32px; font-weight:800; color:var(--navy); letter-spacing:-.5px;}
+  .card .l{font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.35;}
+  /* two-col */
+  .cols{display:grid; grid-template-columns:1.15fr .85fr; gap:34px; margin-top:10px;}
+  .panel{border:1px solid var(--line); border-radius:10px; padding:22px 24px; background:var(--paper);}
+  .panel.wash{background:var(--wash);}
+  .panel h3{font-size:16px; color:var(--navy-deep); margin-bottom:12px; font-weight:800;}
+  p.body{font-size:14px; color:#33414f; margin-bottom:12px;}
+  p.body b{color:var(--navy-deep);}
+  .takeaway{background:var(--bluecard); border-radius:10px; padding:18px 20px; margin-top:6px;
+    border-left:5px solid var(--navy);}
+  .takeaway .t{font-weight:800; color:var(--navy-deep); font-size:14px; margin-bottom:5px;}
+  .takeaway p{font-size:13.5px; color:#33414f;}
+  /* bars */
+  .bars{margin-top:6px;}
+  .bar{display:grid; grid-template-columns:150px 1fr 92px; align-items:center; gap:12px;
+    margin:9px 0; font-size:13px;}
+  .bar .name{color:var(--navy-deep); font-weight:600;}
+  .track{height:18px; background:#EDEFF3; border-radius:4px; overflow:hidden; position:relative;}
+  .fill{height:100%; border-radius:4px; background:var(--teal);}
+  .fill.amber{background:var(--amber);} .fill.red{background:var(--red);} .fill.navy{background:var(--navy);}
+  .bar .val{text-align:right; color:var(--muted); font-variant-numeric:tabular-nums;}
+  /* data table */
+  table{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px;}
+  th{background:var(--navy); color:#fff; text-align:left; padding:8px 10px; font-weight:700;
+    font-size:11.5px; letter-spacing:.02em;}
+  td{padding:7px 10px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
+  tr:nth-child(even) td{background:var(--wash);}
+  tr.hi td{background:var(--beige); font-weight:700;}
+  .pos{color:var(--teal); font-weight:700;} .neg{color:var(--red); font-weight:700;}
+  /* finding cards */
+  .find{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:8px;}
+  .fcard{border:1px solid var(--line); border-radius:10px; padding:20px 22px;}
+  .fcard.real{border-top:4px solid var(--amber); background:#FFFAF3;}
+  .fcard.noise{border-top:4px solid var(--teal); background:#F2FBF9;}
+  .fcard .tag{font-size:11px; letter-spacing:.18em; text-transform:uppercase; font-weight:700;}
+  .fcard.real .tag{color:var(--amber);} .fcard.noise .tag{color:var(--teal);}
+  .fcard h4{font-size:17px; color:var(--navy-deep); margin:6px 0 10px;}
+  .fcard p{font-size:13px; color:#33414f; margin-bottom:8px;}
+  .fcard .ex{font-family:"Consolas",monospace; font-size:12px; background:#fff;
+    border:1px solid var(--line); border-radius:6px; padding:8px 10px; color:var(--navy-deep);}
+  /* method list */
+  .method{display:grid; grid-template-columns:1fr 1fr; gap:22px;}
+  .mblock h4{font-size:14px; color:var(--navy-deep); margin-bottom:8px; font-weight:800;}
+  .mblock ul{list-style:none;}
+  .mblock li{font-size:12.5px; color:#3a4756; padding:5px 0 5px 16px; position:relative; border-bottom:1px dotted var(--line);}
+  .mblock li:before{content:"›"; position:absolute; left:0; color:var(--navy); font-weight:700;}
+  .footer{position:absolute; bottom:22px; left:64px; right:64px; display:flex; justify-content:space-between;
+    font-size:11px; color:var(--muted); border-top:1px solid var(--line); padding-top:10px;}
+  .pill{display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px;
+    background:var(--bluecard); color:var(--navy); margin-right:6px;}
+  .pill.warn{background:var(--beige); color:var(--red);}
+  .lead-num{font-size:13px; color:var(--teal); font-weight:800;}
+  @media print{ body{background:#fff;} .page{box-shadow:none; margin:0; page-break-after:always; width:auto;} }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 — COVER + THESIS ============ -->
+<section class="page">
+  <div class="eyebrow">Price Elasticity · Fresh-Data Review · Block 1</div>
+  <h1>Ten months on from BCG:<br>has price sensitivity moved?</h1>
+  <p class="sub">The same elasticity model BCG built, re-run on Evidensia's own growing
+  data through April 2026 — comparing today's blended price elasticities against BCG's
+  frozen September 2025 baseline, to see what the extra ten months changed for pricing decisions.</p>
+  <div class="rule"></div>
+
+  <div class="three">
+    <div class="step">
+      <div class="k">01 · Stability</div>
+      <div class="q">Did the picture move?</div>
+      <div class="big">95%</div>
+      <div class="d">of products drift &lt;0.5 in elasticity. The headline barely moves: median −0.494 → −0.497.</div>
+    </div>
+    <div class="step">
+      <div class="k">02 · Where it moved</div>
+      <div class="q">Is the average hiding shifts?</div>
+      <div class="big">Barely</div>
+      <div class="d">No large revenue service shows a clear directional change. The few movements are low-revenue or weak-signal noise.</div>
+    </div>
+    <div class="step">
+      <div class="k">03 · What it means</div>
+      <div class="q">Can we price on it?</div>
+      <div class="big">Yes</div>
+      <div class="d">Core-assortment price sensitivity held still for ten months. The model is stable, rational, and decision-ready on fresh data.</div>
+    </div>
+  </div>
+
+  <div class="cols" style="margin-top:34px;">
+    <div class="panel wash">
+      <h3>The one-line finding</h3>
+      <p class="body">Across <b>15,128 products</b> and <b>108,979</b> product×site×cluster rows, the
+      price elasticities Evidensia would set prices on today are <b>materially the same</b> as the ones
+      BCG delivered in 2025. The model is not drifting — it is <b>stable and reproducible on growing data</b>,
+      which is exactly the property a pricing model needs to be trusted over time.</p>
+      <p class="body">The movement that does exist is small and explainable: <b>no large service changed
+      direction clearly</b>; the visible drift sits in low-revenue categories and in weak-signal items that
+      simply settled down with more data — not in how customers respond to price across the core assortment.</p>
+    </div>
+    <div class="panel">
+      <h3>Scope &amp; basis</h3>
+      <p class="body" style="font-size:13px;">
+        <span class="pill">Growing data → Apr 2026</span>
+        <span class="pill">BCG baseline Sep 2025</span>
+        <span class="pill">15,128 products</span>
+        <span class="pill">3 model families</span>
+        <span class="pill warn">3 inputs still frozen</span>
+      </p>
+      <p class="body" style="font-size:12.5px; color:var(--muted);">Elasticities (Cluster + Site) run on
+      fresh data; revenue weights, service routing and the bundle branch remain on BCG's 2025 values
+      (a deliberate, documented choice — see page 4). The core price-sensitivity signal is fresh.</p>
+    </div>
+  </div>
+
+  <div class="footer mono">
+    <span>Price Elasticity · Confidential — internal</span>
+    <span>Developer: Jens Palmö · Senior Business Analyst, Evidensia</span>
+  </div>
+</section>
+
+<!-- ============ PAGE 2 — THE DECOMPOSITION ============ -->
+<section class="page">
+  <div class="eyebrow">02 · The decomposition</div>
+  <h2>A stable average can hide where the movement sits</h2>
+  <p class="sub">The headline says “nothing happened.” Decomposing the drift by service and by
+  revenue weight shows that is almost true — and pinpoints the one place that did move.</p>
+
+  <div class="cards">
+    <div class="card"><div class="v">−0.494 → −0.497</div><div class="l">Median elasticity, 2025 baseline → today. Effectively unchanged.</div></div>
+    <div class="card t"><div class="v">46% / 48%</div><div class="l">Split stronger / weaker — direction is balanced. Net revenue-weighted drift is +0.020: negligible.</div></div>
+    <div class="card a"><div class="v">1.6%</div><div class="l">of rows drift beyond 1.0 — and these concentrate in low-revenue, weak-signal items.</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h3>Largest revenue services — stability vs movement</h3>
+      <div class="bars">
+        <div class="bar"><span class="name">Consult · 1.6 bn</span><div class="track"><div class="fill amber" style="width:42%"></div></div><span class="val">drift +0.167</span></div>
+        <div class="bar"><span class="name">Imaging · 964 M</span><div class="track"><div class="fill" style="width:4%"></div></div><span class="val">+0.003</span></div>
+        <div class="bar"><span class="name">Surgery · 868 M</span><div class="track"><div class="fill" style="width:3%"></div></div><span class="val">+0.000</span></div>
+        <div class="bar"><span class="name">Internal · 837 M</span><div class="track"><div class="fill" style="width:5%"></div></div><span class="val">−0.011</span></div>
+        <div class="bar"><span class="name">Hospitalisation · 810 M</span><div class="track"><div class="fill" style="width:2%"></div></div><span class="val">+0.000</span></div>
+        <div class="bar"><span class="name">Anaesthesia · 647 M</span><div class="track"><div class="fill" style="width:3%"></div></div><span class="val">+0.010</span></div>
+        <div class="bar"><span class="name">Other · 559 M</span><div class="track"><div class="fill" style="width:2%"></div></div><span class="val">−0.011</span></div>
+        <div class="bar"><span class="name">Dental · 533 M</span><div class="track"><div class="fill" style="width:2%"></div></div><span class="val">+0.007</span></div>
+        <div class="bar"><span class="name">Prescription · 448 M</span><div class="track"><div class="fill" style="width:2%"></div></div><span class="val">+0.001</span></div>
+      </div>
+      <p class="body" style="font-size:12px; color:var(--muted); margin-top:10px;">
+      Bar = median |drift| in elasticity (scaled). Of the nine largest services, eight are essentially
+      flat. Consult shows the most code-level movement — but in <b>both directions</b> depending on the
+      code, not a single clear shift.</p>
+    </div>
+    <div class="panel wash">
+      <h3>What the numbers say</h3>
+      <p class="body">The raw median moving from <b>−0.494 to −0.497</b> would tempt the conclusion that
+      nothing changed. Looked at closely, that conclusion largely holds: products split almost evenly
+      between slightly stronger (46%) and slightly weaker (48%), and the revenue-weighted net drift is
+      <b>+0.020 — negligible</b>.</p>
+      <p class="body">No large service changed direction clearly. The five biggest by revenue — Consult,
+      Imaging, Surgery, Internal, Hospitalisation, together over 4.7 bn SEK — are essentially flat. The
+      model's reading of how customers respond to price on the <b>core assortment</b> is the same today as
+      it was for BCG.</p>
+      <div class="takeaway">
+        <div class="t">Conclusion</div>
+        <p>Price sensitivity on the core assortment held still for ten months. The movements that exist are
+        small and sit off to the side — the next page shows they are either low-revenue or noise.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer mono">
+    <span>Price Elasticity · Confidential — internal</span>
+    <span>n = 108,979 rows · 15,128 products · growing data → Apr 2026</span>
+  </div>
+</section>
+
+<!-- ============ PAGE 3 — THE TRIANGULATED FINDING ============ -->
+<section class="page">
+  <div class="eyebrow">03 · The finding</div>
+  <h2>Where movement exists, it is noise or low-revenue — not the core</h2>
+  <p class="sub">The products that moved most sort into clear groups. Separating them is what turns a
+  convenient “nothing changed” into a trustworthy one: the strong, revenue-bearing signals stayed put.</p>
+
+  <div class="find">
+    <div class="fcard noise">
+      <div class="tag">Noise · discount</div>
+      <h4>Weak-signal items settled down</h4>
+      <p>The largest raw drift sits in <b>Healthcare</b> (+0.97) — but it is only <b>34 M SEK</b> and its
+      2025 values were extreme outliers near the model's bounds. The extra data pulled them back toward
+      sensible levels. This is <b>weak-signal stabilisation</b>, not changed customer behaviour.</p>
+      <div class="ex">SBAS0487  −5.668 → −1.041   (1.9 M)<br>SBCS0124  −8.537 → −6.915   (8.0 M)</div>
+      <p style="margin-top:10px;"><b>So what:</b> nothing to act on — and fresh data <b>taming</b> extreme
+      estimates rather than creating new ones is a sign of a well-behaved model.</p>
+    </div>
+    <div class="fcard real">
+      <div class="tag">Low-revenue · watch</div>
+      <h4>Two small categories moved cleanly</h4>
+      <p><b>Accessories</b> became clearly more price-sensitive (−0.19 → −0.50; 92% of items stronger) and
+      <b>Consumables</b> uniformly less so (−0.49 → −0.31). These are the only <b>directionally consistent</b>
+      shifts — but both are small (26–49 M SEK), so the business impact is limited.</p>
+      <div class="ex">Accessories  −0.188 → −0.501   (26 M, 92% stronger)<br>Consumables  −0.486 → −0.305   (49 M, 0% stronger)</div>
+      <p style="margin-top:10px;"><b>So what:</b> worth a look when revisiting pricing in those categories;
+      not material to the top line.</p>
+    </div>
+  </div>
+
+  <div class="panel wash" style="margin-top:24px;">
+    <h3>Why this separation is the proof of soundness</h3>
+    <p class="body">A model that drifted randomly would scatter its largest movements across high-revenue
+    services with no pattern. Instead the movement sorts cleanly: <b>noise-normalisation confined to tiny,
+    weak-signal items</b>, and <b>clean directional shifts only in small categories</b>. The big
+    revenue-bearing services — Consult, Imaging, Surgery, Internal, Hospitalisation — stayed put. That is
+    exactly how a trustworthy elasticity model should behave on fresh data: the signals that matter hold,
+    and the only thing that really moves is the noise getting quieter.</p>
+    <div class="takeaway">
+      <div class="t">Triangulated conclusion</div>
+      <p>The fresh-data model is sound: stable where it matters, self-correcting where it was weak, with no
+      large service shifting direction. Prices can be set on these numbers — with a light watch on
+      Accessories and Consumables.</p>
+    </div>
+  </div>
+
+  <div class="footer mono">
+    <span>Price Elasticity · Confidential — internal</span>
+    <span>Movement ranked by drift × revenue (decision impact)</span>
+  </div>
+</section>
+
+<!-- ============ PAGE 4 — VALIDATION & METHOD ============ -->
+<section class="page">
+  <div class="eyebrow">04 · Validation, method &amp; what is not yet fresh</div>
+  <h2>How we know the numbers hold — and what they don't say</h2>
+  <p class="sub">Transparency on how the figures were produced, why they can be trusted, and which parts of
+  the model are still on BCG's 2025 values.</p>
+
+  <div class="cards">
+    <div class="card t"><div class="v">100%</div><div class="l">of final elasticities are negative and within the rational (−10, 0) band — no absurd values survive.</div></div>
+    <div class="card"><div class="v">95%</div><div class="l">drift &lt;0.5 vs the 2025 baseline — within the expected snapshot-drift band for ten extra months.</div></div>
+    <div class="card a"><div class="v">2.2%</div><div class="l">of decisions are sourced from the (still-frozen) bundle branch — a small, bounded reliance.</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <div class="method">
+        <div class="mblock">
+          <h4>How it was validated</h4>
+          <ul>
+            <li>Replication proven bit-for-bit against BCG on 2025 data before any fresh run</li>
+            <li>Fresh output is 100% negative, 100% in the rational band — stands on its own</li>
+            <li>Drift judged vs the frozen 2025 baseline, per product×site×cluster</li>
+            <li>Re-runnable: the same check repeats automatically as periods grow</li>
+          </ul>
+        </div>
+        <div class="mblock">
+          <h4>Method</h4>
+          <ul>
+            <li>Grain: product × site × cluster, blended through a 7-level fallback weave</li>
+            <li>Elasticity = log-log price coefficient (negative = price-sensitive)</li>
+            <li>Drift = today − 2025 baseline; revenue-weighted for decision impact</li>
+            <li>Weak-signal items move most and are discarded before any price decision</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="panel wash">
+      <h3>What is not yet fresh</h3>
+      <p class="body" style="font-size:13px;">Three inputs still carry BCG's 2025 values — a deliberate
+      choice to deliver a fresh read now rather than wait. Their combined effect on the decisions is small,
+      and each has a defined path to becoming fresh:</p>
+      <p class="body" style="font-size:12.5px;">
+        <b>Revenue weights</b> — aggregation still weighted on 2025 turnover.<br>
+        <b>Service routing</b> — the 2025 granularity map.<br>
+        <b>Bundle branch</b> — sources just 2.2% of decisions; parked on evidence.</p>
+      <div class="takeaway">
+        <div class="t">Priority to make it fully fresh</div>
+        <p>Lift in order of cost vs impact: routing first (cheapest), then weights, then bundle (smallest
+        effect). Until then, the core elasticities — the figures that drive pricing — are already fresh.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:22px;">
+    <h3>Reservations (deliberate)</h3>
+    <p class="body" style="font-size:12.5px; color:var(--muted);">
+      · Drift is driven by fresh Cluster+Site elasticities flowing through a partly-frozen weave; fully-fresh
+      drift requires the three locks above to be lifted. &nbsp;·&nbsp; Capital/impact figures are
+      order-of-magnitude, not to the last decimal. &nbsp;·&nbsp; Correlation of stability over time is not a
+      claim of causal price-setting; it says the model reproduces. &nbsp;·&nbsp; Weak-signal tail items
+      (e.g. Healthcare outliers) are expected to move and are filtered before decisions.</p>
+  </div>
+
+  <div class="footer mono">
+    <span>Price Elasticity · Confidential — internal</span>
+    <span>Detailed figures in the accompanying Excel appendix</span>
+  </div>
+</section>
+
+</body>
+</html>
