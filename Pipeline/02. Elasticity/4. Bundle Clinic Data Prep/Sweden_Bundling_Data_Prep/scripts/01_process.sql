@@ -17,7 +17,11 @@ CREATE TABLE raw_data AS
     END AS ItemCode_clean
   FROM sweden_master_data
   WHERE 
-    YearFlag IN ('12M ending Jun 23','12M ending Jun 24','12M ending Jun 25')
+    -- G7 (Jens 2026-06-11): constant anchor LF.2, NO upper bound -> inherits the
+    -- window the masterdata parquet already carries (built by replicate_dataprep.py).
+    -- Cannot silently cap future fresh-data runs; YearFlag column kept for GROUP BY.
+    -- CAST: masterdata parquet written all_varchar=true (LB.49) -> week col is TEXT.
+    CAST(week_starting_monday AS DATE) >= DATE '2022-07-01'
     AND ProductGroupL4Name IN (
       'Anaesthesia','Hospitalisation','Imaging','Surgery','Other','Consult'
     )

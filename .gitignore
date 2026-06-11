@@ -113,3 +113,8 @@ _share_to_claude/
 *.bak
 *.bak_*
 *.bak[0-9]*
+# --- Bundle SQL data-prep input: recept i Git, BCG-radata i kallan ---
+# De tre CSV:erna ar BCG-original (se input/README.md for var de hamtas).
+# Ignorera radatan, men committa receptet (README).
+**/Sweden_Bundling_Data_Prep/input/*.csv
+!**/Sweden_Bundling_Data_Prep/input/README.md
