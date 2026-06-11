@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `INSIGHTS.md`.
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-05-29
+**Senast uppdaterad:** 2026-06-11
 
 ---
 
@@ -37,6 +37,7 @@ En insikt här svarar på *"vad är sant om modellen/datan, och vad betyder det 
 | IB.9 | Grövre granularitet → starkare, renare elasticitet | Bundle > Cluster > Site i signaltäthet |
 | IB.10 | Signifikanta tecken-flip-grupper på fin nivå är svag-signal-OLS | Inte replikeringsfel; stärker IB.9 |
 | **IB.11** | **Snapshot-drift = 0.057% på fryst fönster (DW idag vs BCG 2025-07)** | **Användbart baseline-band för framtida valideringar** |
+| **IB.12** | **Väv-vinst ≠ volym-materialitet: Bundle 23,9% volym men 2,2% väv-vinst** | **Mät drivande andel där besluten avgörs, inte där omsättningen ligger** |
 
 ---
 
@@ -199,6 +200,38 @@ framåt vid liknande tidsavstånd från en extrakt. (2) På klusternivå kan ens
 ~1.5% i båda riktningarna — om en framtida körning visar drift utöver detta band utan extra månader, är
 det signal på något annat (klinik öppnat/stängt, datakvalitetsproblem). (3) Detta är *grund*-driften
 för rimlighetsgrindens design (IB.6) — output-rimlighet ska inte trigga larm på drifter inom detta band.
+
+### IB.12 — Väv-vinst ≠ volym-materialitet: mät drivande andel där besluten avgörs
+**Observation (2026-06-11):** Step 6 (F1–F7-väven) körd första gången på växande data (Cluster+Site
+växande, bundle/vikter/routning frusna) fördelade slutelasticitetens källa per ProductKey så här
+(108 979 rader / 15 128 ProductKeys):
+
+| Nivå | Rader | Andel |
+|---|---:|---:|
+| F6 service within cluster | 81 289 | 74,6 % |
+| F3 cluster level | 10 652 | 9,8 % |
+| F5 product across clusters | 10 401 | 9,5 % |
+| F7 service across clusters | 4 207 | 3,9 % |
+| **F2 bundle level** | **2 016** | **1,8 %** |
+| **F4 bundle across clusters** | **401** | **0,4 %** |
+| F1 site level | 13 | 0,0 % |
+
+**Kärnan:** Bundle (F2+F4) blir vald källa för bara **2,2 %** av raderna. Jämför med Bundle-modellens
+materialitet uppströms: varukorgs-*transaktioner* var 23,9 % av omsättningen, modellerade varukorgar
+526 M (~4,3 %). Men i väven — där det faktiskt avgörs vilken elasticitet som styr ett prisbeslut — vinner
+bundle bara 2,2 %, eftersom Cluster/Site-nivåerna räddar elasticiteten *innan* väven når bundle-grenen för
+97,8 % av produkterna.
+
+**Konsekvens:** (1) En modellkomponents **drivande andel** mäts där besluten avgörs (väven), inte där
+omsättningen råkar ligga (transaktionsvolym). De två kan skilja en storleksordning. (2) Detta bekräftar
+Bundle-parkeringen empiriskt (FD.11): att färdigställa Bundle-modellen påverkar 2,2 % av utfallen — teknisk
+kostnad står inte i proportion. (3) Generell förvaltningsprincip: prioritera uppdatering/förvaltning efter
+väv-vinst-andel, inte efter volym. Det pekar ut F6 (service-within-cluster, 74,6 %) och F3/F5 (cluster,
+~19 %) som de komponenter vars färskhet och kvalitet betyder mest — och som därför ska prioriteras högst i
+fresh-data-förvaltningen. (4) 74,6 % F6 bekräftar IB.1/IB.9: de flesta produkter saknar signifikant egen
+elasticitet ens på klusternivå och ärver service-nivåns — exakt varför väven finns. *(Första växande
+Step 6-körningen: median final_elasticity −0,497, 100 % negativa, 100 % i (−10,0)-bandet — rimligt på
+grindens egna kriterier. Tre frusna lås dokumenterade i LF.9 / FD.11/14/15.)*
 
 ---
 

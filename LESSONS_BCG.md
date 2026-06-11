@@ -556,6 +556,37 @@ faktiskt producerar. Anta aldrig att BCG-kod är körklar — den är ofta UK-re
 
 ---
 
+### LB.52 — Step 6 förväntar pre-splittad KEY (ItemCode-kolumn); vår växande output har bara KEY
+**Symptom:** `Fall_Back_Logic.py` rad 252 (`read_blended_model_data`) kraschade med `KeyError: 'ProductKey'`
+på `dfcluster.merge(service_map, on=ProductKey)`. Cluster-läsaren renamar `{'ItemCode':'ProductKey'}` men
+vår växande `output_summary.xlsx` har ingen `ItemCode`-kolumn — bara `KEY` (`Clinics 0-AAP115`).
+**Rotorsak:** BCG:s facit-blended_model hade kolumnerna pre-splittade (`ItemCode` + `Cluster` separat),
+medan vår rå modell-output bär `KEY` (samma format som Site/Bundle). `read_blended_model_data` saknar den
+KEY-extraktion som `reading_site_level_data` och `reading_bundle_cluster_level_data` redan har — för facit
+behövde den inte den. En strukturskillnad mellan facit och växande output, inte ett datafel.
+**Regel:** När du matar växande modell-output till ett BCG-steg som förväntar facit-struktur: splitta `KEY`
+→ `Cluster` + `ItemCode` i runnern (`rsplit('-', n=1)` — klusternamn har mellanslag men inga bindestreck,
+ItemCode har inga bindestreck, så sista bindestrecket är rätt separator; matchar `extract_cluster_from_key`).
+Lägg anpassningen i runnern, inte i BCG-koden — då förblir `Fall_Back_Logic.py` orörd och facit-jämförbar.
+
+---
+
+### LB.53 — xlwings `wb.names[range]` kraschar (com_error) om mallens namnområde saknas; datan är redan sparad
+**Symptom:** Step 6 kraschade på sista raden (rad 691, `write_df_preserve_named_range`) med
+`pywintypes.com_error` på `wb.names[named_range].refers_to = ...`. Mallen `Excel_Outputs\Sweden_Fallback.xlsx`
+saknar det namngivna området `raw` som koden försöker resiza.
+**Rotorsak:** `wb.names[named_range]` antar att namnområdet finns; gör det inte kastar Excel-COM ett generiskt
+undantag. Detta är sista steget (uppdaterar BCG:s pivot-dashboard), EFTER att `Final_Fallback_Data.xlsx` +
+den timestampade kopian redan skrivits (rad 671/686). Datan går alltså inte förlorad — bara dashboard-
+kosmetiken fallerar. (Samma COM-klass som LB.45.)
+**Regel:** (1) Behandla mall-/named-range-skrivning som kosmetiskt sista steg — verifiera output via den
+fristående `Final_Fallback_Data*.xlsx` (R7: lita på filen, inte på att hela scriptet exitar 0). (2) Gör
+namnområdes-skrivning defensiv: `try: wb.names[nr] except KeyError/com_error: wb.names.add(nr, ...)` — skapa
+om det saknas istället för att krascha. (3) En icke-noll exit betyder inte att datan saknas; kontrollera
+vad som skrevs före kraschpunkten.
+
+---
+
 ## Hur listan växer
 
 Ny lärdom läggs till när vi snubblar över en teknisk fälla — miljö, infrastruktur, kod-mekanik,
@@ -571,4 +602,4 @@ MASTER_SQL och låt LB peka dit.
 *Skapad 2026-05-23 vid dokumentstruktur-omtaget; extraherad ur SESSION_*-filer. LB.29-30 tillagda
 2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
-förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`). LB.48-51 tillagda 2026-06-11 efter F.9 Bundle-dataprep körd växande + Bundle-modellen datadrivet parkerad (FD.11): läs runnern före patch-deklaration (LB.48), all_varchar vid masterdata-parquet-konvertering (LB.49), dubbel-fönster-fällan/konstant-ankare (LB.50, DRIFT), BCG-kod UK-rester + config-verifiering före körning (LB.51). Bundle-dataprep committad i `1daf093`.*
+förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`). LB.48-51 tillagda 2026-06-11 efter F.9 Bundle-dataprep körd växande + Bundle-modellen datadrivet parkerad (FD.11): läs runnern före patch-deklaration (LB.48), all_varchar vid masterdata-parquet-konvertering (LB.49), dubbel-fönster-fällan/konstant-ankare (LB.50, DRIFT), BCG-kod UK-rester + config-verifiering före körning (LB.51). Bundle-dataprep committad i `1daf093`. LB.52-53 tillagda 2026-06-11 efter F.10 Step 6 körd första gången på växande data (Alternativ A): KEY-split-fällan i blended_model (LB.52), xlwings named-range com_error på mall-skrivning (LB.53). Step 6 producerade 108 979 rader / 15 128 ProductKeys, median final_elasticity -0.497, 100% negativa.*
