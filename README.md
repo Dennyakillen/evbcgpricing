@@ -19,7 +19,7 @@ This repo (`evbcgpricing`) contains:
 1. **Validated replication of BCG's pipeline** — proves on frozen data that we reproduce BCG's
    elasticity numbers bit-for-bit (FAS V complete, see `verify_tool/`).
 2. **Fresh-data infrastructure** — the parametrizations and validators needed to run the model on
-   live data, not just BCG's 2025-07 snapshot (FAS F in progress).
+   live data, not just BCG's 2025-07 snapshot (FAS F **complete** — see `DRIFT.md`).
 3. **Lessons + insights logbook** — accumulated technical learnings (`LESSONS_BCG.md`) and analytical
    insights (`INSIGHTS_BCG.md`) so this stays operable across sessions and across people.
 
@@ -34,20 +34,25 @@ with current data:
 
 ---
 
-## Current state (2026-05-29)
+## Current state (2026-06-11)
 
 | Phase | Status |
 |---|---|
 | FAS V — Validate that we reproduce BCG | **DONE.** verify_tool proves FR-1 through FR-7. |
 | FAS T — Tech debt to IT (reproducible env, pinned venv) | Open; not blocking experimental runs. |
-| FAS F — Fresh-data prerequisites | **G7 done** (date window parametrized). DW extraction validated. Pipeline run on growing window pending. |
-| FAS A — Azure automation | Future. Requires Blob Storage role (currently blocked by Owner permission). |
+| FAS F — Fresh-data prerequisites | **DONE.** All 3 model families run on growing data; Step 6 (fallback weave) run and validated; model can be fed via `build_r12_for_model.py`. Bundle parked on evidence (FD.11); 3 inputs intentionally frozen (LF.9). |
+| FAS A — Azure automation | **Next.** Move the validated structure to a maintained Azure environment. Requires Blob Storage role (currently blocked by Owner permission). See `FUTURE_DEVELOPMENT.md` Phase Z. |
+
+**Fresh-data result (2026-06-11):** the model now runs end-to-end on Evidensia's own growing data
+through 2026-04. Step 6 produced 108,979 rows / 15,128 products (100% negative, 100% in band);
+revenue-weighted core elasticity moved from BCG's 2025 baseline −0.532 to −0.512 — materially stable.
+Full evidence in `REPLIKERING_OCH_VALIDERING.md`; operational runbook in `DRIFT.md`.
 
 **Last validated state:** `export_b4b_for_model.py` produces the exact same aggregate as BCG's frozen
 facit (0.057% revenue drift, within snapshot expectations) when run against the frozen window
 (2022-07-01..2025-06-28). Run against a growing window (2022-07-01..2026-04-30, +10 months data) it
-produces a CSV with 27% more revenue and 20% NULL-FTE in the new weeks — expected, awaiting pipeline
-test.
+produces a CSV with 27% more revenue and 20% NULL-FTE in the new weeks — expected, now run through the
+full pipeline (FAS F done).
 
 ---
 
@@ -98,6 +103,22 @@ To return to BCG's frozen window, unset the env-var:
 Remove-Item Env:BCG_END_DATE
 ```
 
+### Run the model on fresh data and feed the pricing workbook
+
+Full operational runbook in **`DRIFT.md`**. In short:
+
+```powershell
+cd "C:\Projekt\BCG"
+py -3.11 verify_tool\run\run_step6.py                      # 1. fallback weave (F1–F7)
+py -3.11 verify_tool\run\build_r12_for_model.py `          # 2. R12 volume + elasticity per code×site
+  --tx "Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL\output\Sweden_weekly_model_data_site_level.csv"
+```
+
+Step 1 produces the fresh blended elasticities; step 2 produces `output_model_feed\Model_Feed_<date>.xlsx`
+— three sheets (FACT_CodeClinic, DIM_Code, DIM_Site) named exactly like the BCG workbook's blue input
+tabs, hardcoded values ready to copy-paste. Enter a price assumption in the workbook and it computes the
+revenue effect.
+
 ---
 
 ## Architecture
@@ -139,11 +160,13 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 
 | File | Purpose |
 |---|---|
-| `NEXT_SESSION.md` | Where the project is right now and what the next session should do |
+| `DRIFT.md` | **Operational runbook** — how to run & maintain the model on fresh data, end-to-end |
+| `REPLIKERING_OCH_VALIDERING.md` | **Full evidence record** — how replication was proven bit-for-bit and how fresh output is validated |
 | `BCG_PRICING_PLAYBOOK.md` | Operational playbook — how to run the pipeline end-to-end |
 | `LESSONS_BCG.md` | Technical lessons (LB.N) — what we learned the hard way |
 | `INSIGHTS_BCG.md` | Analytical insights (IB.N) — observations about the model and data |
-| `ROADMAP.md` | Phase overview: V → T → F → A |
+| `ROADMAP.md` | Phase overview: V → T → F → A (F done, A next) |
+| `FUTURE_DEVELOPMENT.md` | Future tracks (FD.N), incl. Phase Z productionization (the next session's plan lives here now) |
 | `FAS_F_G7.md` | Date window parametrization design |
 | `UBUNTU_AZURE_VM.md` | Linux/bash specifics for Azure VM operations |
 | `verify_tool/README.md` | Verification suite documentation |

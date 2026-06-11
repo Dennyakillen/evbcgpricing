@@ -1,0 +1,135 @@
+<!DOCTYPE html><html lang="sv"><head><meta charset="UTF-8">
+<style>
+:root{--navy:#1F487C;--navy2:#15325a;--teal:#2A9D8F;--amber:#E9A23B;--red:#C8553D;
+--ink:#1A1A1A;--muted:#5b6878;--line:#D9DEE6;--wash:#F4F7FB;--green:#1F7A4D;--beige:#FDEDE0;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,"Segoe UI",Arial,sans-serif;color:var(--ink);line-height:1.5;background:#E7EBF0;}
+.page{width:960px;margin:24px auto;background:#fff;padding:54px 60px 40px;box-shadow:0 2px 16px rgba(20,40,70,.1);}
+.eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--navy);font-weight:700;margin-bottom:14px;}
+h1{font-size:31px;font-weight:800;color:var(--navy2);letter-spacing:-.4px;margin-bottom:10px;line-height:1.12;}
+.sub{font-size:14px;color:var(--muted);max-width:720px;margin-bottom:20px;}
+.rule{height:5px;border-radius:3px;margin:14px 0 24px;background:linear-gradient(90deg,var(--navy),var(--teal) 55%,var(--amber));}
+h2{font-size:18px;color:var(--navy2);font-weight:800;margin:26px 0 12px;}
+.goal{background:var(--beige);border-left:5px solid var(--amber);border-radius:8px;padding:16px 20px;margin-bottom:24px;}
+.goal .t{font-weight:800;color:var(--navy2);font-size:13px;letter-spacing:.04em;margin-bottom:4px;}
+.goal p{font-size:13.5px;color:#3a4756;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0 8px;}
+th{background:var(--navy);color:#fff;text-align:left;padding:8px 10px;font-size:11px;font-weight:700;letter-spacing:.02em;}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:nth-child(even) td{background:var(--wash);}
+.mono{font-family:"Consolas",monospace;font-size:11.5px;color:var(--navy2);}
+.tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;}
+.have{background:#E3F4EC;color:var(--green);} .ext{background:var(--beige);color:var(--red);}
+.partial{background:#FFF3DD;color:var(--amber);}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+.panel{border:1px solid var(--line);border-radius:9px;padding:18px 20px;}
+.panel.have{border-top:4px solid var(--teal);background:#F4FBF9;}
+.panel.rem{border-top:4px solid var(--amber);background:#FFFAF3;}
+.panel h3{font-size:14px;color:var(--navy2);margin-bottom:10px;}
+.panel ul{list-style:none;} .panel li{font-size:12.5px;color:#3a4756;padding:4px 0 4px 16px;position:relative;}
+.panel li:before{content:"›";position:absolute;left:0;color:var(--navy);font-weight:700;}
+.step{font-size:13px;color:#33414f;margin:7px 0;padding-left:26px;position:relative;}
+.step b{color:var(--navy2);}
+.step .n{position:absolute;left:0;top:0;width:19px;height:19px;border-radius:50%;background:var(--navy);
+color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.note{font-size:11.5px;color:var(--muted);font-style:italic;margin-top:6px;}
+.footer{margin-top:26px;border-top:1px solid var(--line);padding-top:10px;font-size:10.5px;color:var(--muted);
+display:flex;justify-content:space-between;font-family:"Consolas",monospace;}
+@media print{body{background:#fff;}.page{box-shadow:none;margin:0;}}
+</style></head><body>
+<div class="page">
+<div class="eyebrow">BCG Pricing Model · Fresh-Data Update Guide</div>
+<h1>Vad vi kan uppdatera i modellen — och med vilka filer</h1>
+<p class="sub">Konkret karta över BCG-prismodellens blå indataflikar: vilka kolumner vi nu kan fylla med
+växt data, vilka filer som bär dem, och vad som kvarstår. Inga beräkningar ändras — endast data fylls i.</p>
+<div class="rule"></div>
+
+<div class="goal">
+<div class="t">DITT MÅL</div>
+<p>Fylla in R12-volym per kod + färsk elasticitet (växt data, samma R12-fönster som BCG men framflyttat
+slutdatum) så att modellen, när prisantaganden läggs in, genererar estimat på omsättningseffekten.
+De tre kolumnerna som driver det målet: <b>FACT_Quant_25</b> (volym), <b>FACT_Sales_25</b> (omsättning),
+<b>FACT_Elasticity</b>. Allt annat i kalkylen räknas av modellens egna formler.</p>
+</div>
+
+<h2>De tre drivande kolumnerna — kan vi fylla dem?</h2>
+<table>
+<tr><th>Modellkolumn (blå flik FACT_CodeClinic)</th><th>Vad det är</th><th>Vår källfil</th><th>Status</th></tr>
+<tr><td class="mono">FACT_Elasticity</td><td>Slutelasticitet per kod (vald av väven)</td>
+<td class="mono">Final_Fallback_Data_&lt;datum&gt;.xlsx<br>kolumn: final_elasticity</td><td><span class="tag have">HAR</span></td></tr>
+<tr><td class="mono">FACT_Elasticity_R2<br>FACT_Elasticity_pValue</td><td>Modellens passform & signifikans</td>
+<td class="mono">samma fil: RSQ, PVALUE</td><td><span class="tag have">HAR</span></td></tr>
+<tr><td class="mono">FACT_Quant_25</td><td>R12 volym per kod (st)</td>
+<td class="mono">DW-extraktion (export_b4b_for_model.py)<br>→ kräver R12-aggregering per kod×kluster</td><td><span class="tag partial">HAR DATA, EJ AGGREGERAD</span></td></tr>
+<tr><td class="mono">FACT_Sales_25</td><td>R12 omsättning per kod (kr, brutto)</td>
+<td class="mono">samma DW-extraktion: SalesTotal<br>→ samma R12-aggregering</td><td><span class="tag partial">HAR DATA, EJ AGGREGERAD</span></td></tr>
+</table>
+<p class="note">Elasticiteten kan kopieras rakt in. Volym & omsättning finns i vår DW-extraktion men som
+veckovis/per-KEY rådata — de behöver summeras till R12 per kod×kluster (modellens grain). Det är ett litet
+aggregeringssteg vi inte byggt än (se nästa sida).</p>
+
+<h2>Steg för steg — så uppdaterar du de tre kolumnerna</h2>
+<div class="step"><span class="n">1</span><b>Elasticitet:</b> öppna <span class="mono">Final_Fallback_Data_&lt;senaste&gt;.xlsx</span>
+(i <span class="mono">Pipeline\02. Elasticity\6. Fall Back Logic\output_data\</span>). Mappa
+<span class="mono">final_elasticity / RSQ / PVALUE</span> per ProductKey → modellens
+<span class="mono">FACT_Elasticity / _R2 / _pValue</span> matchat på FACT_ItemCode + FACT_Cluster.</div>
+<div class="step"><span class="n">2</span><b>R12 volym & omsättning:</b> kör DW-extraktionen med R12-fönster t.o.m. senaste
+månad, aggregera <span class="mono">SoldQuantity</span> och <span class="mono">SalesTotal</span> per
+ItemCode×Cluster → modellens <span class="mono">FACT_Quant_25 / FACT_Sales_25</span>.</div>
+<div class="step"><span class="n">3</span><b>Klistra in i blå fliken</b> FACT_CodeClinic. Rör inga formelflikar
+(Calculations, Pricing Model, dashboards) — de räknar om automatiskt.</div>
+<div class="step"><span class="n">4</span><b>Lägg in prisantagande</b> i modellens input (Input Logic / prisjust-kolumner)
+→ modellen genererar omsättningseffekten.</div>
+
+<div class="footer"><span>BCG Pricing Model · Fresh-Data Update · Konfidentiellt</span><span>Jens Palmö · Senior Business Analyst</span></div>
+</div>
+
+<div class="page">
+<div class="eyebrow">Sida 2 · Helhet & vad som kvarstår</div>
+<h1>Hela blå-flik-bilden: har, delvis, kvarstår</h1>
+<p class="sub">För ditt omsättningseffekt-mål räcker de tre kolumnerna på föregående sida. Men de blå flikarna
+har fler kolumner — här är hela bilden så du vet vad som inte fylls från vår pipeline.</p>
+<div class="rule"></div>
+
+<div class="two">
+<div class="panel have">
+<h3>✓ Detta kan vi fylla nu</h3>
+<ul>
+<li><b>FACT_Elasticity</b> + R²/pValue — direkt ur Step 6-output</li>
+<li><b>FACT_ItemCode, FACT_Cluster</b> — masterdata</li>
+<li><b>FACT_ProductGroupL1/L4Name</b> — masterdata</li>
+<li><b>FACT_Quant_25, FACT_Sales_25</b> — DW-extraktion + R12-aggregering</li>
+<li><b>DIM_Code:</b> ItemCode, Sales/Quant_2025, hospital/clinic-split</li>
+<li><b>DIM_Site:</b> Cluster, SiteType, LFL_FLAG</li>
+</ul>
+</div>
+<div class="panel rem">
+<h3>⚠ Detta kvarstår (utanför vår pipeline)</h3>
+<ul>
+<li><b>FACT_PriceInclVAT_*, RealizedPrice, PrisJust</b> — pris från Provet/prislistor</li>
+<li><b>FACT_CompHierarchy, CompIndex</b> — konkurrentdata (extern)</li>
+<li><b>DIM_HHI, Num Competitors, Population Density</b> — marknadsdata (extern)</li>
+<li><b>DIM_FTEHours_Quinyx, FTEAvg</b> — bemanning (Quinyx; Way 2 ej byggd)</li>
+<li><b>DIM_FVClinic/Hospital, LBInt/UBInt</b> — elasticitetsband per nivå</li>
+<li><b>_MANUAL-kolumner</b> — manuella överstyr (fylls av verksamheten)</li>
+</ul>
+</div>
+</div>
+
+<h2>Den enda riktiga byggbiten: R12-aggregeringen</h2>
+<p class="sub" style="margin-bottom:10px;">Elasticiteten är klar att kopiera. Det enda som behöver byggas
+för ditt mål är ett litet skript som summerar DW-extraktionens rådata till R12 per kod×kluster — samma
+fönsterlängd som BCG (12 månader) men med slutdatum framflyttat till senaste månad.</p>
+<table>
+<tr><th>Vad</th><th>Detalj</th></tr>
+<tr><td><b>Fönster</b></td><td class="mono">BCG: R12 t.o.m. 2025-06 &nbsp;→&nbsp; vår: R12 t.o.m. 2026-04 (samma 12 mån, framflyttat)</td></tr>
+<tr><td><b>Indata</b></td><td class="mono">DW-extraktionens transaction-data (SoldQuantity, SalesTotal per KEY/vecka)</td></tr>
+<tr><td><b>Aggregering</b></td><td>SUM(SoldQuantity) och SUM(SalesTotal) GROUP BY ItemCode, Cluster över de 12 senaste månaderna</td></tr>
+<tr><td><b>Utdata</b></td><td class="mono">FACT_Quant_25, FACT_Sales_25 — klistras i blå fliken</td></tr>
+</table>
+<p class="note">Detta skript (förslagsvis <span class="mono">build_r12_for_model.py</span>) finns inte än —
+det är den enda saknade biten mellan vår data och en ifylld blå flik för ditt omsättningseffekt-mål.</p>
+
+<div class="footer"><span>BCG Pricing Model · Fresh-Data Update · Konfidentiellt</span><span>Jens Palmö · Senior Business Analyst</span></div>
+</div>
+</body></html>

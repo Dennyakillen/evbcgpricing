@@ -65,6 +65,41 @@ fas**.
 Dessa fyra hänger ihop som ett block — när BCG-pipelinen mognat tillräckligt för att vara produktion
 istället för analys, behöver vi bygga om körnings-infrastrukturen från manuell till automatisk.
 
+> **NÄSTA SESSION — Phase Z kickoff: produktionssätt i Azure.**
+> FAS F är klar (2026-06-11): alla tre modellfamiljer körda på växande data, Step 6-väven körd och
+> validerad, modellen kan matas end-to-end (`build_r12_for_model.py`, 99,5 % elasticitet-match).
+> Replikeringen är bevisad (FR-1..7, korr 1.000000) och dokumenterad (`REPLIKERING_OCH_VALIDERING.md`).
+> Den naturliga nästa fasen är ROADMAP **FAS A** — flytta den städade, validerade strukturen till en
+> hållbar Azure-miljö som verksamheten äger, körbar och ev. schemalagd.
+>
+> **Sessionen i en mening:** ta modellen från "körbar på Jens arbetsstation + VM on-demand" till
+> "körbar i en driftmiljö Evidensia äger" — börja med det som inte är blockerat och bygg uppåt.
+>
+> **Startordning (minst beroende först):**
+> 1. **Förutsättnings-grind (FD.1-anda):** lista exakt vad en nattkörning kräver — VM-start/stopp
+>    automatiserat, sökvägar, venv, output-placering. Mycket finns redan (`run_step6.py`,
+>    `build_r12_for_model.py` är omkörbara; VM-start/deallocate dokumenterat i UBUNTU_AZURE_VM).
+> 2. **IT-ask (ROADMAP FAS T → A):** Blob Storage-roll (Storage Blob Data Contributor, blockerad av
+>    Owner-behörighet Jens saknar), public-IP-policy, compute. Sammanställ från KRAVSPEC_IT +
+>    TECHNICAL_PREREQUISITES. Detta är förutsättningen — bygg inte miljön innan IT gett rollerna.
+> 3. **FD.2 Blob Storage** för pull-baserad output (väntar Kent) → **FD.3** schemalagda körningar
+>    (Azure Automation / cron) → **FD.4** övervaknings-loggning och larm.
+> 4. **Projektavslut (FD.10):** städnings- och konsolideringsfasen — kör `cleanup_plan.ps1`,
+>    verifiera att inget brutits, committa den slutliga strukturen.
+>
+> **Pre-flight (om VM behövs):** sätt rätt subscription FÖRE VM-kommandon (LB.46):
+> ```powershell
+> az account show --query "{user:user.name, subscription:name}" -o table
+> az account set --subscription "ev-lz3-ai (SE)"
+> az vm start --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+> # Deallocera när klart: az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+> ```
+>
+> **Förväntat utfall:** en dokumenterad väg från manuell körning till driftmiljö, IT-asken
+> sammanställd och inlämnad, och de delar som kan byggas utan IT (omkörbara skript, output-struktur)
+> på plats. Det som blockeras av IT-roller väntar — men är specificerat så det kan börja direkt när
+> rollerna ges. **Detta ersätter den tidigare NEXT_SESSION.md** (vars FAS F-uppgift nu är klar).
+
 ### FD.1 — Nattkörningar (fire-and-forget automation)
 
 **Idé:** Pipeline körs på VM helt automatiskt över natten. Skriptet:

@@ -118,3 +118,5 @@ _share_to_claude/
 # Ignorera radatan, men committa receptet (README).
 **/Sweden_Bundling_Data_Prep/input/*.csv
 !**/Sweden_Bundling_Data_Prep/input/README.md
+
+output_model_feed/
