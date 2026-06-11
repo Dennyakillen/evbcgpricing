@@ -120,3 +120,7 @@ _share_to_claude/
 !**/Sweden_Bundling_Data_Prep/input/README.md
 
 output_model_feed/
+
+Pipeline/02. Elasticity/6. Fall Back Logic/output_data/
+
+output_analyspaket/*.pdf
