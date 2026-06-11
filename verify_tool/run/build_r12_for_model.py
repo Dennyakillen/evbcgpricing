@@ -4,8 +4,8 @@ build_r12_for_model.py  --  fyll BCG-modellens blå flikar med växt data
 Producerar de tre drivande kolumnerna för BCG-prismodellens FACT_CodeClinic-flik,
 på växt data med samma R12-fönsterlängd som BCG men framflyttat slutdatum:
 
-  FACT_Quant_25  = SUM(SoldQuantity) per ItemCode x Cluster, senaste 12 mån
-  FACT_Sales_25  = SUM(SalesTotal)   per ItemCode x Cluster, senaste 12 mån  (brutto, IB.5)
+  FACT_Quant_R12 = SUM(SoldQuantity) per ItemCode x Cluster, senaste 12 man (R12)
+  FACT_Sales_R12 = SUM(SalesTotal)   per ItemCode x Cluster, senaste 12 man (R12, brutto, IB.5)
   FACT_Elasticity / _R2 / _pValue = ur Step 6-väven (Final_Fallback_Data)
 
 INGA beräkningar i modellen ändras -- detta producerar bara DATA att klistra in i
@@ -130,8 +130,8 @@ def build_r12(tx_path, end_month, fallback_path):
     print(f"  rader i fönstret: {len(win):,} av {len(tx):,}")
 
     r12 = win.groupby([ic, site], dropna=False).agg(
-        FACT_Quant_25=(qty, "sum"),
-        FACT_Sales_25=(sal, "sum"),
+        FACT_Quant_R12=(qty, "sum"),
+        FACT_Sales_R12=(sal, "sum"),
     ).reset_index().rename(columns={ic: "FACT_ItemCode", site: "FACT_SiteCode"})
     print(f"  R12 per kod×site: {len(r12):,} rader")
 
@@ -176,8 +176,8 @@ def build_r12(tx_path, end_month, fallback_path):
     print(f"  rader (kod×site)            : {len(feed):,}")
     print(f"  med elasticitet (matchad)   : {n_with_elas:,} ({100*n_with_elas/len(feed):.1f}%)")
     print(f"  saknar elasticitet          : {len(feed)-n_with_elas:,}  (ny kod/site ej i väven)")
-    print(f"  Σ R12 volym                 : {feed['FACT_Quant_25'].sum():,.0f}")
-    print(f"  Σ R12 omsättning (brutto)   : {feed['FACT_Sales_25'].sum():,.0f}")
+    print(f"  Σ R12 volym                 : {feed['FACT_Quant_R12'].sum():,.0f}")
+    print(f"  Σ R12 omsättning (brutto)   : {feed['FACT_Sales_R12'].sum():,.0f}")
     print()
     print("  Övriga blå-flik-kolumner (pris, konkurrens, FTE, band, _MANUAL) fylls från")
     print("  andra källor — se Model_Update_Guide. Modellens formelflikar rör du INTE.")
@@ -187,7 +187,7 @@ def build_r12(tx_path, end_month, fallback_path):
     col_order = ["FACT_CodeClinicKey", "FACT_ItemCode", "FACT_SiteCode"]
     if "FACT_Cluster" in feed.columns:
         col_order.append("FACT_Cluster")
-    col_order += [c for c in ["FACT_Quant_25", "FACT_Sales_25", "FACT_Elasticity",
+    col_order += [c for c in ["FACT_Quant_R12", "FACT_Sales_R12", "FACT_Elasticity",
                               "FACT_Elasticity_R2", "FACT_Elasticity_pValue"] if c in feed.columns]
     feed = feed[col_order]
 
@@ -195,8 +195,8 @@ def build_r12(tx_path, end_month, fallback_path):
     # hospital/clinic-split kräver site-typ; härled från Step 6 SiteType om möjligt,
     # annars lämna split tom. R12 totalt per kod fyller vi alltid.
     code = win.groupby(ic, dropna=False).agg(
-        DIM_Sales_2025=(sal, "sum"),
-        DIM_Quant_2025=(qty, "sum"),
+        DIM_Sales_R12=(sal, "sum"),
+        DIM_Quant_R12=(qty, "sum"),
     ).reset_index().rename(columns={ic: "DIM_ItemCode"})
     code["DIM_ItemCode"] = code["DIM_ItemCode"].astype(str).str.strip()
     code["DIM_CodePrefix"] = code["DIM_ItemCode"].str.extract(r"^([A-Za-z]+)")
@@ -206,8 +206,8 @@ def build_r12(tx_path, end_month, fallback_path):
         st[pk_col] = st[pk_col].astype(str).str.strip()
         sitetype_map = dict(zip(st[pk_col], st["SiteType"]))  # grov: per kod
     # split kräver site×typ -> gör enkel: join win med en typ per site om tillgängligt (annars tom)
-    code["DIM_Quant_2025_Hospitals"] = ""   # fylls om site-typ-källa finns (extern/DIM_Site)
-    code["DIM_Quant_2025_Clinics"] = ""
+    code["DIM_Quant_R12_Hospitals"] = ""   # fylls om site-typ-källa finns (extern/DIM_Site)
+    code["DIM_Quant_R12_Clinics"] = ""
     code["DIM_InvoiceGroupDescription"] = ""  # masterdata (service) — fyll från Step 6 service om vill
     if "service" in fb.columns:
         svc = fb[[pk_col, "service"]].copy()
@@ -215,8 +215,8 @@ def build_r12(tx_path, end_month, fallback_path):
         svc_map = svc.dropna().drop_duplicates(pk_col).set_index(pk_col)["service"].to_dict()
         code["DIM_InvoiceGroupDescription"] = code["DIM_ItemCode"].map(svc_map).fillna("")
     code = code[["DIM_ItemCode", "DIM_CodePrefix", "DIM_InvoiceGroupDescription",
-                 "DIM_Sales_2025", "DIM_Quant_2025",
-                 "DIM_Quant_2025_Hospitals", "DIM_Quant_2025_Clinics"]]
+                 "DIM_Sales_R12", "DIM_Quant_R12",
+                 "DIM_Quant_R12_Hospitals", "DIM_Quant_R12_Clinics"]]
 
     # ---- DIM_Site: per site-ID (kluster + R12-volym per site) ----
     sitedf = win.groupby(site, dropna=False).agg(
