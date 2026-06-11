@@ -34,6 +34,7 @@ from _provenance_helpers import (  # noqa: E402
 
 SCRIPTS = [
     "validate_step6_provenance.py",
+    "validate_fallback_freshness.py",
 ]
 
 

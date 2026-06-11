@@ -164,6 +164,27 @@ def run_step6() -> int:
     if proc.stdout:
         print(proc.stdout.rstrip())
     if proc.returncode != 0:
+        # Known-benign case (LB.53): Final_Fallback_Data is written (rows 671/686)
+        # BEFORE the cosmetic template/named-range write (row 691) that throws a
+        # COM error when the Sweden_Fallback.xlsx template lacks the 'raw' name.
+        # If the data file exists, the run SUCCEEDED on the part that matters.
+        is_template_comerror = (
+            "write_df_preserve_named_range" in (proc.stderr or "")
+            or "com_error" in (proc.stderr or "").lower()
+            or "wb.names" in (proc.stderr or "")
+        )
+        data_written = bool(
+            list((FBL / "output_data").glob("Final_Fallback_Data*.xlsx"))
+            or list(FBL.glob("Final_Fallback_Data*.xlsx"))
+        )
+        if is_template_comerror and data_written:
+            log("RUN-WARN", "Fall_Back_Logic.py threw on the COSMETIC template write "
+                            "(LB.53: Sweden_Fallback.xlsx named-range). The fallback DATA "
+                            "was written before that step -- treating run as SUCCESS.")
+            log("RUN-WARN", "Dashboard template NOT refreshed. To fix permanently, add the "
+                            "'raw' named range to the template, or wrap the write in "
+                            "try/wb.names.add. Data is unaffected.")
+            return 0
         log("RUN-FAIL", f"exit {proc.returncode}")
         if proc.stderr:
             print("---- STDERR ----")
