@@ -51,6 +51,7 @@ låsningar** som skyddar affärskontinuitet över sessioner och datavolymer.
 | LF.6 | FTE via Way 1 (BCG:s interpolerade fil), ej Way 2 (DW-native härledning) | Modellen jagar ett rörligt mål om FTE-källan ändras |
 | LF.7 | `ProductGroupL4Name` är BCG:s bespoke kategorisering, ej DW-härledd | Service-mappningen bryts; fallback-grupperingen blir inkompatibel |
 | LF.8 | ProductGroupL4Name lyfts från BCG 0828 (ej DW Master_Underkategori3) | 73% ItemCodes droppas, tjänster försvinner |
+| LF.9 | Step 6 körs med 3 frusna inputs (bundle/vikter/routning) — elasticiteter växande | Blandar färskt och fruset; över-tolkning om ej dokumenterat |
 
 ---
 
@@ -264,6 +265,44 @@ beslut: vem äger den vetenskapliga produktkategoriseringen för Klinik/Lab-tjä
 `cb64dd6` (ROOT CAUSE PROVEN). Patch implementerad i `export_b4b_for_model.py` rad 75 + 110.
 End-to-end-bevisad 2026-06-08 på VM: pipeline producerar 4180 KEY inklusive AAP130 med
 elasticitet -0.52 (p=0.001) på Clinics 0.
+
+---
+
+### LF.9 — Step 6 körs med tre frusna inputs medan elasticiteterna är växande (Alternativ A)
+
+**Förutsättning:** Den första växande Step 6-körningen (F.10, 2026-06-11) blandar medvetet färska och
+frusna inputs. **Växande:** Cluster + Site priselasticiteter (kärnsignalen — själva priskänsligheten).
+**Frusna (tre lås):**
+- **Bundle-grenen** (F2/F4) — BCG-facit `output_summary_bundle.xlsx`, Bundle-modellen parkerad (FD.11).
+- **Väv-vikterna** — `Complete_Product_Data.xlsx` med `SalesTotal_YearEnding25` (hårdkodat 2025-årtal),
+  BCG-facit. Elasticiteterna viktas alltså med frusen 2025-omsättning (FD.14).
+- **Steg-5-routningen** — `final_model_cluster_granularity_Ivce.xlsx` (43 reps, 2025-12), regenererades
+  aldrig växande; routningen som väljer tjänste-granularitet är fryst vid BCG:s 2025-struktur (FD.15).
+
+**Varför låst (motivet — viktigt för förvaltningsprioritering):** De drivande andelarna av modellen är
+färska. Väv-vinst-analysen (IB.12) visar att slutelasticiteten kommer från F6 (74,6 %), F3/F5 (~19 %) —
+alla *växande* Cluster-baserade nivåer. De tre frusna låsen påverkar tillsammans en liten del av utfallet:
+bundle-grenen vinner 2,2 %, vikterna påverkar aggregering (ej de enskilda elasticiteterna), routningen
+påverkar tjänste-granularitets-valet. Att frysa dem var ett medvetet val för att **hålla farten** och
+leverera en första färsk affärsläsning nu, istället för att blockera på tre uppströms-byggen vars
+sammanlagda påverkan på besluten är begränsad. Provenance-validatorn (`verify_tool/provenance/`) gör
+mixen explicit så ingen över-tolkar resultatet — frusenhet rapporteras som REVIEW, inte fel.
+
+**Vad som händer om vi bryter (dvs glömmer att det är låst):** Beslutsfattare kan tro att hela
+slutelasticiteten är färsk när viktning, routning och bundle-gren vilar på 2025. För top-line-beslut är
+det troligen oväsentligt (elasticiteten är huvudsignalen), men för finkorniga beslut på de 2,2 % bundle-
+vinnande KEY:n, eller där 2025-viktningen skevar en service-aggregering, kan det vilseleda.
+
+**Vad som skulle krävas för revision (förvaltnings-roadmap, prioritetsordning):** Lyft låsen i ordning
+efter väv-påverkan, billigast först: **FD.15** (steg-5-blend växande — billig, validerat skript, växande
+input finns) → **FD.14** (väv-vikter växande — kräver Alteryx Modul 4 eller DuckDB-ersättning, rullande
+12M-fönster ej hårdkodat årtal) → **FD.11** (Bundle-modellen — dyrast, men bara 2,2 % väv-vinst, lyfts bara
+om rimlighetsgrinden visar att sjukhustjänster är tunna). När alla tre är växande är Step 6 helt färsk.
+
+**Datum låst:** 2026-06-11 (F.10 första växande Step 6-körning).
+**Källa:** `run_step6.py` (placerar inputs, kör Step 6, rapporterar F-nivå-fördelning).
+Provenance-validering: `verify_tool/provenance/validate_step6_provenance.py`. Resultat: 108 979 rader /
+15 128 ProductKeys, median final_elasticity −0,497, 100 % negativa, 100 % i (−10,0). Bundle-vinst 2,2 %.
 
 ---
 
