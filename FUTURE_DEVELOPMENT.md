@@ -55,6 +55,8 @@ fas**.
 | FD.11 | Bundle-modellens färdigställande (parkerat, väv-beroende) | Pausad |
 | FD.12 | Bundle Ray-init till config-driven (matcha Cluster/Site) | Idé |
 | FD.13 | Sandbox-Excel: dynamisk metodik-förklaring mot beslutsfattare | Specad |
+| FD.14 | Väv-vikter växande (ersätt frusen Complete_Product_Data 2025) | Idé |
+| FD.15 | Cluster steg-5-blend växande (43 reps, routning fryst 2025) | Idé |
 
 ---
 
@@ -385,6 +387,60 @@ spårbara formler per steg).
 
 ---
 
+### FD.14 — Väv-vikter på växande data (ersätt frusen `Complete_Product_Data.xlsx`)
+
+**Idé:** Step 6:s fallback-väv viktar elasticiteter med omsättning (`wt_elas = elasticity ×
+TotalNet`). Vikterna kommer från `6. Fall Back Logic\input_data\Complete_Product_Data.xlsx` —
+en Alteryx-output med kolumnen `SalesTotal_YearEnding25` (hårdkodat 2025-årtal). Filen är BCG-facit
+(108 984 rader, identifierad av `verify_provenance` 2026-06-11). Bygg en växande motsvarighet så
+vikterna speglar färsk omsättning.
+
+**Värde:** Idag viktas även växande Cluster/Site-elasticiteter med **frusen 2025-omsättning**. Själva
+elasticiteten (priskänsligheten) är färsk, men aggregeringen/viktningen är låst vid 2025. För
+top-line-beslut spelar det troligen liten roll (elasticiteten är huvudsignalen), men vikterna avgör
+hur enskilda KEY:n väger i service-/produkt-fallbacknivåerna (F5-F7). Växande vikter gör hela väven
+färsk, inte bara elasticiteterna.
+
+**Beror på:** Alteryx Modul 4 (producerar `Complete_Product_Data`) — eller en DuckDB-ersättning som
+bygger samma kolumner (`ItemCode, ItemDescription, ProductGroupL4Name, ID_Department, Cluster,
+New_Cluster, SalesTotal, SalesTotal_YearEnding25`) från växande masterdata. Det senare är i linje med
+att vi redan ersatt Modul 1/2/3/6 med DuckDB (Modul 4 var det sista Alteryx-beroendet).
+
+**Estimerad omfattning:** Medel (DuckDB-bygge som speglar Modul 4:s aggregering + validering mot facit-
+strukturen). Notera: `YearEnding25`-kolumnen bör generaliseras till ett rullande 12M-fönster, inte ett
+hårdkodat årtal (samma princip som LB.50 konstant-ankare).
+
+**Status:** Idé. Identifierad av `verify_provenance`-suiten (provenance-validering) 2026-06-11.
+
+**Datum identifierad:** 2026-06-11 / provenance-validering av Step 6-inputs.
+
+---
+
+### FD.15 — Cluster steg-5-blend på växande data (43 reps / service-granularitets-routning)
+
+**Idé:** Step 6 läser `final_model_cluster_granularity.xlsx` (steg-5-blendens 43 representanter, som
+routar varje tjänst till sin blend-granularitet). Den enda versionen i repot är `_Ivce`-facit
+(2025-12-08) — steg-5-blenden regenererades **aldrig** på växande data, bara Cluster-modellens steg
+1-4 (`output_summary`). Kör `fallback_blend.py` på växande Cluster-output så routningen blir färsk.
+
+**Värde:** Routningen som avgör vilken granularitet varje tjänst får i väven är idag fryst vid BCG:s
+2025-struktur. Om tjänste-/klustersammansättningen ändrats (nya kliniker, omklassningar — jfr IB.11
+drift) kan routningen vara fel för växande data. Färsk steg-5-blend säkrar att representant-valet
+speglar nuläget.
+
+**Beror på:** Växande Cluster steg 1-4 output (finns, `_archive_growing_2026-04-27_v2_pg4fix`).
+`fallback_blend.py` är redan validerad bit-för-bit (FR-3, 43/43 reps) — det här är att köra den på
+växande input istället för facit.
+
+**Estimerad omfattning:** Låg-Medel (kör befintlig validerad `fallback_blend.py` på växande Cluster-
+output, verifiera 43-reps-strukturen håller, placera outputen där Step 6 letar).
+
+**Status:** Idé. Identifierad av `verify_provenance`-suiten 2026-06-11.
+
+**Datum identifierad:** 2026-06-11 / provenance-validering av Step 6-inputs.
+
+---
+
 ## Hur posten levs
 
 Ny FD läggs till när:
@@ -405,3 +461,4 @@ En FD revideras eller flyttas:
 |---|---|
 | 2026-06-08 | Fil skapad. Initiala FD.1-10 dokumenterade efter VM-körningens slut. |
 | 2026-06-11 | FD.11-13 tillagda. FD.11 Bundle-modellen PARKERAD (dataprep-källa klar + committad `1daf093`, varukorgsbygge/modell kvarstår) — beslut datadrivet: 98 modellerade varukorgar = 526 M (~4,3%), överlappar Cluster/Site, sann väv-effekt avgörs av rimlighetsgrind (återbesöks-trigger: sjukhustjänsters signifikans). FD.12 Bundle Ray-config. FD.13 sandbox-Excel för metodik-förståelse mot beslutsfattare. |
+| 2026-06-11 | FD.14-15 tillagda efter `verify_provenance`-suiten byggdes. Provenance-validering av Step 6-inputs avslöjade tre frusna lås: väv-vikter (FD.14, frusen Complete_Product_Data 2025), steg-5-blend/routning (FD.15, _Ivce-facit 2025-12, aldrig regenererad växande), och bundle-grenen (FD.11). Step 6 vilar på växande Cluster+Site-elasticiteter men frusen viktning/routning/bundle. Suiten ligger i `verify_tool/provenance/`. |
