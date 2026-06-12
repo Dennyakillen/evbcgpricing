@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modellkörning — status</title>
+<style>
+  :root{
+    --bg:#faf9f7; --surface:#ffffff; --surface2:#f0eeea; --border:#e4e2dd;
+    --text:#1f1e1c; --muted:#6f6d68; --faint:#a3a19b;
+    --ok:#1d9e75; --run:#378add; --warn:#ba7517; --bad:#e24b4a;
+    --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1f1e1d; --surface:#2a2927; --surface2:#34322f; --border:#3d3b37;
+      --text:#ecebe8; --muted:#a3a19b; --faint:#6f6d68;
+      --ok:#5dcaa5; --run:#85b7eb; --warn:#ef9f27; --bad:#f09595;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.6 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;}
+  .wrap{max-width:880px;margin:0 auto;padding:28px 20px 60px;}
+  h1{font-size:20px;font-weight:600;margin:0;}
+  .sub{font-size:13px;color:var(--muted);margin-top:2px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;
+         gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  select{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--border);
+         border-radius:8px;background:var(--surface);color:var(--text);}
+  .strip{display:flex;gap:22px;flex-wrap:wrap;align-items:center;
+         background:var(--surface);border:1px solid var(--border);
+         border-radius:14px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--muted);}
+  .strip b{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text);}
+  .badge{font-size:12px;font-weight:600;padding:3px 11px;border-radius:99px;}
+  .b-ok{background:rgba(29,158,117,.16);color:var(--ok);} .b-run{background:rgba(55,138,221,.16);color:var(--run);}
+  .b-warn{background:rgba(186,117,23,.16);color:var(--warn);} .b-bad{background:rgba(226,75,74,.16);color:var(--bad);}
+  .b-idle{background:var(--surface2);color:var(--muted);}
+  .alert{border:1px solid;border-radius:14px;padding:13px 18px;margin-bottom:14px;font-size:14px;line-height:1.55;}
+  .a-bad{border-color:rgba(226,75,74,.4);background:rgba(226,75,74,.10);color:var(--bad);}
+  .a-warn{border-color:rgba(186,117,23,.4);background:rgba(186,117,23,.10);color:var(--warn);}
+  .phase{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+         margin-bottom:9px;overflow:hidden;transition:border-color .15s;}
+  .phase:hover{border-color:var(--faint);}
+  .ph-head{display:flex;align-items:center;gap:13px;padding:14px 18px;cursor:pointer;user-select:none;}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .d-ok{background:var(--ok);} .d-run{background:var(--run);animation:pulse 1.4s infinite;}
+  .d-bad{background:var(--bad);} .d-idle{background:var(--faint);} .d-warn{background:var(--warn);}
+  @keyframes pulse{50%{opacity:.35}}
+  .ph-name{flex:1;font-size:14px;font-weight:600;}
+  .chip{font-size:11px;color:var(--muted);background:var(--surface2);padding:3px 10px;border-radius:99px;}
+  .dur{font:12px var(--mono);color:var(--muted);min-width:64px;text-align:right;}
+  .chev{color:var(--faint);transition:transform .15s;font-size:12px;}
+  .ph-body{display:none;padding:0 18px 16px 41px;font-size:13px;color:var(--muted);}
+  .note{font-family:var(--mono);font-size:12px;background:var(--surface2);
+        border-radius:10px;padding:10px 14px;margin:8px 0 12px;color:var(--text);word-break:break-word;}
+  .kv{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;}
+  .kv span b{font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;}
+  .story-sec{border-top:1px solid var(--border);padding-top:12px;margin-top:2px;}
+  .story-head{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin-bottom:3px;}
+  .story-line{font-size:13px;color:var(--text);line-height:1.55;margin-bottom:10px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;margin-bottom:12px;}
+  .kpi{background:var(--surface2);border-radius:10px;padding:9px 12px;}
+  .kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:5px;}
+  .kpi .vals{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
+  .kpi .facit{font:600 13px var(--mono);color:var(--text);}
+  .kpi .arrow{color:var(--faint);font-size:12px;}
+  .kpi .now{font:600 16px var(--mono);color:var(--text);}
+  .kpi .delta{font-size:11px;font-weight:600;margin-top:4px;}
+  .kpi .fill{color:var(--faint);font-style:italic;}
+  .desc{font-size:13px;line-height:1.6;color:var(--muted);margin-bottom:5px;}
+  .desc b{color:var(--text);font-weight:600;}
+  .outputs{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+           padding:14px 18px;margin-top:14px;font-size:13px;}
+  .outputs code{font:12px var(--mono);color:var(--run);word-break:break-all;}
+  .bage{margin-top:14px;padding:13px 18px;background:var(--surface2);border-radius:14px;
+        font-size:13px;line-height:1.6;color:var(--muted);}
+  .bage b{color:var(--text);}
+  footer{margin-top:22px;font-size:12px;color:var(--faint);}
+  .stamp{font:12px var(--mono);color:var(--faint);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Modellkörning — status</h1>
+      <div class="sub">Skrivskyddad vy av orchestratorns statusfil i Blob · grått = BCG:s frysta facit, färgat = nu, pilen = rörelsen</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <label for="run" style="font-size:13px;color:var(--muted);">Körning</label>
+      <select id="run"></select>
+      <span class="stamp" id="stamp"></span>
+    </div>
+  </header>
+
+  <div id="app"><div class="sub">Laddar… (första anropet hämtar lagringsnyckeln, ~3–5 s)</div></div>
+
+  <div class="bage" id="bage" style="display:none;"></div>
+
+  <footer>Skrivskyddad: denna vy kan inte starta, stoppa eller ändra något.
+    Sanningskälla: <span style="font-family:var(--mono);">runstatus/&lt;körnings-id&gt;.json</span> i
+    <span style="font-family:var(--mono);">evipricingmodelstprod</span>.
+    Facit-referens och texter: <span style="font-family:var(--mono);">story_config.py</span> ("[fyll i]" = ännu ej verifierat tal).</footer>
+</div>
+
+<script>
+"use strict";
+var KR_PER_H = 9;
+var currentRun = null, timer = null, openPhases = {}, STORY = {}, BAGE = "";
+
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
+function fmtTs(iso){if(!iso)return "—";return iso.replace("T"," ").replace("Z"," UTC");}
+function ageMin(iso){if(!iso)return null;return (Date.now()-Date.parse(iso))/60000;}
+function escapeHtml(s){if(s==null)return"";return String(s).replace(/[&<>"']/g,function(c){
+  return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+
+var STATE_BADGE={succeeded:["klar","b-ok"],running:["kör","b-run"],
+  waiting:["väntar","b-warn"],failed:["misslyckad","b-bad"],pending:["ej startad","b-idle"]};
+var PH_DOT={succeeded:"d-ok",running:"d-run",failed:"d-bad",pending:"d-idle",waiting:"d-warn",skipped:"d-idle"};
+var DIR={pos:["↗","var(--ok)"],neg:["↘","var(--bad)"],neut:["=","var(--faint)"]};
+var LOC={vm:"VM",local:"lokalt"};
+
+function boot(){
+  fetch("/api/story").then(function(r){return r.json();}).then(function(d){
+    STORY=d.story||{}; BAGE=d.bage||"";
+    loadRuns();
+  }).catch(function(){ loadRuns(); });
+}
+
+function loadRuns(){
+  fetch("/api/runs").then(function(r){return r.json();}).then(function(d){
+    var sel=document.getElementById("run");
+    if(d.error){document.getElementById("app").innerHTML='<div class="alert a-bad">'+escapeHtml(d.error)+'</div>';return;}
+    sel.innerHTML="";
+    d.runs.forEach(function(id){var o=document.createElement("option");o.value=o.textContent=id;sel.appendChild(o);});
+    if(!d.runs.length){document.getElementById("app").innerHTML='<div class="sub">Inga körningar i Blob ännu.</div>';return;}
+    currentRun=d.runs[0]; sel.value=currentRun;
+    sel.onchange=function(){currentRun=sel.value;openPhases={};load();};
+    load();
+    if(timer)clearInterval(timer);
+    timer=setInterval(load,10000);
+  }).catch(function(e){document.getElementById("app").innerHTML='<div class="alert a-bad">'+escapeHtml(String(e))+'</div>';});
+}
+
+function load(){
+  if(!currentRun)return;
+  fetch("/api/status/"+encodeURIComponent(currentRun))
+    .then(function(r){return r.json();})
+    .then(render)
+    .catch(function(e){document.getElementById("app").innerHTML='<div class="alert a-bad">'+escapeHtml(String(e))+'</div>';});
+}
+
+function kpiCard(k){
+  var d=DIR[k.dir]||DIR.neut;
+  var facit = k.facit==null ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.facit);
+  var delta = k.delta==null ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.delta);
+  return '<div class="kpi">'+
+    '<div class="lbl">'+escapeHtml(k.label)+'</div>'+
+    '<div class="vals"><span class="facit">'+facit+'</span>'+
+    '<span class="arrow">→</span><span class="now">'+(k.now==null?'<span class="fill">[fyll i]</span>':escapeHtml(k.now))+'</span></div>'+
+    '<div class="delta" style="color:'+d[1]+';">'+d[0]+' '+delta+'</div></div>';
+}
+
+function render(d){
+  var app=document.getElementById("app"); app.innerHTML="";
+  document.getElementById("stamp").textContent="uppdaterad "+new Date().toTimeString().slice(0,8);
+  if(d.error && !d.phases){app.appendChild(el("div","alert a-bad",escapeHtml(d.error)));return;}
+
+  var hb=ageMin(d.last_heartbeat);
+  var stale=(d.state==="running" && hb!=null && hb>5);
+  var sb=STATE_BADGE[d.state]||[d.state,"b-idle"];
+
+  var strip=el("div","strip");
+  strip.appendChild(el("span",null,'<span class="badge '+sb[1]+'">'+sb[0]+'</span>'));
+  var done=d.phases.filter(function(p){return p.state==="succeeded";}).length;
+  strip.appendChild(el("span",null,'faser klara <b>'+done+' / '+d.phases.length+'</b>'));
+  strip.appendChild(el("span",null,'aktiv tid <b>'+(d.total_active_human||"—")+'</b>'));
+  var vmSec=d.phases.filter(function(p){return p.location==="vm"&&p.duration_seconds;})
+                    .reduce(function(a,p){return a+p.duration_seconds;},0);
+  strip.appendChild(el("span",null,'VM-kostnad est. <b>'+(vmSec?(vmSec/3600*KR_PER_H).toFixed(0)+' kr':'—')+'</b> <span style="color:var(--faint)">(9 kr/h)</span>'));
+  strip.appendChild(el("span",null,'senaste livstecken <b>'+(hb==null?"—":(hb<1?"just nu":Math.round(hb)+" min sedan"))+'</b>'));
+  app.appendChild(strip);
+
+  if(stale){
+    app.appendChild(el("div","alert a-warn",
+      "Statusen säger <b>kör</b> men senaste livstecknet är "+Math.round(hb)+
+      " min gammalt — den lokala runnern observerar inte längre. Det fristående jobbet på VM:en kan ha "+
+      "blivit klart eller fortfarande köra; filen slutade bara uppdateras. "+
+      "Återanslut med <span style='font-family:var(--mono);font-size:12px;'>run_site_model.py --attach</span> för besked."));
+  }
+  if(d.state==="failed"){
+    app.appendChild(el("div","alert a-bad",
+      "<b>Misslyckad.</b> "+(d.hint?escapeHtml(d.hint)+"<br>":"")+
+      (d.error?'<span style="font-family:var(--mono);font-size:12px;white-space:pre-wrap;">'+escapeHtml(d.error).slice(0,600)+'</span>':"")));
+  } else if(d.hint && d.state==="waiting"){
+    app.appendChild(el("div","alert a-warn",escapeHtml(d.hint)));
+  }
+
+  d.phases.forEach(function(p,i){
+    var st=STORY[p.key]||{};
+    var card=el("div","phase");
+    var head=el("div","ph-head");
+    head.innerHTML='<span class="dot '+(PH_DOT[p.state]||"d-idle")+'"></span>'+
+      '<span class="ph-name">'+escapeHtml(st.title_sv||p.name)+'</span>'+
+      '<span class="chip">'+(LOC[p.location]||p.location)+'</span>'+
+      '<span class="dur">'+(p.duration_human||"")+'</span>'+
+      '<span class="chev" id="ch'+i+'">▼</span>';
+    var body=el("div","ph-body");
+
+    var note=p.note?'<div class="note">'+escapeHtml(p.note)+'</div>':'';
+    var rows='<div class="kv">'+
+      '<span>status <b>'+(STATE_BADGE[p.state]?STATE_BADGE[p.state][0]:p.state)+'</b></span>'+
+      '<span>start <b>'+fmtTs(p.started_at)+'</b></span>'+
+      '<span>slut <b>'+fmtTs(p.finished_at)+'</b></span>'+
+      '<span>tid <b>'+(p.duration_human||"—")+'</b></span></div>';
+
+    var story="";
+    if(st.story||((st.kpis||[]).length)){
+      story='<div class="story-sec">'+
+        '<div class="story-head">MOT FACIT (BCG)</div>'+
+        (st.story?'<div class="story-line">'+escapeHtml(st.story)+'</div>':'');
+      if((st.kpis||[]).length){
+        story+='<div class="kpis">'+st.kpis.map(kpiCard).join("")+'</div>';
+      }
+      story+='</div>';
+    }
+    var desc="";
+    if(st.why) desc+='<div class="desc"><b>Vad &amp; varför.</b> '+escapeHtml(st.why)+'</div>';
+    if(st.use) desc+='<div class="desc"><b>Hur det används.</b> '+escapeHtml(st.use)+'</div>';
+    if(st.without) desc+='<div class="desc"><b>Utan steget.</b> '+escapeHtml(st.without)+'</div>';
+
+    body.innerHTML=note+rows+story+desc;
+    head.onclick=function(){
+      openPhases[i]=!openPhases[i];
+      body.style.display=openPhases[i]?"block":"none";
+      var ch=document.getElementById("ch"+i);
+      if(ch)ch.style.transform=openPhases[i]?"rotate(180deg)":"";
+    };
+    if(openPhases[i]){body.style.display="block";}
+    card.appendChild(head);card.appendChild(body);app.appendChild(card);
+    if(openPhases[i]){var c2=document.getElementById("ch"+i);if(c2)c2.style.transform="rotate(180deg)";}
+  });
+
+  if(d.output_blob_paths && d.output_blob_paths.length){
+    var out=el("div","outputs","<b style='font-size:13px;'>Resultat i Blob</b><br>");
+    d.output_blob_paths.forEach(function(p){out.appendChild(el("div",null,"<code>"+escapeHtml(p)+"</code>"));});
+    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);">Nedladdnings-/exportlänkar är ett senare steg — sökvägar visas som referens.</span>'));
+    app.appendChild(out);
+  }
+
+  var bage=document.getElementById("bage");
+  if(BAGE){bage.innerHTML="<b>Bågen.</b> "+escapeHtml(BAGE).replace(/^Bagen: /,"");bage.style.display="block";}
+
+  app.appendChild(el("div",null,'<div class="sub" style="margin-top:10px;">körning <span style="font-family:var(--mono);">'+escapeHtml(d.run_id)+
+    '</span> · startad av '+escapeHtml(d.triggered_by||"—")+' · kontrakt v'+escapeHtml(d.contract_version)+
+    (d.git_sha?(' · '+escapeHtml(d.git_sha)):'')+'</div>'));
+}
+
+boot();
+</script>
+</body>
+</html>
