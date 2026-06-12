@@ -124,3 +124,6 @@ output_model_feed/
 Pipeline/02. Elasticity/6. Fall Back Logic/output_data/
 
 output_analyspaket/*.pdf
+
+# workspace = lokal scratch, inte sanning (orchestration/ ar sanningen)
+workspace/
