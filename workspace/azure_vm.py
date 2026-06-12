@@ -103,46 +103,19 @@ def vm_power_state(cfg: VmConfig) -> str:
 # ---------------------------------------------------------------------------
 # SSH/SCP -- real .exe binaries on Windows, list-args are correct here.
 # ---------------------------------------------------------------------------
-class SshUnreachable(RuntimeError):
-    """The VPN tunnel / SSH path is flaky (known recurring environment trait,
-    FAS 13: hostname returned empty + cp hung while az confirmed VM running).
-    Callers must treat this as OBSERVATION LOSS, never as pipeline failure --
-    the detached job on the VM is unaffected by our ability to look at it."""
-
-
 def ssh_run(cfg: VmConfig, remote_cmd: str, check: bool = True,
-            timeout: int = 60, retries: int = 0) -> subprocess.CompletedProcess:
+            timeout: int = 60) -> subprocess.CompletedProcess:
     """Run one remote command and wait for it. Keep remote_cmd free of single
     quotes (VM paths contain no spaces; this avoids the PS/bash quoting class
-    of failures entirely since we never go through PowerShell).
-
-    ServerAlive options make a stalled tunnel self-terminate in ~30s instead
-    of hanging until our subprocess timeout. On timeout or ssh exit 255
-    (ssh-level/network error, NOT the remote command's exit code) we retry,
-    then raise SshUnreachable so callers can classify it as observation loss.
-    """
-    last_err = None
-    for attempt in range(retries + 1):
-        try:
-            cp = subprocess.run(
-                ["ssh", "-o", "ConnectTimeout=10", "-o", "BatchMode=yes",
-                 "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3",
-                 cfg.ssh_target, remote_cmd],
-                capture_output=True, text=True, timeout=timeout,
-            )
-            if cp.returncode == 255:          # ssh itself failed (tunnel), not the command
-                last_err = f"ssh exit 255: {cp.stderr.strip()[:200]}"
-                log.warning("ssh unreachable (attempt %d/%d): %s",
-                            attempt + 1, retries + 1, last_err)
-                continue
-            if check and cp.returncode != 0:
-                raise RuntimeError(f"ssh failed ({cp.returncode}): {cp.stderr.strip()[:400]}")
-            return cp
-        except subprocess.TimeoutExpired:
-            last_err = f"timeout after {timeout}s"
-            log.warning("ssh hung (attempt %d/%d, %s) -- known tunnel flakiness, "
-                        "killing and retrying.", attempt + 1, retries + 1, last_err)
-    raise SshUnreachable(f"SSH observation failed after {retries + 1} attempt(s): {last_err}")
+    of failures entirely since we never go through PowerShell)."""
+    cp = subprocess.run(
+        ["ssh", "-o", "ConnectTimeout=10", "-o", "BatchMode=yes",
+         cfg.ssh_target, remote_cmd],
+        capture_output=True, text=True, timeout=timeout,
+    )
+    if check and cp.returncode != 0:
+        raise RuntimeError(f"ssh failed ({cp.returncode}): {cp.stderr.strip()[:400]}")
+    return cp
 
 
 def wait_for_ssh(cfg: VmConfig, max_tries: int = 18, sleep_s: int = 10) -> None:
@@ -166,65 +139,15 @@ def wait_for_ssh(cfg: VmConfig, max_tries: int = 18, sleep_s: int = 10) -> None:
 
 def ssh_launch_detached(cfg: VmConfig, inner_cmd: str, remote_log: str) -> None:
     """Start a long-running command on the VM, fully detached, and return
-    immediately.
-
-    Why the indirection (root cause of the 2026-06-12 timeout): a trailing
-    '&' backgrounds the job in bash, but ssh waits for its CHANNEL to close,
-    not for the job to finish. setsid's children (Python, Ray's many worker
-    procs) keep file descriptors tied to the ssh channel open, so ssh hangs
-    until our timeout fires -- even with </dev/null >/dev/null 2>&1 on the
-    outer command. The job may actually start, but ssh never returns cleanly.
-
-    Robust fix (standard pattern): write a tiny launcher .sh ON THE VM, then
-    start it with setsid + full fd detachment AND make the ssh command itself
-    return immediately via a separate, instantly-completing invocation. We
-    split into two ssh calls:
-      1. write the launcher script + chmod (completes instantly)
-      2. setsid the script with all fds to /dev/null, then 'echo started'
-         -- ssh call 2 returns as soon as echo prints, because the launched
-         process holds NO fd on this channel (the script redirects its own).
-    inner_cmd must not contain single quotes (quoting discipline)."""
-    launcher_sh = f"{remote_log}.launch.sh"
-    # Step 1: write the launcher script on the VM. The script owns its own
-    # redirection, so when setsid runs it, nothing touches the ssh channel.
-    write_script = (
+    immediately. setsid puts it in its own session (immune to SIGHUP when
+    this ssh channel closes); stdin/stdout/stderr are detached from the
+    channel so ssh does not block. inner_cmd must not contain single quotes."""
+    remote = (
         f"mkdir -p $(dirname {remote_log}) && "
-        f"printf '%s\\n' '#!/bin/bash' '{inner_cmd} > {remote_log} 2>&1' > {launcher_sh} && "
-        f"chmod +x {launcher_sh}"
+        f"setsid bash -c '{inner_cmd} > {remote_log} 2>&1' </dev/null >/dev/null 2>&1 &"
     )
-    ssh_run(cfg, write_script, timeout=30)
-
-    # Step 2: launch fully detached. setsid + redirect ALL of the script's
-    # std streams to /dev/null means the child holds no descriptor on this
-    # ssh channel; 'echo started' completes the channel immediately.
-    launch_cmd = (
-        f"setsid {launcher_sh} </dev/null >/dev/null 2>&1 & "
-        f"echo started"
-    )
-    cp = ssh_run(cfg, launch_cmd, timeout=20)
-    if "started" not in cp.stdout:
-        raise RuntimeError(f"Detached launch did not confirm start: {cp.stdout!r} {cp.stderr!r}")
-    log.info("Detached launch confirmed. Remote log: %s", remote_log)
-
-
-def ssh_launch_selftest(cfg: VmConfig) -> bool:
-    """Isolated test of the detach mechanic WITHOUT running the pipeline.
-    Launches 'sleep 90', confirms ssh returns immediately and the process
-    is alive on the VM. Use this to validate launch before a 70-min run.
-    Returns True on success."""
-    import time as _t
-    test_log = "/home/azureuser/bcg/logs/_launchtest.log"
-    t0 = _t.time()
-    ssh_launch_detached(cfg, "sleep 90 && echo done", test_log)
-    elapsed = _t.time() - t0
-    if elapsed > 15:
-        log.error("Launch took %.1fs -- ssh did NOT release promptly (detach still broken).", elapsed)
-        return False
-    log.info("ssh released in %.1fs (good).", elapsed)
-    alive = bool(ssh_run(cfg, "pgrep -f 'sleep 90' || true", check=False).stdout.strip())
-    log.info("Test process alive on VM: %s", alive)
-    ssh_run(cfg, "pkill -f 'sleep 90' || true", check=False)  # cleanup
-    return alive
+    ssh_run(cfg, remote, timeout=30)
+    log.info("Detached launch sent. Remote log: %s", remote_log)
 
 
 def scp_from_vm(cfg: VmConfig, remote_path: str, local_path: str) -> None:

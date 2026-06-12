@@ -1,0 +1,81 @@
+======================================================================
+LOGG -- Phase Z.2 rolltilldelning till MI
+======================================================================
+Tidsstampel  : 2026-06-12 11:55:36
+Loggfil      : C:\Projekt\BCG\workspace\validation_receipts\setup_z2_roles_2026-06-12_115536.log
+MI           : evi-pricingmodel-mi-prod (14fe926b-8722-4c53-9ef8-642e190fb0d0)
+Storage      : evipricingmodelstprod i ev-openai-swce-rg-prod
+VM-RG        : ev-openai-swce-rg-test (cross-RG)
+Roller       : Storage Blob Data Contributor + Virtual Machine Contributor
+
+======================================================================
+STEG 0 -- ratt subscription
+======================================================================
+OK   42f726f8-91ee-44d4-832f-9d9ec412ef8f
+
+======================================================================
+STEG 1 -- Storage Blob Data Contributor (blob-data)
+======================================================================
+     Roll : Storage Blob Data Contributor
+     Scope: /subscriptions/42f726f8-91ee-44d4-832f-9d9ec412ef8f/resourceGroups/ev-openai-swce-rg-prod/providers/Microsoft.Storage/storageAccounts/evipricingmodelstprod
+FAIL kunde inte tilldela rollen. Rad-output:
+     az : ERROR: SubError: token_expired V2Error: invalid_grant AADSTS70043: The refresh token has expired
+ or is invalid due to sign-in frequency checks by conditional access. The token was issued on 2026-04
+-28T09:51:20.8472128Z and the maximum allowed lifetime for this request is 14400. Trace ID: 4a8fa4dd-
+4968-43b5-8406-7ecd34520d00 Correlation ID: baa8bcfb-c5bb-4d6a-8ad4-b28018ff3d10 Timestamp: 2026-06-1
+2 09:55:44Z. Status: Response_Status.Status_InteractionRequired, Error code: 3399614467, Tag: 5581332
+56
+At C:\Projekt\BCG\workspace\setup_z2_roles.ps1:111 char:12
++     $out = az role assignment create `
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: SubError... Tag: 558133256:String) [], RemoteExc 
+   eption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Please explicitly log in with:
+az login --scope https://management.core.windows.net//.default
+     Om villkor-/AuthorizationFailed: din Owner kan vara begransad till
+     att bara tilldela Owner (constrained delegation). Da kravs RG-agaren
+     for just denna rolltilldelning -- enda potentiella IT-asken.
+
+======================================================================
+STEG 2 -- Virtual Machine Contributor (VM-livscykel, cross-RG)
+======================================================================
+     Roll : Virtual Machine Contributor
+     Scope: /subscriptions/42f726f8-91ee-44d4-832f-9d9ec412ef8f/resourceGroups/ev-openai-swce-rg-test
+FAIL kunde inte tilldela rollen. Rad-output:
+     az : ERROR: SubError: token_expired V2Error: invalid_grant AADSTS70043: The refresh token has expired
+ or is invalid due to sign-in frequency checks by conditional access. The token was issued on 2026-04
+-28T09:51:20.8472128Z and the maximum allowed lifetime for this request is 14400. Trace ID: 4a8fa4dd-
+4968-43b5-8406-7ecd34520d00 Correlation ID: baa8bcfb-c5bb-4d6a-8ad4-b28018ff3d10 Timestamp: 2026-06-1
+2 09:55:44Z. Status: Response_Status.Status_InteractionRequired, Error code: 3399614467, Tag: 5581332
+56
+At C:\Projekt\BCG\workspace\setup_z2_roles.ps1:111 char:12
++     $out = az role assignment create `
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: SubError... Tag: 558133256:String) [], RemoteExc 
+   eption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Please explicitly log in with:
+az login --scope https://management.core.windows.net//.default
+     Om villkor-/AuthorizationFailed: din Owner kan vara begransad till
+     att bara tilldela Owner (constrained delegation). Da kravs RG-agaren
+     for just denna rolltilldelning -- enda potentiella IT-asken.
+
+======================================================================
+STEG 3 -- verifiera MI:s roller
+======================================================================
+MI:s rolltilldelningar (alla scope):
+     (inga returnerade -- kontrollera ovan FAIL)
+
+======================================================================
+RESULTATSAMMANFATTNING
+======================================================================
+  PASS    0_sub
+  FAIL    1_blob_roll
+  FAIL    2_vm_roll
+
+SLUTSATS: Minst ett FAIL. Om villkorfel pa rolltilldelning -> RG-agaren
+          behovs for just det (constrained delegation vi flaggade).
+Loggfil: C:\Projekt\BCG\workspace\validation_receipts\setup_z2_roles_2026-06-12_115536.log

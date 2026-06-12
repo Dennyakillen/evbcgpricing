@@ -2,7 +2,7 @@
 
 **Gäller:** Alla Azure-relaterade operationer  
 **Läses i kombination med:** `KÄRNPRINCIPER.md`, `MASTER_PYTHON.md`  
-**Senast uppdaterad:** 2026-05-19
+**Senast uppdaterad:** 2026-06-12 (Phase Z: BCG-pricing-resurser §2.5, AZ.6-10 VM-orchestrering)
 
 ---
 
@@ -94,6 +94,30 @@ az account show
 | `Microsoft.ManagedIdentity` | ✅ |
 | `Microsoft.KeyVault` | ✅ |
 | `Microsoft.ContainerRegistry` | ✅ (registrerad av Kent) |
+
+### 2.5 BCG-pricing / Phase Z-resurser (subscription `ev-lz3-ai (SE)`)
+
+Skapade 2026-06-12 i Phase Z (FAS A-start). Jens är **Owner** på både prod- och test-RG (verifierat,
+ej PIM-eligible) — Owner-rollen räcker för att *skapa* resurser, men INTE för att tilldela smala roller
+(ABAC-villkor, se nedan).
+
+| Resurs | Namn | Detaljer |
+|---|---|---|
+| Azure VM (modellsteg 1-4) | `bcg-poc-vm` | Standard_E16s_v5, 128 GB RAM, Ubuntu 22.04, **privat IP `172.18.148.4`** (ingen publik IP — tenant-policy), RG `ev-openai-swce-rg-test` |
+| Storage Account | `evipricingmodelstprod` | RG `ev-openai-swce-rg-prod`. Containrar: `runstatus` (statusfil), `output` (daterade modell-outputs) |
+| Managed Identity | `evi-pricingmodel-mi-prod` | principalId `14fe926b-8722-4c53-9ef8-642e190fb0d0`, clientId `1cedaa09-d703-45e3-a468-666c34948506`. **HAR INGA ROLLER** (ABAC-blockerat) |
+
+> ⚠️ **ABAC-väggen (2026-06-12):** Jens Owner har ett villkor som BARA tillåter tilldelning av rollen
+> *Owner* (GUID `acdd72a7-...`), INTE smala dataplane-roller (Storage Blob Data Contributor). Empiriskt
+> bekräftat: `AuthorizationFailed ... ABAC condition not fulfilled`. → MI:n kan inte ges roller utan IT.
+> **Nuvarande lösning utan IT:** Blob-I/O kör i **kontonyckel-läge** (`PRICINGMODEL_AUTH=key`) — Jens
+> läser nyckeln som control-plane-Owner (`az storage account keys list`); nyckeln lever bara i
+> processminnet. **Dokumenterad skuld:** byt till AAD-roll (`DefaultAzureCredential`) när dataplane-roll
+> finns (kräver IT eller bredare ABAC). Skulden står i `orchestration/infrastructure/blob.py`-headern.
+
+> **VM-kostnad:** ~9 kr/h igång. Deallokera (ej bara stoppa) för att stoppa compute-debitering:
+> `az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm`. Orchestratorn gör detta
+> utfallsstyrt (AZ.8); VM-sidigt skyddsnät planerat (FD.16).
 
 ---
 
@@ -446,3 +470,43 @@ Invoke-WebRequest -Uri "https://ev-pricing-app-prod.azurewebsites.net/healthz" -
 ### AZ.5 — Kontextkomprimering raderar lokala outputs
 **Symptom:** str_replace-leverans på filer som inte längre finns i sandbox.  
 **Regel:** Vid sessionspaus eller kontextkomprimering — be om `Get-Content` innan ändringar appliceras. Filer i `/outputs/` överlever inte komprimering.
+
+### AZ.6 — SSH-detach: `&` räcker inte; processen måste äga sina egna fd:er (launcher.sh + setsid)
+**Symptom:** `ssh vm "setsid bash -c '<cmd> > log 2>&1' </dev/null >/dev/null 2>&1 &"` hängde 30 s och
+timeoutade trots att jobbet startade.
+**Rotorsak:** SSH väntar på att **kanalen** ska stängas, inte på att jobbet ska bli klart. `setsid`:s
+barn (Python, Ray-workers) håller fd:er på SSH-kanalen öppna → SSH returnerar inte.
+**Regel:** Skriv ett launcher-skript **på VM:en** som äger sin egen `> log 2>&1`, starta det med
+`setsid <script> </dev/null >/dev/null 2>&1 &` och låt SSH returnera via `echo started`. Verifiera
+isolerat (sleep-test: SSH släpper <15 s, process lever via `pgrep`) före lång körning. Bevisat 30 s→1,4 s.
+(Detalj i `LESSONS_BCG.md` LB.54; implementation `orchestration/infrastructure/azure_vm.py`.)
+
+### AZ.7 — VM-automation: skilj observation från körningshälsa; en flaky tunnel får inte döda ett detached jobb
+**Symptom:** En hängd `tail`-poll mitt i en lång körning tolkades som pipelinefel → VM deallokerades →
+frisk körning dödad. (Privat-IP-VM nås via flaky VPN-tunnel; samma egenhet som FAS 13.)
+**Rotorsak:** Sammanblandning av "kan vi se jobbet?" (observation) och "lever jobbet?" (hälsa). Ett
+`setsid`-detached jobb är självförsörjande — opåverkat av att SSH-observationen blinkar.
+**Regel:** SSH med `ServerAliveInterval=10 ServerAliveCountMax=3` + retry; upprepad timeout/`exit 255`
+→ klassa som observationsförlust, ej fel. Använd `az` (out-of-band, utanför tunneln) som sanningsvittne
+för VM-status. Vid observationsförlust: lämna VM:en köra, skriv återhämtningsväg, deallokera ej.
+(Detalj LB.55.)
+
+### AZ.8 — Deallokera utfallsstyrt, inte i blint `finally`; fånga Ctrl+C
+**Symptom:** `finally: deallocate()` dödade VM-jobb vid lokal avbrytning/observationsförlust.
+**Regel:** Deallokera bara vid bekräftade utfall (success / bevisat död). Fånga `KeyboardInterrupt` +
+nätfel separat → lämna VM:en köra. Erbjud ett `--attach`-läge som återansluter till pågående körning.
+Skyddsnät: VM-sidig auto-shutdown (FD.16). (Detalj LB.56.)
+
+### AZ.9 — `az` är `az.cmd` på Windows → `subprocess` via `shell=True`-sträng, ej list-args
+**Symptom:** `subprocess.run(["az", ...])` → `FileNotFoundError: [WinError 2]`.
+**Rotorsak:** `az` är en batch-wrapper, inte en `.exe`. List-args hittar ingen körbar `az`.
+**Regel:** `subprocess.run(f"az {cmd}", shell=True)` (egna konstanter, ingen injektionsrisk). `ssh`/`scp`
+är riktiga `.exe` → list-args (undviker PowerShell-quoting helt). (Detalj LB.57.)
+
+### AZ.10 — DW (Azure SQL) når inte från en VM i annat VNet (IP-vitlistning)
+**Symptom:** TCP-test från `bcg-poc-vm` mot DW:`1433` → `BLOCKED`; mot `github.com:443` → `OUT_OK`.
+**Rotorsak:** DW-brandväggen är IP-vitlistad till kontorsnät + VPN-pool. VM:ens Azure-VNet-IP är inte
+på listan. `OUT_OK` bekräftar DW-specifik spärr, ej egress-block.
+**Regel:** DW-tröstande arbete körs där DW-access finns (lokal maskin på kontorsnät/VPN). För
+Azure-pipelines: extrahera lokalt → leverera via Blob → VM läser Blob. Att flytta DW-access till ett
+VNet kräver brandväggsöppning/peering = IT-beslut. (Detalj LB.58; arkitektur FD.17.)

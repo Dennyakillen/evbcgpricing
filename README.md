@@ -34,14 +34,14 @@ with current data:
 
 ---
 
-## Current state (2026-06-11)
+## Current state (2026-06-12)
 
 | Phase | Status |
 |---|---|
 | FAS V — Validate that we reproduce BCG | **DONE.** verify_tool proves FR-1 through FR-7. |
 | FAS T — Tech debt to IT (reproducible env, pinned venv) | Open; not blocking experimental runs. |
 | FAS F — Fresh-data prerequisites | **DONE.** All 3 model families run on growing data; Step 6 (fallback weave) run and validated; model can be fed via `build_r12_for_model.py`. Bundle parked on evidence (FD.11); 3 inputs intentionally frozen (LF.9). |
-| FAS A — Azure automation | **Next.** Move the validated structure to a maintained Azure environment. Requires Blob Storage role (currently blocked by Owner permission). See `FUTURE_DEVELOPMENT.md` Phase Z. |
+| FAS A — Azure automation | **In progress.** Orchestrator engine proven 2026-06-12: the Site model step runs end-to-end via Azure (`orchestration/`), reproducing the manual run bit-for-bit (6624 KEY, corr 1.000000). Survived three failure modes live (cold-start retry, SSH-detach bug, VPN tunnel glitch). DW extraction measured unreachable from the VM (LB.58) → stays local→Blob→VM. Remaining: cluster runner, local Excel/Step6 phases in sequence, extraction phase, web view; full autonomy still needs Blob data role (ABAC-blocked, FAS T). See `FUTURE_DEVELOPMENT.md` Phase Z + `NEXT_SESSION.md`. |
 
 **Fresh-data result (2026-06-11):** the model now runs end-to-end on Evidensia's own growing data
 through 2026-04. Step 6 produced 108,979 rows / 15,128 products (100% negative, 100% in band);
@@ -167,6 +167,7 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 | `INSIGHTS_BCG.md` | Analytical insights (IB.N) — observations about the model and data |
 | `ROADMAP.md` | Phase overview: V → T → F → A (F done, A next) |
 | `FUTURE_DEVELOPMENT.md` | Future tracks (FD.N), incl. Phase Z productionization (the next session's plan lives here now) |
+| `orchestration/` | **Phase Z orchestrator** — runs model steps on the Azure VM, shares status via Blob, validated against facit. `shared/run_status.py` (status contract), `infrastructure/azure_vm.py` + `blob.py`, `runners/run_site_model.py` (flagship). See `orchestration/README.md`. |
 | `FAS_F_G7.md` | Date window parametrization design |
 | `UBUNTU_AZURE_VM.md` | Linux/bash specifics for Azure VM operations |
 | `verify_tool/README.md` | Verification suite documentation |

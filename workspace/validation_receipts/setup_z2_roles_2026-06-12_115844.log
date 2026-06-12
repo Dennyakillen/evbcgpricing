@@ -1,0 +1,91 @@
+======================================================================
+LOGG -- Phase Z.2 rolltilldelning till MI
+======================================================================
+Tidsstampel  : 2026-06-12 11:58:44
+Loggfil      : C:\Projekt\BCG\workspace\validation_receipts\setup_z2_roles_2026-06-12_115844.log
+MI           : evi-pricingmodel-mi-prod (14fe926b-8722-4c53-9ef8-642e190fb0d0)
+Storage      : evipricingmodelstprod i ev-openai-swce-rg-prod
+VM-RG        : ev-openai-swce-rg-test (cross-RG)
+Roller       : Storage Blob Data Contributor + Virtual Machine Contributor
+
+======================================================================
+STEG 0 -- ratt subscription
+======================================================================
+OK   42f726f8-91ee-44d4-832f-9d9ec412ef8f
+
+======================================================================
+STEG 1 -- Storage Blob Data Contributor (blob-data)
+======================================================================
+     Roll : Storage Blob Data Contributor
+     Scope: /subscriptions/42f726f8-91ee-44d4-832f-9d9ec412ef8f/resourceGroups/ev-openai-swce-rg-prod/providers/Microsoft.Storage/storageAccounts/evipricingmodelstprod
+FAIL kunde inte tilldela rollen. Rad-output:
+     az : ERROR: (AuthorizationFailed) The client 'adm.jens.palmo@evidensia.se' with object id '1d72f22c-5
+5cf-4a74-a553-ed5875c88d4c' has an authorization with ABAC condition that is not fulfilled to perform
+ action 'Microsoft.Authorization/roleAssignments/write' over scope '/subscriptions/42f726f8-91ee-44d4
+-832f-9d9ec412ef8f/resourceGroups/ev-openai-swce-rg-prod/providers/Microsoft.Storage/storageAccounts/
+evipricingmodelstprod/providers/Microsoft.Authorization/roleAssignments/a7463a30-a721-49f8-a4d6-4401c
+719f917' or the scope is invalid. If access was recently granted, please refresh your credentials.
+At C:\Projekt\BCG\workspace\setup_z2_roles.ps1:111 char:12
++     $out = az role assignment create `
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: (Authori...ur credentials.:String) [], RemoteExc 
+   eption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Code: AuthorizationFailed
+Message: The client 'adm.jens.palmo@evidensia.se' with object id '1d72f22c-55cf-4a74-a553-ed5875c88d4
+c' has an authorization with ABAC condition that is not fulfilled to perform action 'Microsoft.Author
+ization/roleAssignments/write' over scope '/subscriptions/42f726f8-91ee-44d4-832f-9d9ec412ef8f/resour
+ceGroups/ev-openai-swce-rg-prod/providers/Microsoft.Storage/storageAccounts/evipricingmodelstprod/pro
+viders/Microsoft.Authorization/roleAssignments/a7463a30-a721-49f8-a4d6-4401c719f917' or the scope is 
+invalid. If access was recently granted, please refresh your credentials.
+     Om villkor-/AuthorizationFailed: din Owner kan vara begransad till
+     att bara tilldela Owner (constrained delegation). Da kravs RG-agaren
+     for just denna rolltilldelning -- enda potentiella IT-asken.
+
+======================================================================
+STEG 2 -- Virtual Machine Contributor (VM-livscykel, cross-RG)
+======================================================================
+     Roll : Virtual Machine Contributor
+     Scope: /subscriptions/42f726f8-91ee-44d4-832f-9d9ec412ef8f/resourceGroups/ev-openai-swce-rg-test
+FAIL kunde inte tilldela rollen. Rad-output:
+     az : ERROR: (AuthorizationFailed) The client 'adm.jens.palmo@evidensia.se' with object id '1d72f22c-5
+5cf-4a74-a553-ed5875c88d4c' has an authorization with ABAC condition that is not fulfilled to perform
+ action 'Microsoft.Authorization/roleAssignments/write' over scope '/subscriptions/42f726f8-91ee-44d4
+-832f-9d9ec412ef8f/resourceGroups/ev-openai-swce-rg-test/providers/Microsoft.Authorization/roleAssign
+ments/922c0105-179b-491f-9a75-040609d1c9bc' or the scope is invalid. If access was recently granted, 
+please refresh your credentials.
+At C:\Projekt\BCG\workspace\setup_z2_roles.ps1:111 char:12
++     $out = az role assignment create `
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: (Authori...ur credentials.:String) [], RemoteExc 
+   eption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Code: AuthorizationFailed
+Message: The client 'adm.jens.palmo@evidensia.se' with object id '1d72f22c-55cf-4a74-a553-ed5875c88d4
+c' has an authorization with ABAC condition that is not fulfilled to perform action 'Microsoft.Author
+ization/roleAssignments/write' over scope '/subscriptions/42f726f8-91ee-44d4-832f-9d9ec412ef8f/resour
+ceGroups/ev-openai-swce-rg-test/providers/Microsoft.Authorization/roleAssignments/922c0105-179b-491f-
+9a75-040609d1c9bc' or the scope is invalid. If access was recently granted, please refresh your crede
+ntials.
+     Om villkor-/AuthorizationFailed: din Owner kan vara begransad till
+     att bara tilldela Owner (constrained delegation). Da kravs RG-agaren
+     for just denna rolltilldelning -- enda potentiella IT-asken.
+
+======================================================================
+STEG 3 -- verifiera MI:s roller
+======================================================================
+MI:s rolltilldelningar (alla scope):
+     (inga returnerade -- kontrollera ovan FAIL)
+
+======================================================================
+RESULTATSAMMANFATTNING
+======================================================================
+  PASS    0_sub
+  FAIL    1_blob_roll
+  FAIL    2_vm_roll
+
+SLUTSATS: Minst ett FAIL. Om villkorfel pa rolltilldelning -> RG-agaren
+          behovs for just det (constrained delegation vi flaggade).
+Loggfil: C:\Projekt\BCG\workspace\validation_receipts\setup_z2_roles_2026-06-12_115844.log
