@@ -2,8 +2,8 @@
 
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde — replikering, validering, migrering)
 **Lever i:** `C:\Projekt\BCG` (detta repo). Helt skild från Business_Analytics `PROJECT_LESSONS.md`.
-**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Senast uppdaterad:** 2026-06-08
+**Utvecklare:** Jens Palmö (Senior Business Analyst)
+**Senast uppdaterad:** 2026-06-13 (tier-kolumn + `Gäller om`/`Förkroppsligas i` införda; LB.59-61 infogade)
 
 ---
 
@@ -16,63 +16,98 @@ plattform, replikeringsdetaljer. Varje lärdom har ett stabilt `LB.N`-ID och for
 **Symptom:** Vad som syntes.
 **Rotorsak:** Varför det hände (om ej uppenbart).
 **Regel:** Konkret åtgärd som förhindrar upprepning.
+**Gäller om:** Villkoret regeln vilar på (deaktiverar sig själv när villkoret bryts). Skrivs bara
+               när villkoret är icke-uppenbart och kan brytas — på en tidlös mekanism är det överflödigt.
+**Förkroppsligas i:** Fil(er) där regeln lever i kod (tvåvägs-länkning — KÄRNPRINCIPER §4.6). Skrivs
+                      när en konkret artefakt bär lärdomen, så att den som öppnar filen hittar lärdomen
+                      och vice versa.
 ```
+
+**Tier (styr vad som läses vid sessionsstart — se snabbindexet):**
+- **(a) Aktiv fälla** — kan ännu bita på nästa körning. Läs vid sessionsstart.
+- **(b) Löst-av-verktyg** — ett verktyg/skript bär numera regeln; behöver inte läsas (verktyget kör den).
+- **(c) Fas-historisk** — hörde till en avslutad fas (t.ex. replikeringen); arkiv, inte aktiv läsning.
+
+Sessionsstart läser **bara (a)**. Detta håller listan från att tyst bli "skumma 53 poster". En lärdom
+nedgraderas från (a) när dess fälla stängts av ett verktyg eller en fas — inte raderas (additiv för
+historik, KÄRNPRINCIPER §4.7), bara om-tierad.
 
 **Detta är inte:**
 - **Affärs-/domäninsikter** (vad vi lärt oss om modellen/datan) → `INSIGHTS_BCG.md` (`IB.N`).
 - **Beslut** (vad vi valde och varför) → `BCG_PRICING_PLAYBOOK.md` decision log (`D*`, `D-B*`, `D-F-*`).
-- **Generella tekniska lärdomar** över alla projekt → `MASTER_PYTHON.md`, `MASTER_SQL.md`. Om en
-  LB-lärdom blir generell, befordra den till MASTER och låt LB peka dit.
+- **Generella tekniska lärdomar** över alla projekt → `MASTER_PYTHON.md`, `MASTER_SQL.md`, `KÄRNPRINCIPER.md`.
+  Om en LB-lärdom blir generell, befordra den och låt LB peka dit. Flera LB är instanser av en
+  KÄRNPRINCIP (markerat i index) — de stannar här som konkreta exempel, men regeln bor i KÄRN.
 
 ---
 
 ## Snabbindex
 
-| ID | Lärdom | Aktiveras |
-|---|---|---|
-| LB.1 | DW-token-renewal var 4:e timme | DW-query kraschar med ClientAuthenticationError |
-| LB.2 | DuckDB .exe blockerad av AppLocker | duckdb.exe får inte köra |
-| LB.3 | Lokal OOM på Stage 2 | feature_selection.py OOM på full pipeline lokalt |
-| LB.4 | Ray-memory fix i config.yml | Stage 2 kraschar med memory error |
-| LB.5 | BCG:s rå-signifikans = 17.8% (cluster) | Bedöm aldrig vårt mot absolut "borde vara sig" |
-| LB.6 | Verify-tool kräver global Python 3.11 | duckdb saknas i .venv |
-| LB.7 | feature_selection driver Ray-workers | RayActorError vid OOM |
-| LB.8 | Bundle.bundle_code = composite key | Bundle.bundle_code är komma-separerad lista |
-| LB.9 | Prisstabila grupper ger absurda elasticiteter | Site har koefficienter ±200 |
-| LB.10 | Encoding-mismatch BCG-input vs UTF-8 | Latin-1/CP1252 i BCG-filer |
-| LB.11 | Verify_blend kräver per-rep-test, ej summa | 43 representanter, inte total |
-| LB.12 | output_summary.xlsx KEY-format | Cluster-Granularity+'-'+ItemCode |
-| LB.13 | Cluster-seed har 7 namnade kluster | Inte 0..6 numreriskt |
-| LB.14 | FTE-XLSX-täckning slutar 2025-06 | Färska veckor får NULL |
-| LB.15 | replicate_dataprep.py kräver --validate-only | Annars 12 min SQL-omkörning |
-| LB.16 | output_summary innehåller bara signifikanta? Nej | Alla 3812 cluster-grupper finns |
-| LB.17 | Site = department, inte clinic | ID_Department i pipelinens kontext |
-| LB.18 | Bundle Hospital/Clinics rollup-grain | Bundle skär över kluster |
-| LB.19 | Validera Spår A:s parquet, ej Spår B:s CSV | replicate_dataprep läser fel källa annars |
-| LB.20 | data_prepration.py:s '2025-06-23' var hårdkodad | G7-fix nödvändig |
-| LB.21 | PowerShell execution policy blockerar .ps1 | Använd kommandoblock, inte .ps1 |
-| LB.22 | replicate_dataprep injicerar datum in-memory | SQL-filen på disk oförändrad |
-| LB.23 | Verify_infra rapporterar STRAY-filer | .bak-g7 flaggas som STRAY |
-| LB.24 | Validera mot fryst original, ej arbetskopia | Pipeline\data\ skrivs över av Spår B |
-| LB.25 | corr 1.0 = misstänk cirkelbevis tills källoberoende | "Snälla siffror" är inte verifiering |
-| LB.26 | py -3.11 för verify_tool, inte python | Windows Store-alias är en fälla |
-| LB.27 | Aktiv venv ärver inte mellan PS-fönster | Aktivera i varje nytt fönster |
-| LB.28 | Mät hash före fil-kopia mellan modeller | constants.py skiljer sig |
-| **LB.29** | **verify_tool jämför fel CSV om sökvägar divergerar** | **Två script skriver samma filnamn i olika kataloger** |
-| **LB.30** | **Två venv:er, olika paket — använd rätt för rätt jobb** | **ModuleNotFoundError trots installerad miljö** |
-| **LB.31** | **Tee-Object i PS 5.1 fångar inte stderr även med `2>&1`** | **Pipeline-progress saknas i loggfilen, syns bara i terminal** |
-| **LB.32** | **Ray-OOM plateau ≠ återhämtning, mät CPU-tidens tillväxttakt** | **Stabil RAM tolkas som "Ray jobbar" men är "Ray gav upp"** |
-| **LB.33** | **Smoke-extrapolation underskattar Ray:s peak-RAM icke-linjärt** | **Smoke 50 KEY ok → full 1521 KEY OOM:ar** |
-| **LB.34** | **`/tmp/ray_spill` försvinner vid VM-omstart, måste skapas vid varje session** | **Pipeline kraschar vid Ray-start på "ny" VM** |
-| **LB.35** | **Imports propageras inte automatiskt vid str_replace-patch** | **NameError efter "lyckad" patch som la till funktion-anrop** |
-| **LB.36** | **`data_prepration.py`:s "Shape"-print loggar input, inte output (~50% diff)** | **Loggrad 523k rader, faktisk fil 259k rader** |
-| **LB.37** | **PowerShell multi-line-regex är opålitlig på Python-källkod, använd Python själv** | **`-replace` matchar inte över newlines utan `(?s)`-flagga** |
-| **LB.38** | **"Biter inte på kärnelasticiteten" ≠ harmless** | **Datakvalitetsbrist minimerades, ledde till 73% bortfall vid yoy_seasonality** |
-| **LB.39** | **Validering på producerade rader fångar inte populations-bortfall** | **verify_dataprep PASS dolde 834 droppade ItemCodes** |
-| **LB.40** | **load_or_create_feature_control_file Gren B saknar return (BCG-bug)** | **feature_selection.py kraschar AttributeError NoneType, kringgås via körningsordning** |
-| **LB.41** | **control_file.xlsx regenereras INTE av steg 2 (`data_prepration.py`)** | **Skapas först i steg 3, rensning före steg 2 skapar inte ny fil** |
-| **LB.42** | **output_summary.xlsx ligger i `output/model/` (inte `output/`)** | **scp-kommandon med fel path får "No such file"** |
-| **LB.43** | **`ls -la` mapp-datum kan misstolkas som fil-datum** | **Använd `find -newer` istället för att läsa ls-output** |
+**Tier:** (a) aktiv fälla — läs vid sessionsstart · (b) löst-av-verktyg — verktyget bär regeln · (c) fas-historisk — arkiv.
+
+| ID | Tier | Lärdom | Aktiveras |
+|---|---|---|---|
+| LB.1 | a | DW-token-renewal var 4:e timme | DW-query kraschar med ClientAuthenticationError |
+| LB.2 | b | DuckDB .exe blockerad av AppLocker | duckdb.exe får inte köra |
+| LB.3 | c | Lokal OOM på Stage 2 | feature_selection.py OOM på full pipeline lokalt |
+| LB.4 | b | Ray-memory fix i config.yml | Stage 2 kraschar med memory error |
+| LB.5 | c | BCG:s rå-signifikans = 17.8% (cluster) | Bedöm aldrig vårt mot absolut "borde vara sig" |
+| LB.6 | b | Verify-tool kräver global Python 3.11 | duckdb saknas i .venv |
+| LB.7 | c | feature_selection driver Ray-workers | RayActorError vid OOM |
+| LB.8 | c | Bundle.bundle_code = composite key | Bundle.bundle_code är komma-separerad lista |
+| LB.9 | c | Prisstabila grupper ger absurda elasticiteter | Site har koefficienter ±200 |
+| LB.10 | b | Encoding-mismatch BCG-input vs UTF-8 | Latin-1/CP1252 i BCG-filer |
+| LB.11 | c | Verify_blend kräver per-rep-test, ej summa | 43 representanter, inte total |
+| LB.12 | a | output_summary.xlsx KEY-format | Cluster-Granularity+'-'+ItemCode |
+| LB.13 | c | Cluster-seed har 7 namnade kluster | Inte 0..6 numreriskt |
+| LB.14 | a | FTE-XLSX-täckning slutar 2025-06 | Färska veckor får NULL |
+| LB.15 | b | replicate_dataprep.py kräver --validate-only | Annars 12 min SQL-omkörning |
+| LB.16 | c | output_summary innehåller bara signifikanta? Nej | Alla 3812 cluster-grupper finns |
+| LB.17 | c | Site = department, inte clinic | ID_Department i pipelinens kontext |
+| LB.18 | c | Bundle Hospital/Clinics rollup-grain | Bundle skär över kluster |
+| LB.19 | b | Validera Spår A:s parquet, ej Spår B:s CSV | replicate_dataprep läser fel källa annars |
+| LB.20 | a | data_prepration.py:s '2025-06-23' var hårdkodad | G7-fix nödvändig (instans: KÄRN P.3) |
+| LB.21 | a | PowerShell execution policy blockerar .ps1 | Använd kommandoblock, inte .ps1 |
+| LB.22 | b | replicate_dataprep injicerar datum in-memory | SQL-filen på disk oförändrad |
+| LB.23 | b | Verify_infra rapporterar STRAY-filer | .bak-g7 flaggas som STRAY |
+| LB.24 | a | Validera mot fryst original, ej arbetskopia | Pipeline\data\ skrivs över av Spår B |
+| LB.25 | a | corr 1.0 = misstänk cirkelbevis tills källoberoende | "Snälla siffror" är inte verifiering |
+| LB.26 | a | py -3.11 för verify_tool, inte python | Windows Store-alias är en fälla (instans: miljödisciplin) |
+| LB.27 | a | Aktiv venv ärver inte mellan PS-fönster | Aktivera i varje nytt fönster (instans: miljödisciplin) |
+| LB.28 | a | Mät hash före fil-kopia mellan modeller | constants.py skiljer sig |
+| LB.29 | a | verify_tool jämför fel CSV om sökvägar divergerar | Två script skriver samma filnamn i olika kataloger |
+| LB.30 | a | Två venv:er, olika paket — använd rätt för rätt jobb | ModuleNotFoundError trots installerad miljö (instans: miljödisciplin) |
+| LB.31 | a | Tee-Object i PS 5.1 fångar inte stderr även med `2>&1` | Pipeline-progress saknas i loggfilen, syns bara i terminal |
+| LB.32 | b | Ray-OOM plateau ≠ återhämtning, mät CPU-tidens tillväxttakt | Stabil RAM tolkas som "Ray jobbar" men är "Ray gav upp" (instans: KÄRN P.2) |
+| LB.33 | b | Smoke-extrapolation underskattar Ray:s peak-RAM icke-linjärt | Smoke 50 KEY ok → full 1521 KEY OOM:ar |
+| LB.34 | b | `/tmp/ray_spill` försvinner vid VM-omstart, måste skapas vid varje session | Pipeline kraschar vid Ray-start på "ny" VM (= MASTER_AZURE CZ.9) |
+| LB.35 | a | Imports propageras inte automatiskt vid str_replace-patch | NameError efter "lyckad" patch som la till funktion-anrop |
+| LB.36 | a | `data_prepration.py`:s "Shape"-print loggar input, inte output (~50% diff) | Loggrad 523k rader, faktisk fil 259k rader (instans: R7) |
+| LB.37 | a | PowerShell multi-line-regex opålitlig på Python-källkod, använd Python själv | `-replace` matchar inte över newlines utan `(?s)`-flagga |
+| LB.38 | a | "Biter inte på kärnelasticiteten" ≠ harmless | Datakvalitetsbrist minimerades, ledde till 73% bortfall (instans: KÄRN P.1) |
+| LB.39 | a | Validering på producerade rader fångar inte populations-bortfall | verify_dataprep PASS dolde 834 droppade ItemCodes (instans: KÄRN P.1) |
+| LB.40 | a | load_or_create_feature_control_file Gren B saknar return (BCG-bug) | feature_selection kraschar AttributeError NoneType, kringgås via körningsordning |
+| LB.41 | a | control_file.xlsx regenereras INTE av steg 2 | Skapas först i steg 3, rensning före steg 2 skapar inte ny fil |
+| LB.42 | a | output_summary.xlsx ligger i `output/model/` (inte `output/`) | scp-kommandon med fel path får "No such file" |
+| LB.43 | a | `ls -la` mapp-datum kan misstolkas som fil-datum | Använd `find -newer` istället för att läsa ls-output (instans: R7) |
+| LB.44 | a | Excel-steg (5 + Step 6) körs LOKALT på Windows, aldrig på VM | xlwings/COM kan ej köra på Linux |
+| LB.45 | a | `write_df_preserve_named_range` fångar `KeyError` men xlwings kastar `com_error` | Skrivning till blank mall kraschar |
+| LB.46 | a | Azure CLI cachar aktiv subscription mellan sessioner | `AuthorizationFailed` på VM i fel subscription (= MASTER_AZURE-regel) |
+| LB.47 | a | scp av fjärrfil med mellanslag: `cp` till ren sökväg på VM först | scp misslyckas på path med blanksteg |
+| LB.48 | a | läs *runnern* som producerade artefakten innan "datakedjan kräver patch X" | Hypotes om datakedja innan källäsning (instans: KÄRN A.9b) |
+| LB.49 | a | masterdata CSV→parquet: läs med `all_varchar=true`, typning hos konsumenten | DECIMAL-inferens kraschar på blandade typer |
+| LB.50 | a | dubbel fönsterdefinition är tyst-fel-fälla; ersätt med konstant-ankare utan övre gräns | Fönster på två ställen glider isär (instans: KÄRN P.3) |
+| LB.51 | a | BCG-kod har UK-rester, tomma config-nycklar, aldrig-körda steg; verifiera config mot faktiska anrop | Config-nyckel utan effekt vilseleder |
+| LB.52 | a | Step 6 förväntar pre-splittad KEY (ItemCode-kolumn); vår växande output har bara KEY | KeyError på ProductKey nedströms |
+| LB.53 | a | xlwings `wb.names[range]` kraschar (com_error) om mallens namnområde saknas; datan redan sparad | Icke-noll exit men filen skrevs (instans: R7) |
+| LB.54 | a | SSH-detach: `&` räcker inte, processen måste äga egna fd:er (launcher.sh + setsid) | Detached jobb dör när SSH stängs (= MASTER_AZURE AZ.6) |
+| LB.55 | a | Flaky VPN-tunnel mitt i körning får inte tolkas som körningsfel | Poll-avbrott svalt av retry, jobbet överlevde (instans: KÄRN P.2 / AZ.7) |
+| LB.56 | a | Deallokera utfallsstyrt, inte i blint `finally` | Avbruten körning slänger VM man ville inspektera (= MASTER_AZURE AZ.8) |
+| LB.57 | b | Prefect förkastat för denna miljö (dashboard når ej kollega utan publik IP) | Övervägande av orkestreringsramverk |
+| LB.58 | a | DW når INTE från VM:en (IP-vitlistning) → lokal extraktion → Blob → VM | DW-query från VM ger BLOCKED (= MASTER_AZURE AZ.10) |
+| LB.59 | a | run_id = datum ger statusfil-kollage vid flera körningar samma dag | Statusfält motsäger varandra (finished före heartbeat) |
+| LB.60 | a | deallocate-i-logg är inte bevis på att VM:en är nere — verifiera power-state | Loggrad "deallocated" men VM running (instans: R7 / KÄRN P.2) |
+| LB.61 | a | Flask serverar mall från disk, men webbläsaren cachar | Ändrad dashboard.html syns inte i browser |
 
 ---
 
@@ -587,15 +622,109 @@ vad som skrevs före kraschpunkten.
 
 ---
 
+> **OBS — LB.54-58 nedan rekonstruerade från referens.** Dessa fem postares brödtext saknades i
+> källfilen `LESSONS_BCG.md` (den slutade vid LB.53); de refererades i NEXT_SESSION och MASTER_AZURE men
+> infogades aldrig. Innehållet nedan är härlett ur deras index-rader, MASTER_AZURE AZ.6-10 och
+> NEXT_SESSION 2026-06-12. **Verifiera mot ursprungssessionen (Phase Z, 2026-06-12) och justera vid
+> behov** — detta är referens-rekonstruktion, inte verifierad originaltext.
+
+### LB.54 — SSH-detach: `&` räcker inte; processen måste äga sina egna fd:er
+**Symptom:** detached jobb startat med `&` över SSH dog när SSH-kanalen stängdes.
+**Rotorsak:** processen ärvde SSH-sessionens fd:er; när kanalen stängdes fick den SIGHUP.
+**Regel:** kör via `launcher.sh` + `setsid` så jobbet får egen sessions-ledare och egna fd:er och
+överlever stängd SSH. Isolerat verifierad 1,4 s detach.
+**Gäller om:** ett långt jobb startas detached över en SSH-kanal som kommer att stängas.
+**Förkroppsligas i:** `orchestration/infrastructure/azure_vm.py` (setsid-detach); MASTER_AZURE AZ.6.
+
+### LB.55 — Flaky VPN-tunnel mitt i körning får inte tolkas som körningsfel
+**Symptom:** poll mot VM:en tappade kontakt mitt under en skarp körning (VPN-tunnelglapp).
+**Rotorsak:** nätavbrott i observationskanalen, inte i jobbet — jobbet körde vidare på VM:en.
+**Regel:** poll-fel sväljs av retry; körningens hälsa avgörs av framstegsmått på VM:en, inte av att
+observationskanalen är obruten. Körningen överlevde och gick i mål.
+**Gäller om:** ett detached VM-jobb övervakas över en opålitlig tunnel (VPN/kontorsnät).
+**Förkroppsligas i:** `orchestration/runners/run_site_model.py` (tolerant poll). *Instans av KÄRN P.2
+/ AZ.7 — observation ≠ körningshälsa.*
+
+### LB.56 — Deallokera utfallsstyrt, inte i blint `finally`
+**Symptom:** risk att en avbruten/inspektionsvärd körning deallokerar VM:en automatiskt.
+**Regel:** fånga Ctrl+C; deallokera baserat på körningens *utfall*, inte ovillkorligt i `finally`, så en
+körning man vill inspektera inte slänger sin egen VM. Verifiera power-state efteråt (LB.60).
+**Gäller om:** en runner äger VM-livscykeln och kan avbrytas mitt i.
+**Förkroppsligas i:** `orchestration/runners/run_site_model.py` (utfallsstyrd deallocate); MASTER_AZURE AZ.8.
+
+### LB.57 — Prefect förkastat för denna miljö
+**Symptom:** övervägande av orkestreringsramverk (Prefect) för pipelinen.
+**Rotorsak:** Prefects dashboard når inte en kollega utan publik IP / reverse proxy → löser inte
+nätväggen, lägger till en serverkomponent.
+**Regel:** för en låst miljö utan publik IP är ett hemmabygge med Blob-statusfil rätt. Återbesök om
+flera pipelines/utvecklare uppstår.
+**Gäller om:** orkestrering övervägs i en miljö utan nåbar dashboard-värd.
+
+### LB.58 — DW (Azure SQL) når inte från VM:en
+**Symptom:** DW-query från VM:en gav `BLOCKED` mot `:1433` (medan `OUT_OK` mot github).
+**Rotorsak:** DW-specifik IP-vitlistning — VM:ens VNet är inte vitlistat.
+**Regel:** extraktionen förblir lokal; arkitektur = lokal extraktion → Blob → VM (FD.17). Mät
+nåbarheten, anta den inte.
+**Gäller om:** en VM i annat VNet behöver nå Azure SQL bakom IP-vitlistning.
+**Förkroppsligas i:** `orchestration/infrastructure/blob.py` (arkitekturval); MASTER_AZURE AZ.10.
+
+---
+
+### LB.59 — run_id = datum ger statusfil-kollage vid flera körningar samma dag
+**Symptom:** `2026-06-12.json` visade `state=running` med `finished_at` (13:15) FÖRE `last_heartbeat`
+(15:20), plus ett `error`-fält från ett tidigare misslyckat försök medan `site_model` var `succeeded`.
+**Rotorsak:** run_id = datumet. Dagens andra körning skrev (overwrite) ovanpå den förstas statusfil men
+ersatte inte alla fält → kollage av två körningars tillstånd.
+**Regel:** run_id ska vara unikt per körning (datum + tidsstämpel, t.ex. `2026-06-12T1408`), inte bara
+datum. Symptomet är ofarligt för enskild avläsning men gör statusen tvetydig.
+**Gäller om:** flera körningar kan ske samma dag och skriver till samma statusnyckel.
+**Förkroppsligas i:** `orchestration/shared/run_status.py` (run_id-generering — kräver kontraktsändring, se FD).
+
+### LB.60 — deallocate-i-logg är inte bevis på att VM:en är nere
+**Symptom:** runnern loggade "VM deallocated -- billing stopped" 17:20; en kontroll senare samma kväll
+visade ändå `VM running` (kostade ~9 kr/h obemärkt).
+**Rotorsak:** deallocate-anropet bekräftades aldrig mot faktiskt power-state — antingen tyst-misslyckat
+anrop, token-glapp, eller återstartad VM.
+**Regel:** verifiera ALLTID power-state efter en körning:
+`az vm get-instance-view --resource-group <rg> --name <vm> --query "instanceView.statuses[?starts_with(code,'PowerState/')].displayStatus" -o tsv`.
+**Gäller om:** en körning avslutas med ett deallocate-anrop som inte verifieras mot faktiskt tillstånd.
+**Förkroppsligas i:** `orchestration/runners/run_site_model.py` (deallocate-steget); MASTER_AZURE §8.
+*Instans av R7 / KÄRN P.2 (lita på tillståndet, inte på log-raden) — det observerade argumentet för
+FD.16 (VM-sidigt auto-shutdown som oberoende skyddsnät; runnerns deallocate räcker inte ensam).*
+
+### LB.61 — Flask serverar mall från disk, men webbläsaren cachar
+**Symptom:** ändrad `dashboard.html` på disk (`Select-String` bekräftade nya innehållet), men sidan i
+webbläsaren visade fortfarande gammal version.
+**Rotorsak:** Flask läser mallen från disk per request, men webbläsaren återanvänder cachad HTML/JS.
+**Regel:** efter malländring → hård omladdning (**Ctrl+F5** / Ctrl+Shift+R), inte vanlig F5. Princip:
+mät disken (`Select-String`), tvinga skärmen. OBS skillnaden: ändringar i `app.py` (Python-kod) kräver
+server-**omstart**, inte bara omladdning — bara mallar och statiska filer plockas upp per request.
+**Gäller om:** lokal Flask-app med mallar/statiska filer som serveras per request.
+**Förkroppsligas i:** `orchestration/webapp/` (dashboard).
+
+---
+
 ## Hur listan växer
 
 Ny lärdom läggs till när vi snubblar över en teknisk fälla — miljö, infrastruktur, kod-mekanik,
-sökväg-divergens. En befintlig lärdom **uppdateras** med "ändrad 2026-XX-XX" om regeln behöver
-revideras (men vi tar inte bort den för att inte tappa historik).
+sökväg-divergens. En befintlig lärdom **uppdateras** (med "ändrad 2026-XX-XX") eller **om-tieras** om
+regeln revideras eller dess fälla stängs av ett verktyg/en fas — men tas inte bort (additiv för historik,
+KÄRNPRINCIPER §4.7).
 
-Vid sessionsstart: läs lärdomarna som täcker dagens arbete (inte alla). Vid sessionsslut: överväg
-om sessionen gav en ny LB. Om lärdomen är generell över projekt — befordra till MASTER_PYTHON eller
-MASTER_SQL och låt LB peka dit.
+**Vid sessionsstart:** läs **tier-a** i snabbindexet (aktiva fällor) — inte hela listan. Tier-b lever i
+sina verktyg, tier-c är arkiv.
+
+**Vid sessionsslut (KÄRNPRINCIPER §6.6-prövning):** överväg om sessionen gav en ny LB. Är den en *instans*
+av en befintlig KÄRNPRINCIP (P.1-P.4, R7, A.9, miljödisciplin) → lägg den här som konkret exempel men
+befordra inte regeln; regeln bor i KÄRN. Är den generell över projekt → befordra till MASTER och låt LB
+peka dit. Noll nya LB är ofta rätt.
+
+**Konkreta instanser av "Mät, gissa inte" (KÄRN §8.4) i detta projekt** — mekanismen bor i KÄRN, dessa är
+bevisen som motiverar den: (1) **källidentitet** — `transaction_data` kommer från `Fact_BillingInvoiceRows`
+JOIN `Dim_Item`, bevisad per kod (median-kvot 1,0000), inte den först antagna tabellen. (2) **net/brutto** —
+`SalesTotal` är brutto (`SalesExVAT × 1,25`), inte lika med `SalesExVAT`; AI:ns första gissning var fel.
+(3) **L4** — `ProductGroupL4Name` fanns inte i DW som antaget; mätning avgjorde. Alla tre: kolumnnamn och
+minnesbild ljög, mätning mot referens avgjorde.
 
 ---
 
@@ -603,3 +732,10 @@ MASTER_SQL och låt LB peka dit.
 2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
 förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`). LB.48-51 tillagda 2026-06-11 efter F.9 Bundle-dataprep körd växande + Bundle-modellen datadrivet parkerad (FD.11): läs runnern före patch-deklaration (LB.48), all_varchar vid masterdata-parquet-konvertering (LB.49), dubbel-fönster-fällan/konstant-ankare (LB.50, DRIFT), BCG-kod UK-rester + config-verifiering före körning (LB.51). Bundle-dataprep committad i `1daf093`. LB.52-53 tillagda 2026-06-11 efter F.10 Step 6 körd första gången på växande data (Alternativ A): KEY-split-fällan i blended_model (LB.52), xlwings named-range com_error på mall-skrivning (LB.53). Step 6 producerade 108 979 rader / 15 128 ProductKeys, median final_elasticity -0.497, 100% negativa.*
+
+*Omstrukturerad 2026-06-13: tier-kolumn (a/b/c) införd i snabbindexet — sessionsstart läser bara tier-a;
+`Gäller om`- och `Förkroppsligas i`-fält tillagda i formatet (KÄRNPRINCIPER §4.6/§7); LB.59-61 infogade
+(Phase Z frontyta — run_id-kollage, power-state-verifiering, Flask-mall-cache); LB.54-58 rekonstruerade
+från referens (deras brödtext saknades i källfilen — markerade för verifiering mot ursprungssession);
+index-rader korsrefererar nu motsvarande KÄRNPRINCIP/MASTER_AZURE-post där LB:n är en instans; bolagsnamn
+borttaget ur utvecklarrad. Innehåll i LB.1-53 oförändrat.*
