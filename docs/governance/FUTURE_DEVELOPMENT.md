@@ -476,6 +476,70 @@ output, verifiera 43-reps-strukturen håller, placera outputen där Step 6 letar
 
 ---
 
+| FD.16 | Automatiskt VM-kostnadsskyddsnät (auto-deallocate/larm) | Idé |
+| FD.17 | Lokal extraktionskedja → Blob → VM (arkitektur) | Delvis byggd |
+| FD.18 | SEK-kostnadsvisning i körlogg + statusvy | Skissad |
+| FD.19 | Kollega-vänlig motor-dashboard (lager 2-3) | Skissad |
+| FD.20 | Blob-output per familj (namngivning) | Specad |
+| FD.21 | Frontend speglar BCG:s mappstruktur | Önskad |
+| FD.22 | Live-tickande körtid + summering i frontend | Önskad |
+| FD.23 | Export per steg + fylligare svenska loggtexter | Önskad |
+| FD.24 | --launch-test ärver poll-loopens tunneltolerans | Specad |
+| FD.25 | Orchestrator frozen/growing-väljbar (replikerings-demo) | Idé |
+| FD.26 | run_data.py: ett kommando kör hela lokala bränsleledet | Nästa sessions mål |
+| FD.27 | Webapp-vägledning i extraction-steget (how_sv-fält) | Designad, ej byggd |
+| FD.28 | Container-per-familj som speglar BCG:s mappstruktur | Önskad (finåkning) |
+| FD.29 | AAD-övergång för upload_inputs när Blob-datarollen finns | Väntar FAS T/Kent |
+
+
+### FD.26 — run_data.py: ett kommando kör hela det lokala bränsleledet
+**Idé:** En orkestrerande runner (run_site_model.py-stil) som körs en gång — från terminal ELLER
+genom att öppna och trycka Kör i VS Code — och kedjar: (1) regenerera parqueten
+(regenerate_transaction_parquet_chunked.py), (2) kör data prep (replicate_dataprep.py), (3) ladda upp
+parqueten till Blob (upload_inputs, verifierad 2026-06-15). Flaggor: --skip-regen/--skip-prep/--skip-
+upload/--end ÅÅÅÅ-MM-DD.
+**Värde:** Jens "så lite Python som möjligt utanför Azure" = få MOMENT, inte få rader. Ett skript att
+peka på i webappen. Anropar BEFINTLIGA bevisade skript (A.9), återimplementerar inte.
+**Beror på:** upload_inputs (KLAR). Korsar tre repon — runnern limmar, äger inte stegen.
+**Designfakta (mätt 2026-06-15):** upload 1 GB ≈ 2 min, ~9 MB/s → SYNKRONT steg, ingen detach behövs.
+**Estimerad omfattning:** Medel. **Status:** Nästa sessions primära mål. Bygg utan statusrapportering
+först (lager 1); statuskontrakt-skrivning som lager 2 (extraction-fasen finns i run_status.py).
+**Datum identifierad:** 2026-06-15.
+
+### FD.27 — Webapp-vägledning i extraction-steget (how_sv-fält)
+**Idé:** how_sv-fält på extraction-fasen i story_config.py + renderingsrad i dashboard.html (samma
+if(st.X)-mönster som why/use/without, rad 228-231). Texten säger kollega-vänligt HUR datan når Azure:
+kör run_data.py lokalt (var det ligger, att DW kräver VPN), output → Blob.
+**Värde:** webappen "ser ut" som ett sammanhängande flöde även när data prep med nödvändighet är lokal;
+ärvbart. Sömmen lokalt/moln förklaras, göms inte.
+**Beror på:** FD.26 (texten ska peka på ett skript som FAKTISKT finns). Lindas ihop med FD.26.
+**Estimerad omfattning:** Låg. **Status:** Designad denna session, ej byggd.
+**Not:** dashboard.html är ren UTF-8 — skriv å/ä/ö direkt.
+**Datum identifierad:** 2026-06-15.
+
+### FD.28 — Container-per-familj som speglar BCG:s mappstruktur (finåkning)
+**Idé:** I stället för platta input/output/runstatus — egna containrar (eller prefix) per fas-familj
+som speglar BCG:s numrerade struktur, så bränsle/output lättare skiljs "vad från var".
+**Värde:** igenkänning/förtroende (jfr FD.21 för frontend); renare separation.
+**Beror på:** att MOTORN funkar först (Jens: "göra klart att motorn funkar innan vi tvättar bilen för
+att finåka"). Hör ihop med FD.20, FD.21, LB.63 + LB.67.
+**Estimerad omfattning:** Medel. **Status:** Önskad 2026-06-15, medvetet uppskjuten till finåkning.
+**VIKTIGT:** gör tillsammans med LB.63/LB.67-eskaleringen — container-struktur + entitet-i-nyckel +
+auth-läge är samma designprincip, lös en gång.
+**Datum identifierad:** 2026-06-15.
+
+### FD.29 — AAD-övergång för upload_inputs när Blob-datarollen finns (Kent)
+**Idé:** upload_inputs ärver kontonyckel-läget (PRICINGMODEL_AUTH=key) — Jens-access-beroende. När
+MI:n får Storage Blob Data-rollen (FAS T, Kent), byt till AAD: en envariabel-ändring, ingen omskrivning
+(blob.py är redan förberedd).
+**Värde:** uppladdning överlever att Jens Owner-access försvinner — fullbordar "överlever att du slutar".
+**Beror på:** Kent (ABAC-blockerad dataroll). **Estimerad omfattning:** Låg. **Status:** Väntar FAS T.
+**Datum identifierad:** 2026-06-15.
+
+### 2c. Lägg till i "Senaste uppdateringar"-tabellen
+| 2026-06-15 | FD.26-29 tillagda. Arkitekturbeslut: data prep lokalt (LB.65/66), output→Blob. upload_inputs byggd+bevisad (1 GB, 2 min). FD.26 run_data.py = nästa mål. |
+
+
 ## Hur posten levs
 
 Ny FD läggs till när:

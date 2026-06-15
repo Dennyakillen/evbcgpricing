@@ -702,7 +702,62 @@ server-**omstart**, inte bara omladdning — bara mallar och statiska filer ploc
 **Gäller om:** lokal Flask-app med mallar/statiska filer som serveras per request.
 **Förkroppsligas i:** `orchestration/webapp/` (dashboard).
 
+| LB.62 | a | azure_run_model/ är referens OCH skrivmål — överskrivningsfälla | runner scp:ar output dit en facit-referens också ligger |
+| LB.63 | a | Blob-output per datum, inte entitet → familjekollision samma dag | flera familjer laddar upp output samma dag |
+| LB.64 | a | --launch-test ärver inte poll-loopens tunneltolerans | launch-test mot nyss kallstartad VM på flaky tunnel |
+| LB.65 | a | Data prep behöver inte VM:ens RAM — bara modellstegen gör det | man frestas lyfta icke-RAM-tungt steg till VM "för enhetlighet" |
+| LB.66 | a | Artefakt i Blob = överlevnad (icke-backad lokal dator), inte bekvämlighet | väg lokal bekvämlighet mot artefakters överlevnad |
+| LB.67 | a | storage --auth-mode login ger TYST tomt utan dataplane-roll (≠ 403) | listar/läser Blob och får tomt svar |
+| LB.68 | a | Ingen auto-shutdown på bcg-poc-vm — deallokera alltid manuellt | man räknar med att VM:en stänger av sig själv |
 ---
+### LB.65 — Data prep behöver inte VM:ens RAM; bara modellstegen gör det
+**Symptom:** Sessionen 2026-06-15 utgick från "data prep via Azure", svällt ur det sanna skälet att
+VM sattes upp (lokal OOM på Stage 2, modellstegen). Källäsning visade att DuckDB-data-prep körts rent
+lokalt växande (run_dataprep_growing.txt, 642s, sex filer, ingen OOM); parquet-regenereringen är
+chunkad just för lågt toppminne.
+**Rotorsak:** En sann premiss ("tunga jobb behöver RAM → VM") applicerades för brett ("allt på VM").
+Bara Ray-modellstegen (cluster/site/bundle, feature_selection) var OOM-orsaken; DuckDB spiller till
+disk och klarar data större än RAM.
+**Regel:** VM:en är till för Ray-modellstegens RAM, inte för data prep. Data prep körs lokalt — och
+MÅSTE det (DW nås ej från VM, LB.58). Skilj "vilket jobb är tungt" från "allt i samma miljö".
+**Gäller om:** man frestas lyfta ett icke-RAM-tungt steg till VM "för enhetlighetens skull".
+**Förkroppsligas i:** arkitekturbeslutet (data prep lokalt → Blob → VM läser modell-input).
+
+### LB.66 — Parqueten i Blob är överlevnad, inte bekvämlighet
+**Symptom:** Återkommande dragning att lägga data prep i Azure trots att den körs snabbt lokalt.
+**Rotorsak (Jens kontext 2026-06-15):** Den lokala datorn är en icke säkerhetskopierad enpunktsrisk
+som försvinner när Jens lämnar bolaget. OneDrive-synk fungerar inte med pythonkedjan (kräver lokalt
+arbete utan backup). Git bär koden, men Excel-/stora artefakter är otrackade (för stora, affärsdata,
+ignoreras vid push). Azure Blob är den IT-godkända, säkerhetskopierade miljön för INPUT och OUTPUT.
+**Regel:** Artefakter (parquet, output-Excel) ska till Blob för att ÖVERLEVA utvecklaren, även när
+beräkningen sker lokalt. "Kör där du måste (DW-tvång), lagra där det överlever." Detta är skälet
+projektet lever i Azure, skilt från beräknings-skälet (RAM).
+**Gäller om:** man väger lokal bekvämlighet mot artefakters överlevnad — överlevnad vinner.
+**Förkroppsligas i:** blob.py upload_inputs, input-containern.
+
+### LB.67 — storage --auth-mode login returnerar tyst tomt utan dataplane-roll (ABAC)
+**Symptom:** `az storage container list --auth-mode login` gav TOMT svar (ingen rad, inget fel).
+`--auth-mode key` listade input/output/runstatus korrekt.
+**Rotorsak:** Control-plane-Owner ≠ dataplane-läsare. Listning av containrar är en dataplane-operation
+som kräver Storage Blob Data-roll (ABAC-blockerad). AAD-vägen nekar TYST (tom lista), inte med 403.
+**Regel:** För dataplane (lista/läsa/skriva blob-innehåll) använd kontonyckel-läget (--auth-mode key /
+PRICINGMODEL_AUTH=key) tills AAD-datarollen finns (Kent). Tomt svar från --auth-mode login är INTE
+"kontot är tomt" — det är saknad dataplane-roll. Verifiera med nyckel-läget innan slutsats.
+**Gäller om:** man listar/läser Blob och får tomt — testa nyckel-läget innan slutsats.
+**Förkroppsligas i:** blob.py (_AUTH_MODE=key som dokumenterad skuld).
+**Generell version:** kandidat för MASTER_AZURE (korsar projektgräns — se eskalering nedan).
+
+### LB.68 — Ingen auto-shutdown på bcg-poc-vm (motbevisar minnesantagande)
+**Symptom:** Antagandet "VM:en stängs av automatiskt efter x timmar" levde. VM:en hade kört ~2h
+utan att stängas.
+**Rotorsak:** `az resource show ... Microsoft.DevTestLab/schedules/shutdown-computevm-bcg-poc-vm`
+→ ResourceNotFound. Ingen auto-shutdown konfigurerad. (Även om en fanns triggar auto-shutdown på fast
+klockslag, inte "x timmar efter start" — skyddar mot nattglömska, inte dagsdrift.)
+**Regel:** Manuell `deallocate` är ENDA skyddet mot löpande VM-kostnad. Lita aldrig på ett antaget
+auto-skydd. Samma klass som LB.60 (antaget tillstånd ser identiskt ut med verifierat).
+**Gäller om:** man räknar med att VM:en "sköter sig själv" kostnadsmässigt — det gör den inte.
+**Förkroppsligas i:** STATE (VM-rad), FD.16 (automatiskt skyddsnät, framtid).
+
 
 ## Hur listan växer
 

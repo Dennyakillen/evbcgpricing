@@ -20,15 +20,16 @@ externt. Koden läser dessa värden från env/konfiguration — aldrig hårdkoda
 
 ## 1. Var projektet står (en mening)
 
-**FAS A pågår** — orchestrator-motorn kör site-modellsteget end-to-end via Azure och reproducerar
-facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast verifierad: 2026-06-12)*
+**FAS A pågår** — orchestrator-motorn kör site- och cluster-modellsteget end-to-end via Azure och
+reproducerar facit bit-för-bit; bränsleledets Blob-transport (parquet → Blob) är nu byggd och
+verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast verifierad: 2026-06-15)*
 
 | Fas | Status | Senast verifierad |
 |---|---|---|
 | FR-1..7 Replikering | KLAR (bit-för-bit mot facit) | 2026-05-27 |
 | FAS V Bevis-bibliotek (verify_tool) | KLAR | 2026-05-27 |
 | FAS F Färsk data | KLAR (alla 3 familjer växande, Step 6 validerad, modell matbar) | 2026-06-11 |
-| FAS A Azure-drift | PÅGÅR (site-runnern bevisad; cluster-runner härnäst) | 2026-06-12 |
+| FAS A Azure-drift | PÅGÅR (site+cluster bevisade; bränsle→Blob byggt; run_data.py härnäst) | 2026-06-15 |
 | FAS T Teknisk skuld → IT | ÖPPEN (Blob-dataroll ABAC-blockerad) | 2026-06-12 |
 
 ---
@@ -39,8 +40,9 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 |---|---|---|
 | Aktivt repo | `evbcgpricing` (repo-URL i README, ej här) | 2026-06-12 |
 | Lokal sökväg | `C:\Projekt\BCG` | 2026-06-12 |
-| Branch | `main` (växande-data-arbetet historiskt på `fas-f-fresh-data`) | 2026-06-12 |
-| Senaste relevanta commit | `6c9b4b8` — frontyta FAS A (read-only dashboard) | 2026-06-12 |
+| Branch | `[BEKRÄFTA: git branch --show-current — STATE sa main, orkestrator-arbete ev. på fas-z-productionization]` | 2026-06-15 |
+| Senaste relevanta commit | `[BEKRÄFTA: git log --oneline -1 efter denna sessions commit — blob.py upload_inputs + test_upload_parquet.py]` | 2026-06-15 |
+| Orkestrator-push-status | Orkestratorarbete hålls medvetet utanför push tills det fungerar; upload_inputs ÄR nu bevisat (committas denna session) | 2026-06-15 |
 | Parallellrepo (DW-extraktion) | `Business_Analytics`, `C:\Projekt\Business_Analytics` | 2026-06-12 |
 
 > Verifiera vid sessionsstart: `git log --oneline -5` + `git status`. Om SHA ovan inte matchar
@@ -54,11 +56,16 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 |---|---|---|
 | VM | `bcg-poc-vm`, Standard_E16s_v5 (16 vCPU / 125 GB RAM), Ubuntu 22.04 | 2026-06-12 |
 | VM privat IP | `172.18.148.4` (ingen publik IP — tenant-policy) | 2026-06-12 |
-| VM power-state | **DEALLOCATED** (verifiera — se nedan; debiterar ~9 kr/h när running) | 2026-06-12 |
+| VM power-state | **DEALLOCATED** (verifierat `VM deallocated` 2026-06-15; debiterar ~9 kr/h när running) | 2026-06-15 |
+| VM auto-shutdown | **INGEN konfigurerad** (ResourceNotFound 2026-06-15) — deallokera ALLTID manuellt (LB.68) | 2026-06-15 |
+| VM managed identity | SystemAssigned, principalId `c45a568e-...` (saknar Blob-dataroll, ABAC) | 2026-06-15 |
+| VM `az`-CLI | INTE installerat på VM:en (`az: command not found`) — VM kan ej läsa Blob via az | 2026-06-15 |
 | Resursgrupp | `ev-openai-swce-rg-test` | 2026-06-12 |
-| Aktiv subscription | `ev-lz3-ai (SE)` | 2026-06-12 |
+| Aktiv subscription | `ev-lz3-ai (SE)` (id `42f726f8-91ee-44d4-832f-9d9ec412ef8f`) | 2026-06-15 |
 | SSH | `ssh azureuser@172.18.148.4` (endast kontorsnät/VPN) | 2026-06-12 |
-| Blob-auth | **kontonyckel-läge** (`PRICINGMODEL_AUTH=key`) — AAD-roll ABAC-blockerad | 2026-06-12 |
+| Storage-konto | `evipricingmodelstprod` | 2026-06-15 |
+| Blob-containrar | `input` (parquet-bränsle, NY 2026-06-15), `output` (modellresultat), `runstatus` (statusfiler) | 2026-06-15 |
+| Blob-auth | **kontonyckel-läge** (`PRICINGMODEL_AUTH=key`) — AAD-roll ABAC-blockerad; `--auth-mode login` ger TYST tomt utan dataroll (LB.67) | 2026-06-15 |
 | Managed Identity (mål) | `evi-pricingmodel-mi-prod` (väntar Blob-dataroll, se §6) | 2026-06-12 |
 
 > **Subscription-fälla (LB.46):** `az` cachar aktiv subscription mellan sessioner. Kör ALLTID
@@ -67,9 +74,14 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 
 > **Verifiera VM power-state (LB.60 — lita på tillståndet, inte på log-raden):**
 > ```powershell
-> az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[?starts_with(code,'PowerState/')].displayStatus" -o tsv
+> az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[1].displayStatus" -o tsv
 > ```
 > En "deallocated"-rad i en körlogg är INTE bevis på att VM:en är nere. Verifiera alltid efter körning.
+> OBS: `statuses[1]` (inte JMESPath-filter med `[?...]`) — `[`/`?`/`]` rivs sönder av az.cmd-wrappern
+> på Windows (CMD-tecken). Index eller `-o json` undviker det.
+
+> **Token dör var 4:e h (E.3):** hände TVÅ gånger 2026-06-15. `az login --scope
+> https://management.core.windows.net//.default` före varje Blob/VM-arbetspass.
 
 ---
 
@@ -77,8 +89,8 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 
 | Miljö | Sökväg | Bär | Senast verifierad |
 |---|---|---|---|
-| Global Python 3.11 | systemets `py -3.11` | verify_tool, validering, Step 6, build_r12 (duckdb/pandas/openpyxl/xlwings) | 2026-06-12 |
-| Business_Analytics venv | `C:\Projekt\Business_Analytics\.venv` | DW-extraktion (pyodbc) | 2026-06-12 |
+| Global Python 3.11 | systemets `py -3.11` | verify_tool, validering, Step 6, build_r12, blob.py/upload_inputs (duckdb/pandas/openpyxl/xlwings/azure-libs) | 2026-06-15 |
+| Business_Analytics venv | `C:\Projekt\Business_Analytics\.venv` | DW-extraktion (pyodbc), parquet-regenerering | 2026-06-12 |
 | Pipeline venv (VM) | `~/bcg/cluster/.venv` på VM | Ray/statsmodels, modellsteg 1-4 (delas av alla 3 familjer) | 2026-06-12 |
 
 > System-Python 3.10 på VM saknar Ray — använd pipeline-venv. Cluster har egen `.venv` (aktiverad,
@@ -92,7 +104,8 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 |---|---|---|
 | Cluster + Site-elasticiteter | VÄXANDE (färsk) | 2026-06-11 |
 | R12 volym & omsättning | VÄXANDE (`build_r12_for_model.py`) | 2026-06-11 |
-| `transaction_data.parquet` | Regenererad t.o.m. 2026-04-30 (27,4M rader) | 2026-06-11 |
+| `transaction_data.parquet` (lokalt) | Regenererad t.o.m. 2026-04-30 (27,4M rader, 1144,5 MB) | 2026-06-11 |
+| `transaction_data.parquet` (Blob) | Uppladdad till `input/`-containern, storlek matchar (2 min, ~9 MB/s) | 2026-06-15 |
 | Cluster steg-5-routning | FRUSEN (2025) — FD.15 | 2026-06-11 |
 | Väv-vikter | FRUSEN (2025) — FD.14 | 2026-06-11 |
 | Bundle-gren | FRUSEN/parkerad — FD.11 (2,2 % väv-vinst) | 2026-06-11 |
@@ -106,10 +119,11 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 
 | Skuld | Effekt | Väntar på | Senast verifierad |
 |---|---|---|---|
-| Blob-dataroll (Storage Blob Data Contributor) till MI | kontonyckel-läge i stället för AAD | Owner (Kent) — ABAC-blockerad | 2026-06-12 |
+| Blob-dataroll (Storage Blob Data Contributor) till MI | kontonyckel-läge i stället för AAD; upload_inputs Jens-access-beroende (FD.29) | Owner (Kent) — ABAC-blockerad | 2026-06-15 |
 | Pinnad/reproducerbar venv på VM | miljö ej deterministisk | eget arbete, ej IT | 2026-06-12 |
 
 > När Blob-rollen ges: sätt `PRICINGMODEL_AUTH=aad`, ta bort nyckel-läget (skuld i `blob.py`-headern).
+> Då slutar upload_inputs vara Jens-access-beroende och börjar köra på MI:n (FD.29) — envariabel-ändring.
 > Övrig permanent IT-miljörestriktion (AppLocker, pip.exe, public-IP-policy) är hållbar kontext —
 > bor i MASTER_PYTHON/MASTER_AZURE, inte här (den ändras inte per session).
 
@@ -119,10 +133,16 @@ facit bit-för-bit; replikering (FAS V) och färsk-data (FAS F) är klara. *(Sen
 
 - Token dör var 4:e h (E.3): `az login --scope https://management.core.windows.net//.default`.
 - VM nås bara på kontorsnät/VPN. SSH-timeout = nätet, inte koden.
-- `orchestration/` är enda sanning för motorfilerna; `workspace/`-kopior gitignoreras (dubbletter
-  ställde till det 2026-06-12).
+- VM:en har INGEN auto-shutdown (LB.68) — deallokera alltid manuellt. `deallocate`, inte `stop`.
+- Storage dataplane kräver nyckel-läge (LB.67): `--auth-mode key` / `PRICINGMODEL_AUTH=key`. AAD ger
+  tyst tomt utan dataroll — tomt svar ≠ "saknas".
+- DW når INTE VM (LB.58) + data prep behöver inte VM:ens RAM (LB.65) → data prep körs LOKALT, output
+  till Blob för överlevnad (LB.66). VM är till för Ray-modellstegens RAM, inget annat.
+- `orchestration/` är enda sanning för motorfilerna; `workspace/`-kopior gitignoreras.
 - Regenerera `transaction_data.parquet` FÖRST vid ny period — annars filtreras ny data tyst bort
-  (LB.50 / G7-klassen).
+  (LB.50 / G7-klassen). `_inject_dates` i tools/replicate_dataprep.py patchar BÅDA datumlåsen
+  (weekly_base-fönster + YearFlag-lista) — verifierat 2026-06-15.
+- Redigera filer via skript (backup + UTF-8 utan BOM), inte genom att klistra Python i PowerShell-prompten.
 
 ---
 
