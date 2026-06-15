@@ -59,6 +59,7 @@ log = logging.getLogger("blob")
 STORAGE_ACCOUNT   = os.environ.get("PRICINGMODEL_STORAGE", "evipricingmodelstprod")
 CONTAINER_STATUS  = os.environ.get("PRICINGMODEL_STATUS_CONTAINER", "runstatus")
 CONTAINER_OUTPUT  = os.environ.get("PRICINGMODEL_OUTPUT_CONTAINER", "output")
+CONTAINER_INPUT   = os.environ.get("PRICINGMODEL_INPUT_CONTAINER", "input")
 
 _ACCOUNT_URL = f"https://{STORAGE_ACCOUNT}.blob.core.windows.net"
 
@@ -185,6 +186,37 @@ def upload_outputs(run_id: str, local_paths: list[str]) -> list[str]:
         log.info("Output uppladdad: %s", blob_name)
     return uploaded
 
+
+def upload_inputs(local_paths: list[str]) -> list[str]:
+    """Ladda upp INPUT-filer (t.ex. transaction_data.parquet) till 'input'-
+    containern. Platt namn (ingen datummapp): input ar den AKTUELLA bransle-
+    filen, inte en daterad korningsartefakt -- overwrite=True, senaste vinner.
+    Speglar hur transaction_data.parquet fungerar lokalt: en fil som skrivs
+    over nar en ny vaxande version produceras, inte versionerad.
+
+    LB.39: loggar uppladdad storlek per fil sa tyst forlust/avbrott syns.
+    Stor fil (~1 GB parquet) -> SDK:n chunkar sjalv (max_concurrency); over-
+    write kravs for att ersatta foregaende bransle. Returnerar blob-sokvagar."""
+    uploaded: list[str] = []
+    for p in local_paths:
+        path = Path(p)
+        if not path.exists():
+            log.warning("Hoppar over saknad input-fil: %s", p)
+            continue
+        blob_name = path.name
+        blob = _client().get_blob_client(container=CONTAINER_INPUT, blob=blob_name)
+        size_mb = path.stat().st_size / 1_000_000
+        log.info("Laddar upp input %s (%.1f MB) -> %s/%s ...",
+                 path.name, size_mb, CONTAINER_INPUT, blob_name)
+        with path.open("rb") as fh:
+            blob.upload_blob(fh, overwrite=True, max_concurrency=4)
+        props = blob.get_blob_properties()
+        up_mb = props.size / 1_000_000
+        ok = (props.size == path.stat().st_size)
+        log.info("Input uppladdad: %s (%.1f MB i Blob, %s)",
+                 blob_name, up_mb, "storlek matchar" if ok else "STORLEK SKILJER")
+        uploaded.append(f"{CONTAINER_INPUT}/{blob_name}")
+    return uploaded
 
 def list_runs(prefix: str = "") -> list[str]:
     """Lista run_id:n som har en statusfil. For en framtida frontyta som
