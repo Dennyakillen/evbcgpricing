@@ -490,6 +490,12 @@ output, verifiera 43-reps-strukturen håller, placera outputen där Step 6 letar
 | FD.27 | Webapp-vägledning i extraction-steget (how_sv-fält) | Designad, ej byggd |
 | FD.28 | Container-per-familj som speglar BCG:s mappstruktur | Önskad (finåkning) |
 | FD.29 | AAD-övergång för upload_inputs när Blob-datarollen finns | Väntar FAS T/Kent |
+| FD.30 | Avslutade körningar sätter sluttillstånd | Byggd |
+| FD.31 | Cluster/Site/Step5/Step6/R12-runners lager 2-status | Delvis |
+| FD.32 | Webapp facit→nu: rimlighet & liv, ej modellöverlägsenhet | Byggd |
+| FD.33 | Migrera Blob till BCG-speglande pipeline-struktur | Önskad (A räcker) |
+| FD.34 | Bundle aktiverad som fullvärdig familj (skuld stängd) | Byggd 2026-06-16 |
+| FD.35 | Konto-spretighet: ett hem för status+output+facit | MÅSTE lösas före end-to-end |
 
 
 ### FD.26 — run_data.py: ett kommando kör hela det lokala bränsleledet
@@ -627,6 +633,49 @@ En FD revideras eller flyttas:
 
 ---
 
+### FD.34 — Bundle aktiverad som fullvärdig familj (skuld stängd)
+**Beslut (2026-06-16):** Bundle gick från PARKERAD (FD.11) till aktiv familj på Jens
+beslut — förtroende: ingen parkerad skuld i en modell man ska försvara. Bundle-MODELLEN
+är nu körklar och observerbar som de andra två. Levererat denna session:
+- `run_bundle_model.py` (orchestration/runners) — copy-adapt från cluster-runnern, ärver
+  bygg 1 (auto-validering mot fryst facit) + bygg 2 (alla VM-output-filer till Blob).
+  EXPECTED_KEYS=125, family=bundle, `~/bcg/bundle`. REMOTE_INPUT ANTAGET — mät på VM vid
+  första körning (preflight fångar fel sökväg).
+- bundle i story_config STORY + FUNNEL (mätta tal ur facit vs azure_run_model: median
+  -0,244→-0,211, neg andel 87,2%→85,6%, 125 KEY). Ärlig 2,2%-kontext i berättartexten.
+- `bundle_model` som fas i `default_pipeline` (run_status.py), mellan site_model och
+  site_step5 — PERMANENT (framtida körningar får den). De tre befintliga statusfilerna
+  i Blob handpatchades så bundle syns i appen för gamla körningar (LB.71).
+- bundle i PHASE_RECEIPT (app.py) — förberedande; kvitton genereras först vid körning.
+
+**Kvarstår (löses vid end-to-end-körningen):** bundle har ALDRIG körts med bygg 1
+auto-validering, så bundle-valideringskvitton finns inte än (drill 3 tom tills körning).
+Osäkert om rationality-sviten klarar bundle:s kolumnschema (basket_revenue/Bundle_visits
+vs cluster/site 8-kol, LB.28) — verifieras vid körning.
+
+**FD.11-relation:** bundle-MODELLEN är nu körklar. Väv-vikterna (FD.14) och steg-5-
+routning (FD.15) är fortfarande frusna 2025 — separata proveniens-skulder, ej bundle-modellen.
+Bundle driver fortf. bara ~2,2% av väven; aktiveringen handlar om komplett täckning, ej
+om att bundle plötsligt blev affärskritisk.
+
+### FD.35 — Konto-spretighet: ett hem för status + output + facit (före end-to-end)
+**Upptäckt (2026-06-16):** statusfiler (container `runstatus`) bor i PROD-kontot
+`evipricingmodelstprod` (blob.py default), men fryst facit lades i TEST-kontot
+`evbcgpricinginput` (container `pipeline`, FD.33/upload_frozen_facit.py). Appen läser
+status från prod; facit ligger i test. Detta är FD.33-spretigheten konkret.
+
+**Risk:** bygg 2 (alla filer till Blob) laddar upp via `upload_outputs` till container
+`output` — i VILKET konto avgörs av env-vars vid körning. Om runners skriver output till
+ett konto och appen läser status/facit från ett annat blir det förvirrat var sanningen
+finns när bygg 2 ska återanvändas av nästa familj (syfte B läs-sida).
+
+**MÅSTE redas ut FÖRE end-to-end-körningen:** välj ETT hemkonto för status + output +
+facit. FD.28-designen pekar på test-kontot (`evbcgpricinginput`, där VM:en bor) som hem.
+Då: peka blob.py default dit (PRICINGMODEL_STORAGE + PRICINGMODEL_RG), flytta facit dit
+(redan där), flytta/regenerera status dit. EN beslutspunkt, verifiera före tunga körningar.
+
+**Gäller om:** end-to-end-körning där output laddas upp och nästa familj ska läsa den.
+
 ## Senaste uppdateringar
 
 | Datum | Vad |
@@ -635,3 +684,4 @@ En FD revideras eller flyttas:
 | 2026-06-11 | FD.11-13 tillagda. FD.11 Bundle-modellen PARKERAD (dataprep-källa klar + committad `1daf093`, varukorgsbygge/modell kvarstår) — beslut datadrivet: 98 modellerade varukorgar = 526 M (~4,3%), överlappar Cluster/Site, sann väv-effekt avgörs av rimlighetsgrind (återbesöks-trigger: sjukhustjänsters signifikans). FD.12 Bundle Ray-config. FD.13 sandbox-Excel för metodik-förståelse mot beslutsfattare. |
 | 2026-06-11 | FD.14-15 tillagda efter `verify_provenance`-suiten byggdes. Provenance-validering av Step 6-inputs avslöjade tre frusna lås: väv-vikter (FD.14, frusen Complete_Product_Data 2025), steg-5-blend/routning (FD.15, _Ivce-facit 2025-12, aldrig regenererad växande), och bundle-grenen (FD.11). Step 6 vilar på växande Cluster+Site-elasticiteter men frusen viktning/routning/bundle. Suiten ligger i `verify_tool/provenance/`. |
 | 2026-06-16 | FD.32 tillagd (facit→nu = rimlighet+liv, ej modellöverlägsenhet; signifikans-KPI borttaget; site-replikering flyttad till bit-för-bit; story-texter talfria). FD.33 tillagd (migrera Blob till BCG-speglande pipeline-struktur — önskat, A räcker nu; motor-output-arkitektur input/output/runstatus redan på plats). Fryst facit uppladdat till Blob `pipeline/00_frozen_facit/` (upload_frozen_facit.py, key-läge, test-konto). |
+| 2026-06-16 | FD.34 tillagd (bundle aktiverad som fullvärdig familj — runner, app-story+FUNNEL, fas i pipeline, PHASE_RECEIPT; copy-adapt från cluster, ärver bygg 1+2). FD.35 tillagd (konto-spretighet: status i prod, facit i test — MÅSTE redas ut till ett hem före end-to-end). Cluster/site/bundle-runners utrustade med auto-validering mot fryst facit (bygg 1) + alla VM-output-filer till Blob med familje-prefix (bygg 2). |

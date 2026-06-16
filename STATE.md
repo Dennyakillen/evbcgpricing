@@ -40,9 +40,9 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 |---|---|---|
 | Aktivt repo | `evbcgpricing` (repo-URL i README, ej här) | 2026-06-12 |
 | Lokal sökväg | `C:\Projekt\BCG` | 2026-06-12 |
-| Branch | `[BEKRÄFTA: git branch --show-current — STATE sa main, orkestrator-arbete ev. på fas-z-productionization]` | 2026-06-15 |
-| Senaste relevanta commit | `[BEKRÄFTA: git log --oneline -1 efter denna sessions commit — blob.py upload_inputs + test_upload_parquet.py]` | 2026-06-15 |
-| Orkestrator-push-status | Orkestratorarbete hålls medvetet utanför push tills det fungerar; upload_inputs ÄR nu bevisat (committas denna session) | 2026-06-15 |
+| Branch | `main` (bekräftat 2026-06-16) | 2026-06-16 |
+| Senaste relevanta commit | bundle-aktivering + master-docs (push 2026-06-16; se `git log -1`) | 2026-06-16 |
+| Orkestrator-push-status | Allt pushat till `main` (orchestration/ är single source; webapp + tre runners + bundle live) | 2026-06-16 |
 | Parallellrepo (DW-extraktion) | `Business_Analytics`, `C:\Projekt\Business_Analytics` | 2026-06-12 |
 
 > Verifiera vid sessionsstart: `git log --oneline -5` + `git status`. Om SHA ovan inte matchar
@@ -56,7 +56,7 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 |---|---|---|
 | VM | `bcg-poc-vm`, Standard_E16s_v5 (16 vCPU / 125 GB RAM), Ubuntu 22.04 | 2026-06-12 |
 | VM privat IP | `172.18.148.4` (ingen publik IP — tenant-policy) | 2026-06-12 |
-| VM power-state | **DEALLOCATED** (verifierat `VM deallocated` 2026-06-15; debiterar ~9 kr/h när running) | 2026-06-15 |
+| VM power-state | **DEALLOCATED** (verifierat `VM deallocated` 2026-06-16; ~9 kr/h running) | 2026-06-16 |
 | VM auto-shutdown | **INGEN konfigurerad** (ResourceNotFound 2026-06-15) — deallokera ALLTID manuellt (LB.68) | 2026-06-15 |
 | VM managed identity | SystemAssigned, principalId `c45a568e-...` (saknar Blob-dataroll, ABAC) | 2026-06-15 |
 | VM `az`-CLI | INTE installerat på VM:en (`az: command not found`) — VM kan ej läsa Blob via az | 2026-06-15 |
@@ -108,7 +108,8 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 | `transaction_data.parquet` (Blob) | Uppladdad till `input/`-containern, storlek matchar (2 min, ~9 MB/s) | 2026-06-15 |
 | Cluster steg-5-routning | FRUSEN (2025) — FD.15 | 2026-06-11 |
 | Väv-vikter | FRUSEN (2025) — FD.14 | 2026-06-11 |
-| Bundle-gren | FRUSEN/parkerad — FD.11 (2,2 % väv-vinst) | 2026-06-11 |
+| Bundle-modell (runner) | KÖRKLAR — aktiverad som familj (FD.34); väv-bidrag ~2,2% | 2026-06-16 |
+| Bundle-gren i Step6-väv | FRUSEN 2025 (FD.11) — separat från bundle-modellen | 2026-06-16 |
 
 > De tre frusna låsen (LF.9) står på 2025-värden medvetet. Kärnsignalen för priskänslighet är färsk.
 > Uppdateringsordning vid behov: FD.15 → FD.14 → FD.11 (kostnad vs påverkan).
@@ -121,6 +122,7 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 |---|---|---|---|
 | Blob-dataroll (Storage Blob Data Contributor) till MI | kontonyckel-läge i stället för AAD; upload_inputs Jens-access-beroende (FD.29) | Owner (Kent) — ABAC-blockerad | 2026-06-15 |
 | Pinnad/reproducerbar venv på VM | miljö ej deterministisk | eget arbete, ej IT | 2026-06-12 |
+| Konto-spretighet (FD.35): status i prod-konto, facit i test-konto | förvirrat var sanningen bor; bygg 2-output kan hamna fel | eget beslut — lös FÖRE end-to-end-körningen | 2026-06-16 |
 
 > När Blob-rollen ges: sätt `PRICINGMODEL_AUTH=aad`, ta bort nyckel-läget (skuld i `blob.py`-headern).
 > Då slutar upload_inputs vara Jens-access-beroende och börjar köra på MI:n (FD.29) — envariabel-ändring.

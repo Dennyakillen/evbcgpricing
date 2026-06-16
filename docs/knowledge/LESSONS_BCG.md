@@ -711,6 +711,8 @@ server-**omstart**, inte bara omladdning — bara mallar och statiska filer ploc
 | LB.68 | a | Ingen auto-shutdown på bcg-poc-vm — deallokera alltid manuellt | man räknar med att VM:en stänger av sig själv |
 | LB.69 | a | Flask "inget hände": gammal python-process serverar gammal kod | omstart utan synlig effekt |
 | LB.70 | b | Modell-output lever i flera identiska kopior, ingen kanonisk plats | väljer fil för upload/jämförelse och flera finns |
+| LB.71 | a | Webappen renderar statusfilens faser, inte STORY — ny familj kräver fas i default_pipeline | en familj finns i STORY men syns inte i appen |
+| LB.72 | a | PowerShell sväljer citattecken/backslash i echo:ade kommandon med Windows-sökvägar; heredoc finns ej | Claude genererar PS/py-snutt med C:\-sökväg |
 ---
 ### LB.65 — Data prep behöver inte VM:ens RAM; bara modellstegen gör det
 **Symptom:** Sessionen 2026-06-15 utgick från "data prep via Azure", svällt ur det sanna skälet att
@@ -783,6 +785,36 @@ spegla lokal struktur rakt av med overwrite (växande kör över gammalt) — d�
 **Gäller om:** ett modellsteg körts/sparats flera gånger i flera mappar.
 **Förkroppsligas i:** FD.33 (blob-spegling), upload_pipeline_mirror.py.
 
+
+### LB.71 — Webappen renderar statusfilens faser, inte STORY-posterna
+**Symptom:** bundle lades i story_config (STORY + FUNNEL), appen startades om — men bundle
+syntes inte i Motor-sektionen. story_config var korrekt; /api/story serverade bundle.
+**Rotorsak (mätt 2026-06-16):** dashboard.html itererar `d.phases` (statusfilen från Blob)
+och matchar mot STORY enbart för gruppering (`(STORY[p.key]||{}).group===gkey`). En familj
+renderas ENDAST om den är en fas i statusfilen — att finnas i STORY/FUNNEL räcker inte.
+**Regel:** en ny modellfamilj/steg kräver TRE ställen för att synas: (1) `default_pipeline`
+i run_status.py (PERMANENT — framtida körningar får fasen), (2) story_config STORY+FUNNEL
+(app-data + tratt), (3) ev. handpatch av befintliga statusfiler i Blob (för att se den i
+GAMLA körningar). Glöm inte (1) — utan den försvinner fasen vid nästa riktiga körning, även
+om (2)+(3) gör att den ser klar ut nu. PHASE_RECEIPT (app.py) behövs dessutom för att
+drill-3-kvitton ska hittas.
+**Gäller om:** en ny familj/fas ska synas i statusdashboarden.
+**Förkroppsligas i:** FD.34 (bundle-aktiveringens fyra ställen).
+
+### LB.72 — PowerShell sväljer citattecken i echo:ade kommandon med Windows-sökvägar
+**Symptom:** ett genererat PowerShell/Python-kommando med `C:\Projekt\...`-sökväg, echo:at
+eller klistrat, kraschar: citattecken faller bort, `\v`/`\r`/`\b` tolkas som escape, eller
+`The '<' operator is reserved for future use` (heredoc `<< EOF` finns INTE i PowerShell —
+det är bash). Bet 5+ gånger under sessionen 2026-06-16.
+**Rotorsak:** att bygga ett kommando via ett mellanled (echo, generator) som innehåller
+Windows-sökvägar med backslash + inbäddade citattecken förvränger strängen innan PowerShell
+ens kör den. Samma familj som SSH-quoting-fällan (LB-grannlära).
+**Regel:** leverera PowerShell-kommandon som RENA block (inte echo:ade), och Python-snuttar
+som FILER: `@'...'@ | Out-File -FilePath $env:TEMP\x.py -Encoding utf8` följt av
+`py -3.11 $env:TEMP\x.py`. ALDRIG `py -3.11 -c "..."` med Windows-sökväg inuti. Heredoc
+existerar inte i PowerShell — använd here-string `@'...'@`.
+**Gäller om:** Claude genererar PowerShell/Python-snuttar som innehåller Windows-sökvägar.
+**Förkroppsligas i:** alla leveranser efter upptäckten denna session (here-string-mönstret).
 
 ## Hur listan växer
 
