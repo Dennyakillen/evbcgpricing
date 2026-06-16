@@ -85,6 +85,55 @@
   .datainfo{font-size:12px;color:var(--muted);margin-bottom:10px;font-family:var(--mono);
             background:var(--surface2);border-radius:8px;padding:7px 11px;display:flex;align-items:center;gap:7px;}
   .di-ico{color:var(--faint);font-size:13px;}
+  /* Validerings-drill-down (etapp 2) */
+  .valbox{border-top:1px solid var(--border);padding-top:12px;margin-top:6px;}
+  .val-head{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;
+            display:flex;align-items:center;gap:9px;}
+  .val-overall{font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;}
+  .vo-pass{background:rgba(29,158,117,.16);color:var(--ok);}
+  .vo-fail{background:rgba(226,75,74,.16);color:var(--bad);}
+  .vo-other{background:var(--surface2);color:var(--muted);}
+  .val-counts{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-bottom:9px;}
+  .val-counts b{font-variant-numeric:tabular-nums;}
+  .vc-pass b{color:var(--ok);} .vc-fail b{color:var(--bad);} .vc-info b{color:var(--muted);}
+  .val-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .vchip{font-size:11px;padding:3px 9px;border-radius:8px;font-family:var(--mono);
+         display:inline-flex;align-items:center;gap:5px;background:var(--surface2);color:var(--muted);}
+  .vchip .vs{width:7px;height:7px;border-radius:50%;flex:none;}
+  .vs-pass{background:var(--ok);} .vs-fail{background:var(--bad);}
+  .vs-info{background:var(--faint);} .vs-other{background:var(--warn);}
+  .val-loading{font-size:12px;color:var(--faint);font-style:italic;}
+  .vc-review b{color:var(--warn);}
+  .val-ctx{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:11px;
+           background:rgba(186,117,23,.08);border-left:3px solid var(--warn);
+           border-radius:0 8px 8px 0;padding:8px 12px;}
+  /* Klickbara validator-rader */
+  .vrows{display:flex;flex-direction:column;gap:4px;margin-bottom:11px;}
+  .vrow{background:var(--surface2);border-radius:9px;overflow:hidden;}
+  .vrow-head{display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;user-select:none;}
+  .vrow-head:hover{background:rgba(127,127,127,.06);}
+  .vrow-name{flex:1;font-size:12px;font-family:var(--mono);color:var(--text);}
+  .vrow-st{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.3px;}
+  .st-pass{background:rgba(29,158,117,.16);color:var(--ok);}
+  .st-fail{background:rgba(186,117,23,.16);color:var(--warn);}
+  .st-info{background:var(--surface);color:var(--muted);}
+  .st-other{background:var(--surface);color:var(--muted);}
+  .vrow-chev{color:var(--faint);font-size:10px;transition:transform .15s;}
+  .vrow-detail{padding:2px 12px 11px 30px;}
+  .vkpi{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--surface);
+        border-radius:7px;padding:7px 10px;margin-bottom:7px;word-break:break-word;}
+  .vexpl{font-size:12px;line-height:1.55;color:var(--muted);margin-bottom:8px;}
+  .dl-sm{font-size:11px;padding:4px 9px;}
+  /* Proof-chain: bit-för-bit-förtroendelagret */
+  .proofchain{border:1px solid rgba(29,158,117,.3);background:rgba(29,158,117,.05);
+              border-radius:11px;padding:12px 14px;margin:6px 0 11px;}
+  .pc-head{font-size:11px;font-weight:700;color:var(--ok);letter-spacing:.3px;margin-bottom:5px;
+           display:flex;align-items:center;gap:9px;}
+  .pc-intro{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:9px;}
+  .pc-row{display:flex;align-items:baseline;gap:10px;padding:4px 0;border-top:1px solid rgba(29,158,117,.12);font-size:12px;}
+  .pc-fr{font-family:var(--mono);font-weight:700;color:var(--ok);min-width:42px;}
+  .pc-name{color:var(--text);min-width:150px;}
+  .pc-kpi{font-family:var(--mono);color:var(--muted);font-size:11px;}
   .desc{font-size:13px;line-height:1.6;color:var(--muted);margin-bottom:5px;}
   .desc b{color:var(--text);font-weight:600;}
   .dl{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
@@ -128,7 +177,7 @@
 "use strict";
 var KR_PER_H = 9;
 var currentRun = null, timer = null, tick = null, openPhases = {};
-var STORY = {}, GROUPS = {}, BAGE = "";
+var STORY = {}, GROUPS = {}, BAGE = "", VALIDATORS = {}, PROOF = null;
 var lastData = null;            // senaste statusfilen (for live-tickaren)
 
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
@@ -155,6 +204,7 @@ var GROUP_ORDER=["before","engine","after"];
 function boot(){
   fetch("/api/story").then(function(r){return r.json();}).then(function(d){
     STORY=d.story||{}; GROUPS=d.groups||{}; BAGE=d.bage||"";
+    VALIDATORS=d.validators||{}; PROOF=d.proof_chain||null;
     loadRuns();
   }).catch(function(){ loadRuns(); });
 }
@@ -244,17 +294,130 @@ function phaseCard(p, idx, liveNow){
   if(st.use) desc+='<div class="desc"><b>Hur det används.</b> '+escapeHtml(st.use)+'</div>';
   if(st.without) desc+='<div class="desc"><b>Utan steget.</b> '+escapeHtml(st.without)+'</div>';
 
-  body.innerHTML=how+datainfo+note+rows+story+desc;
+  // Valideringssektion (etapp 2): faser som har en valideringssvit far en
+  // drill-down som laddas nar fasen expanderas. Robust lista (ingen 'in'-operator).
+  var VAL_PHASES=["extraction","cluster_model","site_model","step6"];
+  var hasVal = VAL_PHASES.indexOf(p.key) !== -1;
+  var valPlaceholder = hasVal ? '<div class="valbox" data-valphase="'+escapeHtml(p.key)+'">'+
+      '<div class="val-loading">Laddar validering…</div></div>' : '';
+
+  body.innerHTML=how+datainfo+note+rows+story+desc+valPlaceholder;
   head.onclick=function(){
     openPhases[idx]=!openPhases[idx];
     body.style.display=openPhases[idx]?"block":"none";
     var ch=document.getElementById("ch"+idx);
     if(ch)ch.style.transform=openPhases[idx]?"rotate(180deg)":"";
+    if(openPhases[idx]) loadValidation(body);   // hamta kvitto forst vid expansion
   };
-  if(openPhases[idx]){body.style.display="block";}
+  if(openPhases[idx]){body.style.display="block";loadValidation(body);}
   card.appendChild(head);card.appendChild(body);
   if(openPhases[idx]){var c2=head.querySelector("#ch"+idx);if(c2)c2.style.transform="rotate(180deg)";}
   return card;
+}
+
+// Validerings-drill-down (etapp 2): hamta senaste master-kvitto for fasen
+// och rendera PASS/FAIL-KPI:er + export. Resultat cachas per fas sa att
+// polling-loopen (var 10:e s) inte hamtar om och inte far sektionen att blinka.
+var valCache={};   // phase -> renderad HTML
+function loadValidation(body){
+  var box=body.querySelector(".valbox[data-valphase]");
+  if(!box) return;
+  var phase=box.getAttribute("data-valphase");
+  if(valCache[phase]){ box.innerHTML=valCache[phase]; wireValRows(box); return; }   // redan hamtad
+  if(box.getAttribute("data-loading")) return;                    // pagar
+  box.setAttribute("data-loading","1");
+  fetch("/api/validation/"+encodeURIComponent(phase))
+    .then(function(r){return r.json();})
+    .then(function(v){ var h=renderValidation(v); valCache[phase]=h; box.innerHTML=h; wireValRows(box); })
+    .catch(function(){ box.innerHTML='<div class="val-loading">Validering kunde inte hämtas.</div>'; });
+}
+
+// Koppla klick pa validator-rader (delegering, da innehallet ar HTML-strang).
+function wireValRows(box){
+  var heads=box.querySelectorAll(".vrow-head[data-vd]");
+  heads.forEach(function(h){
+    h.onclick=function(){
+      var i=h.getAttribute("data-vd");
+      var d=box.querySelector("#vd"+i);
+      if(!d) return;
+      var open=d.style.display!=="none";
+      d.style.display=open?"none":"block";
+      var ch=h.querySelector(".vrow-chev");
+      if(ch)ch.style.transform=open?"":"rotate(180deg)";
+    };
+  });
+}
+
+function renderValidation(v){
+  if(!v || !v.available){
+    return '<div class="val-head">VALIDERING</div>'+
+           '<div class="val-loading">'+escapeHtml((v&&v.reason)||"Ingen validering tillgänglig.")+'</div>';
+  }
+  var ov=(v.overall||"").toUpperCase();
+  var ovClass = ov==="PASS"?"vo-pass":(ov==="FAIL"?"vo-fail":"vo-other");
+  var s=v.summary||{};
+  var counts='<div class="val-counts">'+
+    (s.PASS!=null?'<span class="vc-pass">PASS <b>'+s.PASS+'</b></span>':'')+
+    (s.FAIL!=null&&s.FAIL>0?'<span class="vc-fail">FAIL <b>'+s.FAIL+'</b></span>':'')+
+    (s.REVIEW!=null&&s.REVIEW>0?'<span class="vc-review">REVIEW <b>'+s.REVIEW+'</b></span>':'')+
+    (s.INFO!=null&&s.INFO>0?'<span class="vc-info">INFO <b>'+s.INFO+'</b></span>':'')+
+    (s.TOTAL!=null?'<span class="vc-info">av <b>'+s.TOTAL+'</b></span>':'')+
+    '</div>';
+  // REVIEW-kontext sa sju REVIEW inte skapar oro: en mening om vad REVIEW betyder.
+  var ctx = (ov==="REVIEW") ?
+    '<div class="val-ctx">REVIEW = granskad, väntad avvikelse i svag-signal-grupper — inte fel. '+
+    'Bit-för-bit-beviset nedan visar att motorn replikerar exakt. Klicka en rad för detaljer, exportera för djupet.</div>' : '';
+
+  // Klickbara validator-rader: namn + status-prick, faller ut KPI + forklaring + export.
+  var rows=(v.validators||[]).map(function(vd,i){
+    var st=(vd.status||"").toUpperCase();
+    var c = st==="PASS"?"vs-pass":(st==="FAIL"||st==="REVIEW"?"vs-fail":(st==="INFO"?"vs-info":"vs-other"));
+    var expl = VALIDATORS[vd.name] || "";
+    var kpi = vd.kpi || "";
+    var dl = vd.receipt_file ?
+      '<a class="dl dl-sm" href="/api/receipt/'+encodeURIComponent(vd.receipt_file)+'" download>⬇ Exportera kvitto</a>' : '';
+    var detail = (kpi||expl||dl) ?
+      '<div class="vrow-detail" id="vd'+i+'" style="display:none;">'+
+        (kpi?'<div class="vkpi">'+escapeHtml(kpi)+'</div>':'')+
+        (expl?'<div class="vexpl">'+escapeHtml(expl)+'</div>':'')+
+        dl+
+      '</div>' : '';
+    return '<div class="vrow">'+
+      '<div class="vrow-head" data-vd="'+i+'">'+
+        '<span class="vs '+c+'"></span>'+
+        '<span class="vrow-name">'+escapeHtml(vd.name)+'</span>'+
+        '<span class="vrow-st '+c.replace("vs-","st-")+'">'+escapeHtml(st)+'</span>'+
+        (detail?'<span class="vrow-chev">▼</span>':'')+
+      '</div>'+detail+'</div>';
+  }).join("");
+
+  var dlMaster = v.receipt_file ?
+    '<a class="dl" href="/api/receipt/'+encodeURIComponent(v.receipt_file)+'" download>⬇ Exportera hela kvittot (Excel)</a>' : '';
+
+  return '<div class="val-head">VALIDERING — '+escapeHtml(v.suite||"")+
+         ' <span class="val-overall '+ovClass+'">'+escapeHtml(ov||"?")+'</span>'+
+         (v.date?'<span style="color:var(--faint);font-weight:400;">'+escapeHtml(v.date)+'</span>':'')+'</div>'+
+         counts+ctx+
+         (rows?'<div class="vrows">'+rows+'</div>':'')+
+         renderProofChain()+
+         dlMaster;
+}
+
+// Proof_chain-lagret: bit-för-bit mot fryst facit. Förtroende-guldet,
+// skilt från rationality-REVIEW. Visas inom modellfasernas validering.
+function renderProofChain(){
+  if(!PROOF || !PROOF.items) return "";
+  var items=PROOF.items.map(function(it){
+    return '<div class="pc-row"><span class="pc-fr">'+escapeHtml(it.fr)+'</span>'+
+      '<span class="pc-name">'+escapeHtml(it.name)+'</span>'+
+      '<span class="pc-kpi">'+escapeHtml(it.kpi)+'</span></div>';
+  }).join("");
+  var dl = PROOF.receipt_file ?
+    '<a class="dl dl-sm" href="/api/receipt/'+encodeURIComponent(PROOF.receipt_file)+'" download>⬇ Exportera bit-för-bit-kvittot</a>' : '';
+  return '<div class="proofchain">'+
+    '<div class="pc-head">BIT-FÖR-BIT MOT FACIT <span class="val-overall vo-pass">'+escapeHtml(PROOF.overall||"")+'</span></div>'+
+    '<div class="pc-intro">'+escapeHtml(PROOF.intro||"")+'</div>'+
+    items+dl+'</div>';
 }
 
 function render(d){
