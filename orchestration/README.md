@@ -36,6 +36,42 @@ en runner ligga i `orchestration/runners/`, annars hittar den inte `run_status`/
 
 ---
 
+
+## webapp/ — läsbar statusdashboard (frontytan)
+
+Lokal Flask-app som läser statusfilen orchestratorn skriver till Blob och visar
+modellens hälsa som en förtroende-tratt per fas. **Strikt read-only by construction:**
+importerar bara `read_status`/`list_runs` ur `blob.py` — kan inte skriva status, ladda
+upp, trigga körningar eller röra VM:en. Binder `127.0.0.1`.
+
+**Syfte (FD.32):** bygga förtroende genom att visa att modellen LEVER och bolaget VÄXER
+— inte "vi slog BCG". Per fas visas en tratt i tre drill-nivåer:
+1. **Bit-för-bit mot facit** (grönt, brett) — bevisar replikering (proof_chain FR-1..7).
+2. **BCG FACIT → VÄXANDE DATA NU** — facit→nu-jämförelse som rimlighetstest: fruset
+   BCG-fönster mot växande fönster på samma modell. En rimlig tillväxt = friskt; en
+   orimlig rörelse (t.ex. sjunkande omsättning) vore självavslöjande fel. Hopfälld
+   drop-down med periodfönster + KPI-kort. Djupare affärsbedömning ligger UTANFÖR verktyget.
+3. **Alla granskningar (exportera)** — senaste kvitto per validator-typ (inga dubbletter,
+   datum/tid i namnet), exporterbara som Excel.
+
+**Filer:**
+- `app.py` — tunn server. Rutter: `/`, `/api/story` (statisk facit-referens + funnel +
+  dynamiskt datafönster läst ur extraction-kvittots "Date window"-rad), `/api/runs`,
+  `/api/status/<run_id>`, `/api/validation/<phase>`, `/api/receipts_list/<phase>`
+  (senaste per validator-typ), `/api/receipt/<rel_path>` (Excel-export, path-traversal-skyddad),
+  `/api/proof_chain`, `/api/download/<blob_path>`. Samma `sys.path`-bootstrap och
+  `PRICINGMODEL_AUTH=key`-default som runnern. Flaggor: `--check`, `--port N`.
+- `story_config.py` — EN plats för facit-referens + svenska berättartexter per fas.
+  Story-texterna är TALFRIA (förklarar bara linsen; talen bor i KPI-korten = en
+  sanningskälla, förvaltningsfritt). `None` → "[fyll i]" (aldrig påhittat). Innehåller
+  STORY (per fas), GROUPS (Före/Motor/Efter), VALIDATORS, PROOF_CHAIN, FUNNEL (trattens
+  tre lager per familj).
+- `templates/dashboard.html` — svensk UI, auto ljus/mörk, faser grupperade Före/Motor/Efter,
+  klick-att-expandera, trattmodellen (renderFunnel), live-tickande körtid.
+
+**Köra:** `py -3.11 orchestration\webapp\app.py` (Ctrl+Shift+R i browsern vid kodändring;
+döda gamla python-processer först — LB.69). Vidareutveckling i lager, se FD.18/19/33.
+
 ## Köra (global Python 3.11, från repo-roten `C:\Projekt\BCG`)
 
 ```powershell
