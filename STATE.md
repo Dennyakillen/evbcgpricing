@@ -20,9 +20,12 @@ externt. Koden läser dessa värden från env/konfiguration — aldrig hårdkoda
 
 ## 1. Var projektet står (en mening)
 
-**FAS A pågår** — orchestrator-motorn kör site- och cluster-modellsteget end-to-end via Azure och
-reproducerar facit bit-för-bit; bränsleledets Blob-transport (parquet → Blob) är nu byggd och
-verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast verifierad: 2026-06-15)*
+**FAS A pågår** — tre familje-runners (cluster/site/bundle) kör modellsteg 1-4 på Azure-VM:en, var
+och en auto-validerar mot fryst facit och laddar upp all output till Blob. En webapp-dashboard visar
+modellens hälsa som en förtroende-tratt per familj. Konto-spretigheten löst (FD.35: allt i ett
+test-konto, 19/19 rör-kontroller gröna). Bundle aktiverad som fullvärdig familj (FD.34). Replikering
+(FAS V) och färsk-data (FAS F) klara. Nästa: varm end-to-end-körning + prod-konto-städning.
+*(Senast verifierad: 2026-06-16)*
 
 | Fas | Status | Senast verifierad |
 |---|---|---|
@@ -41,7 +44,7 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 | Aktivt repo | `evbcgpricing` (repo-URL i README, ej här) | 2026-06-12 |
 | Lokal sökväg | `C:\Projekt\BCG` | 2026-06-12 |
 | Branch | `main` (bekräftat 2026-06-16) | 2026-06-16 |
-| Senaste relevanta commit | bundle-aktivering + master-docs (push 2026-06-16; se `git log -1`) | 2026-06-16 |
+| Senaste relevanta commit | `95aefb5` (FD.35: blob.py->test, dry-run-validator) | 2026-06-16 |
 | Orkestrator-push-status | Allt pushat till `main` (orchestration/ är single source; webapp + tre runners + bundle live) | 2026-06-16 |
 | Parallellrepo (DW-extraktion) | `Business_Analytics`, `C:\Projekt\Business_Analytics` | 2026-06-12 |
 
@@ -63,8 +66,8 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 | Resursgrupp | `ev-openai-swce-rg-test` | 2026-06-12 |
 | Aktiv subscription | `ev-lz3-ai (SE)` (id `42f726f8-91ee-44d4-832f-9d9ec412ef8f`) | 2026-06-15 |
 | SSH | `ssh azureuser@172.18.148.4` (endast kontorsnät/VPN) | 2026-06-12 |
-| Storage-konto | `evipricingmodelstprod` | 2026-06-15 |
-| Blob-containrar | `input` (parquet-bränsle, NY 2026-06-15), `output` (modellresultat), `runstatus` (statusfiler) | 2026-06-15 |
+| Storage-konto | `evbcgpricinginput` (FD.35: ett hem, test-RG dar VM bor; prod-kontot orort tills stadning) | 2026-06-16 |
+| Blob-containrar (test-konto) | `input` (vaxande parquet 27,4M rader), `output`, `runstatus`, `pipeline` (00_frozen_facit/ cluster+site+bundle) | 2026-06-16 |
 | Blob-auth | **kontonyckel-läge** (`PRICINGMODEL_AUTH=key`) — AAD-roll ABAC-blockerad; `--auth-mode login` ger TYST tomt utan dataroll (LB.67) | 2026-06-15 |
 | Managed Identity (mål) | `evi-pricingmodel-mi-prod` (väntar Blob-dataroll, se §6) | 2026-06-12 |
 
@@ -105,7 +108,7 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
 | Cluster + Site-elasticiteter | VÄXANDE (färsk) | 2026-06-11 |
 | R12 volym & omsättning | VÄXANDE (`build_r12_for_model.py`) | 2026-06-11 |
 | `transaction_data.parquet` (lokalt) | Regenererad t.o.m. 2026-04-30 (27,4M rader, 1144,5 MB) | 2026-06-11 |
-| `transaction_data.parquet` (Blob) | Uppladdad till `input/`-containern, storlek matchar (2 min, ~9 MB/s) | 2026-06-15 |
+| `transaction_data.parquet` (Blob) | I test-kontots `input/` (27,4M rader, 1144 MB; vaxande t.o.m. 2026-04-30) | 2026-06-16 |
 | Cluster steg-5-routning | FRUSEN (2025) — FD.15 | 2026-06-11 |
 | Väv-vikter | FRUSEN (2025) — FD.14 | 2026-06-11 |
 | Bundle-modell (runner) | KÖRKLAR — aktiverad som familj (FD.34); väv-bidrag ~2,2% | 2026-06-16 |
@@ -145,6 +148,7 @@ verifierad. Replikering (FAS V) och färsk-data (FAS F) är klara. *(Senast veri
   (LB.50 / G7-klassen). `_inject_dates` i tools/replicate_dataprep.py patchar BÅDA datumlåsen
   (weekly_base-fönster + YearFlag-lista) — verifierat 2026-06-15.
 - Redigera filer via skript (backup + UTF-8 utan BOM), inte genom att klistra Python i PowerShell-prompten.
+- Före varm körning: `py -3.11 orchestration\dry_run_pipeline.py` (19 rör-kontroller — konto, parquet, facit, status, runners, app pekar rätt). Fångar fel kallt i stället för mitt i en flertimmars körning.
 
 ---
 
