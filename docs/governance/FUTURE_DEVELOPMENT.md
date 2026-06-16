@@ -557,6 +557,37 @@ ljuga, LB.25-anda).
 **Beror på:** lager 2-mönstret (klart, run_data.py som förlaga). **Estimerad omfattning:** Låg-medel
 per runner. Hör ihop med FD.30. **Status:** Specad. **Datum identifierad:** 2026-06-15.
 
+## Att föra in i docs/governance/FUTURE_DEVELOPMENT.md
+
+### FD.33 — Migrera Blob till BCG-speglande pipeline-struktur (önskat, A räcker nu)
+**Beslut (2026-06-16):** Jens vill EGENTLIGEN ha en `pipeline`-container med prefix som
+speglar BCG:s mappstruktur (02_cluster/, 03_site/, 04_bundle/, 05_step6/ med
+input/output/validation per familj) -- för dokumentations-igenkänning. MEN den
+befintliga strukturen (containrarna `input`/`output`/`runstatus`) som runners redan
+skriver till RÄCKER för syftet (Azure som körmotor, syfte B). Därför: behåll A nu,
+gör B vid finåkning.
+
+**Nuläge (mätt 2026-06-16):** motor-output-arkitekturen FINNS redan och fungerar:
+  - `run_data.py` -> `upload_inputs` -> container `input` (platt, aktuell bränsle, skrivs över)
+  - `run_cluster_model.py` / `run_site_model.py` -> `upload_outputs(date_folder, ...)` -> container `output` under <YYYY-MM-DD>/
+  - VM läser input från lokal VM-disk (~/bcg/cluster/data/), inte Blob direkt
+  - Status -> container `runstatus`
+  - blob.py har inbyggt upload_inputs/upload_outputs/write_status (key-läge, test-konto via env-vars)
+
+**Vad B kräver (när finåkning):** peka om runners upload_outputs att skriva till
+02_cluster/output/ etc. i `pipeline`-containern i stället för output/<datum>/.
+Mer jobb (rör alla runners), bättre dokumentation. EJ värt mitt i annat arbete.
+
+**Princip bekräftad:** växande körning SKRIVER ÖVER gammalt (overwrite) -- ingen
+historik-versionering i Blob behövs. Bara en bråkdel av allt som genereras används
+av nästa steg; exporterna är slutsummeringen. Fryst facit behöver bara
+valideringsfilerna + output_summary som jämförelse-nollpunkt (redan uppladdat,
+upload_frozen_facit.py, container `pipeline` 00_frozen_facit/).
+
+**Loose end:** `pipeline`-containern skapades denna session (steg 1, fryst facit).
+Den samexisterar nu med input/output/runstatus. Vid B konsolideras allt i `pipeline`;
+tills dess lever facit i `pipeline/00_frozen_facit/` och motor-output i `output/`.
+Städa upp dubbel-strukturen vid B (eller medvetet låt facit ligga separat).
 
 ### 2c. Lägg till i "Senaste uppdateringar"-tabellen
 | 2026-06-15 | FD.26-29 tillagda. Arkitekturbeslut: data prep lokalt (LB.65/66), output→Blob. upload_inputs byggd+bevisad (1 GB, 2 min). FD.26 run_data.py = nästa mål. |
