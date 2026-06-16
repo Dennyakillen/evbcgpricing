@@ -60,7 +60,7 @@ STORY = {
     "extraction": {
         "group": "before",
         "title_sv": "Extraktion (dataprep, lokalt)",
-        "story": "BCG byggde på data till juni 2025; vi ser nu till april 2026 -- tio månader till. Datan har vuxit +25,5% (rader) och omsättningen +27,2% -- en frisk, rimlig tillväxt. Skulle omsättningen ha SJUNKIT vore det ett uppenbart fel: jämförelsen mot facit är i sig ett rimlighetstest -- modellen lever och bolaget växer.",
+        "story": "BCG byggde modellen på ett fruset datafönster. Här jämförs det frysta facit-fönstret mot vårt växande fönster, mått för mått nedan. En rimlig tillväxt visar att modellen lever och att bolaget växer -- skulle något centralt i stället ha sjunkit vore jämförelsen i sig ett larm. Exakta fönster och tal framgår i korten.",
         "why": "Hämtar färsk transaktionsdata och bygger vecko-CSV:n som modellen tränar på. "
                "Körs lokalt eftersom datalagret (DW) bara nås på kontorsnät/VPN -- inte från Azure-VM:en.",
         "use": "Producerar bränslet: CSV och parquet som modellstegen läser.",
