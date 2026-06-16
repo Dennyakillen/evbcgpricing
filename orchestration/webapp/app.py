@@ -63,6 +63,7 @@ PHASE_RECEIPT = {
     "extraction":    {"glob": "00_master_summary_*.xlsx",    "subdir": "",            "suite": "Extraktion"},
     "cluster_model": {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
     "site_model":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
+    "bundle_model":  {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
     "step6":         {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Proveniens"},
 }
 
