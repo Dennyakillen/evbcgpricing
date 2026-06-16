@@ -47,7 +47,7 @@ os.environ.setdefault("PRICINGMODEL_AUTH", "key")
 from flask import Flask, jsonify, render_template, Response, abort, send_file  # noqa: E402
 from azure.core.exceptions import ResourceNotFoundError  # noqa: E402
 from blob import read_status, list_runs  # noqa: E402  (READ-ONLY imports)
-from story_config import STORY, BAGE_SV, GROUPS, VALIDATORS, PROOF_CHAIN  # noqa: E402
+from story_config import STORY, BAGE_SV, GROUPS, VALIDATORS, PROOF_CHAIN, FUNNEL  # noqa: E402
 
 log = logging.getLogger("webapp")
 app = Flask(__name__)
@@ -85,7 +85,8 @@ def index():
 def api_story():
     """Statisk facit-referens + texter + grupper + validator-förklaringar (story_config.py)."""
     return jsonify({"story": STORY, "groups": GROUPS, "bage": BAGE_SV,
-                    "validators": VALIDATORS, "proof_chain": PROOF_CHAIN})
+                    "validators": VALIDATORS, "proof_chain": PROOF_CHAIN,
+                    "funnel": FUNNEL, "data_window": _data_window()})
 
 
 @app.get("/api/runs")
@@ -183,10 +184,69 @@ def _key_kpi(path: Path, validator_name: str) -> str:
     return pick.replace("  ", " ").strip()
 
 
+@app.get("/api/receipts_list/<phase_key>")
+def api_receipts_list(phase_key: str):
+    """Lista de enskilda valideringskvittona för en fas (drill 3). Ingen
+    PASS/REVIEW-dom -- bara filnamn + exportväg, så användaren kan hämta
+    vilken granskning som helst. Senaste datum-mappen per svit."""
+    cfg = PHASE_RECEIPT.get(phase_key)
+    if not cfg or not RECEIPTS_DIR.exists():
+        return jsonify({"files": []})
+    # Hitta senaste datum-mapp som har den här svitens kvitton
+    best_dir, best_mtime = None, -1
+    for date_dir in RECEIPTS_DIR.iterdir():
+        if not date_dir.is_dir():
+            continue
+        search_dir = date_dir / cfg["subdir"] if cfg["subdir"] else date_dir
+        if not search_dir.exists():
+            continue
+        masters = list(search_dir.glob(cfg["glob"]))
+        if masters:
+            mt = max(m.stat().st_mtime for m in masters)
+            if mt > best_mtime:
+                best_mtime, best_dir = mt, search_dir
+    if best_dir is None:
+        return jsonify({"files": []})
+    files = []
+    for f in sorted(best_dir.glob("*.xlsx")):
+        if f.name.startswith("00_"):
+            continue  # master hanteras separat
+        # Snyggt namn: "02_outliers_2026-..." -> "outliers"
+        nice = re.sub(r'^\d+_', '', f.stem)
+        nice = re.sub(r'_\d{4}-\d{2}-\d{2}.*$', '', nice)
+        files.append({"name": nice.replace("_", " "),
+                      "file": str(f.relative_to(REPO_ROOT)).replace("\\", "/")})
+    return jsonify({"files": files})
+
+
 @app.get("/api/proof_chain")
 def api_proof_chain():
     """Bit-för-bit-bevisen mot fryst facit (statiskt, ur story_config)."""
     return jsonify(PROOF_CHAIN)
+
+
+def _data_window() -> dict:
+    """Läs det VÄXANDE datafönstret dynamiskt ur senaste extraction-kvitto
+    ('Date window: A -> B'). Parqueten/dataprepen är källan och gäller tvärs
+    alla familjer (samma data). BCG-facit är fryst och känt (konstant).
+    Uppdateras av sig själv vid ny körning -- ingen hårdkodning. Keep it simple."""
+    import re, openpyxl
+    facit = "2022-07-01 → 2025-06-28"   # BCG:s frysta fönster (konstant, känt)
+    now = None
+    path, _ = _latest_receipt("extraction")
+    if path is not None:
+        try:
+            wb = openpyxl.load_workbook(path, read_only=True)
+            ws = wb.active
+            for row in ws.iter_rows(values_only=True):
+                if row[0] and "Date window" in str(row[0]):
+                    m = re.search(r'(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})', str(row[0]))
+                    if m:
+                        now = f"{m.group(1)} → {m.group(2)}"
+                    break
+        except Exception:
+            pass
+    return {"facit": facit, "now": now}
 
 
 def _latest_receipt(phase_key: str):

@@ -211,3 +211,69 @@ PROOF_CHAIN = {
     "overall": "6/6 PASS",
     "receipt_file": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
 }
+
+
+# =====================================================================
+# FUNNEL (etapp 4) -- trattmodellen per familj. Tre lager:
+#   topp    : bit-för-bit mot facit (brett förtroende, grönt, korrekt PASS)
+#   facit_nu: "vad BCG hade -> vad det blev nu" (berättelsen, ingen dom)
+#   prov    : proveniens/nyans (vad är färskt vs fryst) -- ärlighet
+# Alla tal MÄTTA ur verify_tool-kvittona. Stora matchande belopp bygger
+# förtroende i sig (1151 koder, 0 only-ours, 0 only-facit). Spot-on, inte
+# drunkning i detaljer: få starka tal per familj.
+# =====================================================================
+FUNNEL = {
+    "extraction": {
+        "proof": {"label": "Dataprep bit-för-bit mot BCG facit", "kpi": "485 248 rader · korr 1.000000 · diff 0,000%", "ok": True},
+        "facit_nu": [
+            {"metric": "Rader (fryst fönster)", "facit": "485 248", "now": "482 955", "note": "−0,17% aggregerad drift"},
+            {"metric": "ItemCodes i båda", "facit": "1 151", "now": "1 151", "note": "0 bara hos oss · 0 bara hos BCG"},
+            {"metric": "Per-kod median-drift", "facit": "—", "now": "+0,000%", "note": "typisk kod är bit-identisk"},
+        ],
+        "prov": None,
+        "receipt": "verify_tool/receipts/2026-06-08/00_master_summary_2026-06-08_105839.xlsx",
+    },
+    "cluster_model": {
+        "proof": {"label": "Cluster-modell bit-för-bit (FR-4)", "kpi": "population 3 812/3 812 · beslutsrelevanta 1 118/1 118 (100%) · rank-korr 1.0000", "ok": True},
+        "facit_nu": [
+            {"metric": "Median-elasticitet", "facit": "−0,137", "now": "−0,113", "note": "samma form, något mindre priskänsligt"},
+            {"metric": "Negativ andel", "facit": "76,5 %", "now": "73,7 %", "note": "IB.9-referens håller"},
+            {"metric": "Signifikansgrad", "facit": "18 %", "now": "33,4 %", "note": "mer data → fler skattningar håller"},
+            {"metric": "Antal KEY", "facit": "3 812", "now": "4 180", "note": "+368 nya från växande fönster"},
+        ],
+        "prov": None,
+        "receipt": "verify_tool/receipts/2026-06-08/rationality/00_rationality_master_2026-06-08_130847.xlsx",
+    },
+    "site_model": {
+        "proof": {"label": "Site-modell bit-för-bit (FR-5)", "kpi": "population 4 673/4 673 · rank-korr 0,9108 · beslutsrelevanta 113/144", "ok": True},
+        "facit_nu": [
+            {"metric": "Unika KEY", "facit": "6 624", "now": "6 624", "note": "identisk population mot referens"},
+            {"metric": "Korrelation", "facit": "1.000000", "now": "1.000000", "note": "bit-för-bit på samma data"},
+            {"metric": "Median-elasticitet", "facit": "−0,062", "now": "−0,054", "note": "finaste granulariteten"},
+        ],
+        "prov": None,
+        "receipt": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
+    },
+    "step6": {
+        "proof": {"label": "Fallback-väv bit-för-bit (FR-7)", "kpi": "108 979 rader · korr 1.000000 · nivå-match 100,00%", "ok": True},
+        "facit_nu": [
+            {"metric": "Median blandad elasticitet", "facit": "−0,532", "now": "−0,497", "note": "100% negativ, 100% i (−10,0)-band → beslutsduglig"},
+            {"metric": "Inom band (|Δ|<0,5)", "facit": "—", "now": "95,0 %", "note": "beslutsrelevant drift bara 1,6%"},
+            {"metric": "Produkter i väven", "facit": "15 128", "now": "15 128", "note": "identisk population"},
+        ],
+        # Proveniens-nyansen (ärlig): vad är färskt vs fryst i väven.
+        "prov": {
+            "headline": "Väven blandar färska och frusna inddata — ärlig nyans, inte fel.",
+            "fresh": 2, "frozen": 3, "total": 5,
+            "rows": [
+                {"part": "Site-elasticiteter (F1)", "state": "FÄRSK", "reach": "2026-06-10"},
+                {"part": "Cluster-elasticiteter (F3/F5/F6/F7)", "state": "FÄRSK", "reach": "2026-06-08"},
+                {"part": "Cluster steg-5-routning (43 rep)", "state": "FRUSEN", "reach": "2025-12 (FD.15)"},
+                {"part": "Bundle-modell (F2/F4)", "state": "FRUSEN", "reach": "2025-12 (FD.11)"},
+                {"part": "Omsättningsvikter", "state": "FRUSEN", "reach": "2025 (FD.14)"},
+            ],
+            "bundle_reliance": "Bundle-andel i väven: 2,2% (frusen via FD.11)",
+        },
+        "receipt": "verify_tool/receipts/2026-06-11/provenance/00_provenance_master_2026-06-11_181714.xlsx",
+    },
+}
