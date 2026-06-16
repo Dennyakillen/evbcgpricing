@@ -81,7 +81,7 @@ STORY = {
     "cluster_model": {
         "group": "engine",
         "title_sv": "Cluster-modell steg 1-4 (VM)",
-        "story": "Samma data som BCG ger nästan exakt samma resultat (bit-för-bit, se ovan). På växande fönster håller formen: median och negativ andel ligger nära facit, och KEY-populationen växer (3 812 -> 4 180). Rörelsen är rimlig -- modellen lever utan att spreta iväg från facit.",
+        "story": "Samma data som BCG ger nästan exakt samma resultat (bit-för-bit, se ovan). På växande fönster håller formen: median och negativ andel ligger nära facit medan KEY-populationen växer. Rörelsen är rimlig -- modellen lever utan att spreta iväg från facit. Exakta tal i korten.",
         "why": "OLS-elasticitet per produkt x kluster, Ray-parallelliserad på VM:en. "
                "Tung beräkning som kräver VM:ens minne -- därför Azure, inte laptopen.",
         "use": "Ger klusternivå-elasticiteter -- ett av lagren i Step 6-väven.",
