@@ -557,7 +557,25 @@ ljuga, LB.25-anda).
 **Beror på:** lager 2-mönstret (klart, run_data.py som förlaga). **Estimerad omfattning:** Låg-medel
 per runner. Hör ihop med FD.30. **Status:** Specad. **Datum identifierad:** 2026-06-15.
 
-## Att föra in i docs/governance/FUTURE_DEVELOPMENT.md
+### FD.32 — Webapp facit→nu: rimlighet & liv, inte modellöverlägsenhet (KPI-lärdom)
+**Slutsats (2026-06-16, efter felsökning):** appens facit→nu-KPI:er ska INTE visa
+"vi slog BCG" eller jaga signifikansgrad (LF.5: projektet optimerar medvetet INTE mot
+signifikans). Syftet är förtroende genom att modellen LEVER och bolaget VÄXER:
+facit-KPI bredvid nu-KPI tvärs hela modellen visar att talen rör sig (modellen aktiv),
+riktningen (+/-) indikerar om bolaget står starkare än vid BCG:s senaste besök, och
+en RIMLIG tillväxt (+25,5% rader, +27,2% omsättning) = friskt. En ORIMLIG rörelse
+(sjunkande omsättning) vore självavslöjande fel — facit→nu blir därmed ETT inbyggt
+rimlighetstest. Djupare bedömning (är förändringen affärsmässigt RÄTT?) ligger UTANFÖR
+verktyget — mänsklig analys, ej något appen påstår. Verktyget bevisar rimlighet, ej korrekthet.
+**Vad ändrades:** extraction-KPI = dataprep-tillväxt (mätt: kvitto+playbook). Cluster/Site-KPI
+= rimlighet mot facit (median, negativ andel, KEY) — signifikans BORTTAGEN. Site-replikering
+(6624→6624, korr 1.0) flyttad till bit-för-bit-lagret (var felmärkt som facit→nu). Story-texter
+gjorda talfria (förvaltningsfritt: talen bor i korten, texten förklarar bara linsen).
+**Talförväxlings-regel (process):** signifikanstalen 33,4/40,4/45,2/18 förväxlades 3-4 ggr för
+att de kom ur OLIKA jämförelser (vår rå / BCG-facit / vår post-blend / IB.9-referens). Ett KPI
+märkt "facit→nu" MÅSTE vara samma modell, fruset fönster → växande fönster — INTE vår-vs-BCG
+(det är replikering/bit-för-bit, hör till proof_chain). Håll de två åtskilda. Mät ur kvitto med
+RÄTT population, aldrig ur sessionsminne. **Status:** Åtgärdad i story_config/FUNNEL 2026-06-16.
 
 ### FD.33 — Migrera Blob till BCG-speglande pipeline-struktur (önskat, A räcker nu)
 **Beslut (2026-06-16):** Jens vill EGENTLIGEN ha en `pipeline`-container med prefix som
@@ -616,3 +634,4 @@ En FD revideras eller flyttas:
 | 2026-06-08 | Fil skapad. Initiala FD.1-10 dokumenterade efter VM-körningens slut. |
 | 2026-06-11 | FD.11-13 tillagda. FD.11 Bundle-modellen PARKERAD (dataprep-källa klar + committad `1daf093`, varukorgsbygge/modell kvarstår) — beslut datadrivet: 98 modellerade varukorgar = 526 M (~4,3%), överlappar Cluster/Site, sann väv-effekt avgörs av rimlighetsgrind (återbesöks-trigger: sjukhustjänsters signifikans). FD.12 Bundle Ray-config. FD.13 sandbox-Excel för metodik-förståelse mot beslutsfattare. |
 | 2026-06-11 | FD.14-15 tillagda efter `verify_provenance`-suiten byggdes. Provenance-validering av Step 6-inputs avslöjade tre frusna lås: väv-vikter (FD.14, frusen Complete_Product_Data 2025), steg-5-blend/routning (FD.15, _Ivce-facit 2025-12, aldrig regenererad växande), och bundle-grenen (FD.11). Step 6 vilar på växande Cluster+Site-elasticiteter men frusen viktning/routning/bundle. Suiten ligger i `verify_tool/provenance/`. |
+| 2026-06-16 | FD.32 tillagd (facit→nu = rimlighet+liv, ej modellöverlägsenhet; signifikans-KPI borttaget; site-replikering flyttad till bit-för-bit; story-texter talfria). FD.33 tillagd (migrera Blob till BCG-speglande pipeline-struktur — önskat, A räcker nu; motor-output-arkitektur input/output/runstatus redan på plats). Fryst facit uppladdat till Blob `pipeline/00_frozen_facit/` (upload_frozen_facit.py, key-läge, test-konto). |

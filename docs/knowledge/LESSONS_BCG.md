@@ -709,6 +709,8 @@ server-**omstart**, inte bara omladdning — bara mallar och statiska filer ploc
 | LB.66 | a | Artefakt i Blob = överlevnad (icke-backad lokal dator), inte bekvämlighet | väg lokal bekvämlighet mot artefakters överlevnad |
 | LB.67 | a | storage --auth-mode login ger TYST tomt utan dataplane-roll (≠ 403) | listar/läser Blob och får tomt svar |
 | LB.68 | a | Ingen auto-shutdown på bcg-poc-vm — deallokera alltid manuellt | man räknar med att VM:en stänger av sig själv |
+| LB.69 | a | Flask "inget hände": gammal python-process serverar gammal kod | omstart utan synlig effekt |
+| LB.70 | b | Modell-output lever i flera identiska kopior, ingen kanonisk plats | väljer fil för upload/jämförelse och flera finns |
 ---
 ### LB.65 — Data prep behöver inte VM:ens RAM; bara modellstegen gör det
 **Symptom:** Sessionen 2026-06-15 utgick från "data prep via Azure", svällt ur det sanna skälet att
@@ -757,6 +759,29 @@ klockslag, inte "x timmar efter start" — skyddar mot nattglömska, inte dagsdr
 auto-skydd. Samma klass som LB.60 (antaget tillstånd ser identiskt ut med verifierat).
 **Gäller om:** man räknar med att VM:en "sköter sig själv" kostnadsmässigt — det gör den inte.
 **Förkroppsligas i:** STATE (VM-rad), FD.16 (automatiskt skyddsnät, framtid).
+
+### LB.69 — Flask "inget hände": en gammal python-process serverar gammal kod
+**Symptom:** story_config/dashboard ändrad, fil inflyttad, app "omstartad" — men appen visar gammalt.
+Bet tre gånger denna session (2026-06-16).
+**Rotorsak:** en TIDIGARE python-instans dog aldrig; den fortsätter serva gammal kod på porten
+(eller blockerar porten så ny instans inte binder). `Get-Process python*` visade två processer med
+olika StartTime.
+**Regel:** före omstart av Flask-appen ALLTID `Get-Process python* | Stop-Process -Force`, verifiera
+att listan är TOM, starta sedan EN instans. Browsercache (Ctrl+Shift+R) är en SEPARAT bov; /api/story
+cachas hårdare — inkognito vid behov (LB.61-grannlära).
+**Gäller om:** man itererar på webappen och startar om utan att döda gammal process.
+**Förkroppsligas i:** session-close-checklista; LB.61 (mall-cache, samma symptomklass).
+
+### LB.70 — Modell-output lever i flera identiska kopior; fastställ kanonisk plats
+**Symptom:** cluster växande output_summary fanns i 3 kopior, alla 4180 KEY (identiska): 
+`_archive_growing_2026-04-27_v2_pg4fix\`, `output\azure_run_model\`, `output\output_summary_ready.xlsx`.
+verify_tool-verktygen pekade på OLIKA kopior (rationality→arkiv, proof_chain→azure_run_model).
+**Regel:** fastställ EN kanonisk växande output-fil per familj före blob-upload/jämförelse, annars
+speglas kopie-förvirringen. Bekräfta att kopiorna är identiska via KEY-antal. Den fil verify_tool
+senast validerade (kvittots "Path:"-rad) är rätt kandidat (source-before-hypothesis). Bättre ändå:
+spegla lokal struktur rakt av med overwrite (växande kör över gammalt) — då finns bara en sanning.
+**Gäller om:** ett modellsteg körts/sparats flera gånger i flera mappar.
+**Förkroppsligas i:** FD.33 (blob-spegling), upload_pipeline_mirror.py.
 
 
 ## Hur listan växer
