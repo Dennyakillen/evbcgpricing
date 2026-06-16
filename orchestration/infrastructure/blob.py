@@ -56,7 +56,7 @@ from run_status import RunStatus
 log = logging.getLogger("blob")
 
 # --- Z.0-fakta. Overridebara via miljovariabler for test/flexibilitet. ---
-STORAGE_ACCOUNT   = os.environ.get("PRICINGMODEL_STORAGE", "evipricingmodelstprod")
+STORAGE_ACCOUNT   = os.environ.get("PRICINGMODEL_STORAGE", "evbcgpricinginput")
 CONTAINER_STATUS  = os.environ.get("PRICINGMODEL_STATUS_CONTAINER", "runstatus")
 CONTAINER_OUTPUT  = os.environ.get("PRICINGMODEL_OUTPUT_CONTAINER", "output")
 CONTAINER_INPUT   = os.environ.get("PRICINGMODEL_INPUT_CONTAINER", "input")
@@ -75,7 +75,7 @@ _ACCOUNT_URL = f"https://{STORAGE_ACCOUNT}.blob.core.windows.net"
 # datarollen -- ingen kodandring kravs, kontonyckel-vagen slocknar da.
 _AUTH_MODE = os.environ.get("PRICINGMODEL_AUTH", "aad").lower()
 
-RESOURCE_GROUP = os.environ.get("PRICINGMODEL_RG", "ev-openai-swce-rg-prod")
+RESOURCE_GROUP = os.environ.get("PRICINGMODEL_RG", "ev-openai-swce-rg-test")
 SUBSCRIPTION   = os.environ.get("PRICINGMODEL_SUBSCRIPTION", "ev-lz3-ai (SE)")
 
 
