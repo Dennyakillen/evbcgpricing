@@ -168,8 +168,8 @@
   .fn-prov-reach{font-family:var(--mono);font-size:11px;color:var(--faint);min-width:90px;text-align:right;}
   .fn-prov-foot{font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-style:italic;}
   .fn-period{font:600 10px var(--mono);color:var(--faint);letter-spacing:0;text-transform:none;}
-  .fn-win-toggle{font:600 10px var(--mono);color:var(--run);cursor:pointer;user-select:none;
-                 text-transform:none;letter-spacing:0;margin-left:6px;}
+  .fn-fn-toggle{cursor:pointer;user-select:none;display:flex;align-items:center;}
+  .fn-win-toggle{font:600 10px var(--mono);color:var(--run);text-transform:none;letter-spacing:0;margin-left:8px;}
   .fn-win-chev{font-size:8px;transition:transform .15s;display:inline-block;}
   .fn-win-body{margin:0 0 11px;padding:9px 12px;background:var(--surface2);border-radius:9px;
                display:flex;flex-direction:column;gap:5px;}
@@ -383,17 +383,15 @@ function renderFunnel(phaseKey){
       '<div class="fn-proof-kpi">'+escapeHtml(f.proof.kpi)+'</div></div>';
   }
 
-  // LAGER 2 (mitt): BCG hade -> nu blev (berättelsen, ingen PASS/REVIEW-dom)
+  // LAGER 2 (mitt): BCG hade -> nu blev. HELA blocket (period + kort) ligger i en
+  // utfällbar drop-down -- hopfällt som standard, klick på rubriken fäller ut allt.
   if(f.facit_nu && f.facit_nu.length){
-    // Period-fönstren samlas i en utfällbar drop-down (klick för exakta datum) i stället
-    // för att ligga löst i rubriken -- håller rubriken ren, datumen tillgängliga på begäran.
     var hasWin = DWIN.facit || DWIN.now;
-    var winToggle = hasWin
-      ? '<span class="fn-win-toggle" data-win="'+escapeHtml(phaseKey)+'">visa fönster <span class="fn-win-chev">▼</span></span>'
-      : '';
-    html += '<div class="fn-sec-head">BCG FACIT &nbsp;→&nbsp; VÄXANDE DATA NU '+winToggle+'</div>';
+    html += '<div class="fn-sec-head fn-fn-toggle" data-fn="'+escapeHtml(phaseKey)+'">'+
+      'BCG FACIT &nbsp;→&nbsp; VÄXANDE DATA NU <span class="fn-win-toggle">visa <span class="fn-win-chev">▼</span></span></div>';
+    html += '<div class="fn-fn-body" data-fnbody="'+escapeHtml(phaseKey)+'" style="display:none;">';
     if(hasWin){
-      html += '<div class="fn-win-body" data-winbody="'+escapeHtml(phaseKey)+'" style="display:none;">'+
+      html += '<div class="fn-win-body">'+
         '<div class="fn-win-row"><span class="fn-win-lbl">Fryst BCG-fönster</span>'+
           '<span class="fn-win-val">'+escapeHtml(DWIN.facit||"—")+'</span></div>'+
         '<div class="fn-win-row"><span class="fn-win-lbl">Växande fönster nu</span>'+
@@ -410,7 +408,7 @@ function renderFunnel(phaseKey){
         (r.note?'<div class="fn-note">'+escapeHtml(r.note)+'</div>':'')+
       '</div>';
     });
-    html += '</div>';
+    html += '</div></div>';
   }
 
   // LAGER 3 (botten): proveniens-nyans (vad är färskt vs fryst) -- ärlighet
@@ -449,17 +447,17 @@ function renderFunnel(phaseKey){
 
 // Drill 3: koppla utfällning + lazy-ladda kvitto-listan (delegering).
 function wireDrill3(body){
-  // Period-fönster-drop-down (kosmetik): klick på "visa fönster" fäller ut datumen.
-  var wt=body.querySelector(".fn-win-toggle[data-win]");
-  if(wt && !wt.getAttribute("data-wired")){
-    wt.setAttribute("data-wired","1");
-    wt.onclick=function(){
-      var ph=wt.getAttribute("data-win");
-      var wb=body.querySelector('.fn-win-body[data-winbody="'+ph+'"]');
-      if(!wb)return;
-      var open=wb.style.display!=="none";
-      wb.style.display=open?"none":"block";
-      var ch=wt.querySelector(".fn-win-chev");
+  // Facit->nu-blocket (period + kort) fälls ut/in vid klick på rubriken. Hopfällt som standard.
+  var ft=body.querySelector(".fn-fn-toggle[data-fn]");
+  if(ft && !ft.getAttribute("data-wired")){
+    ft.setAttribute("data-wired","1");
+    ft.onclick=function(){
+      var ph=ft.getAttribute("data-fn");
+      var fb=body.querySelector('.fn-fn-body[data-fnbody="'+ph+'"]');
+      if(!fb)return;
+      var open=fb.style.display!=="none";
+      fb.style.display=open?"none":"block";
+      var ch=ft.querySelector(".fn-win-chev");
       if(ch)ch.style.transform=open?"":"rotate(180deg)";
     };
   }
