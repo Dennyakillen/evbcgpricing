@@ -21,7 +21,7 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
        font:15px/1.6 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;}
-  .wrap{max-width:880px;margin:0 auto;padding:28px 20px 60px;}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 60px;}
   h1{font-size:20px;font-weight:600;margin:0;}
   .sub{font-size:13px;color:var(--muted);margin-top:2px;}
   header{display:flex;align-items:flex-end;justify-content:space-between;
@@ -39,6 +39,15 @@
   .alert{border:1px solid;border-radius:14px;padding:13px 18px;margin-bottom:14px;font-size:14px;line-height:1.55;}
   .a-bad{border-color:rgba(226,75,74,.4);background:rgba(226,75,74,.10);color:var(--bad);}
   .a-warn{border-color:rgba(186,117,23,.4);background:rgba(186,117,23,.10);color:var(--warn);}
+  .a-info{border-color:rgba(111,109,104,.35);background:var(--surface2);color:var(--muted);}
+  /* Grupprubrik: Fore - Motor - Efter (FD.21) */
+  .group{margin:22px 0 8px;}
+  .group:first-of-type{margin-top:8px;}
+  .group-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.3px;
+               text-transform:uppercase;margin-bottom:2px;display:flex;align-items:center;gap:9px;}
+  .group-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+             border-radius:50%;background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;}
+  .group-blurb{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 9px 29px;}
   .phase{background:var(--surface);border:1px solid var(--border);border-radius:14px;
          margin-bottom:9px;overflow:hidden;transition:border-color .15s;}
   .phase:hover{border-color:var(--faint);}
@@ -50,6 +59,7 @@
   .ph-name{flex:1;font-size:14px;font-weight:600;}
   .chip{font-size:11px;color:var(--muted);background:var(--surface2);padding:3px 10px;border-radius:99px;}
   .dur{font:12px var(--mono);color:var(--muted);min-width:64px;text-align:right;}
+  .dur.ticking{color:var(--run);}
   .chev{color:var(--faint);transition:transform .15s;font-size:12px;}
   .ph-body{display:none;padding:0 18px 16px 41px;font-size:13px;color:var(--muted);}
   .note{font-family:var(--mono);font-size:12px;background:var(--surface2);
@@ -68,11 +78,21 @@
   .kpi .now{font:600 16px var(--mono);color:var(--text);}
   .kpi .delta{font-size:11px;font-weight:600;margin-top:4px;}
   .kpi .fill{color:var(--faint);font-style:italic;}
+  .how{font-size:13px;line-height:1.6;color:var(--muted);margin-bottom:10px;
+       background:rgba(55,138,221,.07);border-left:3px solid var(--run);
+       border-radius:0 8px 8px 0;padding:8px 12px;}
+  .how b{color:var(--text);font-weight:600;}
+  .datainfo{font-size:12px;color:var(--muted);margin-bottom:10px;font-family:var(--mono);
+            background:var(--surface2);border-radius:8px;padding:7px 11px;display:flex;align-items:center;gap:7px;}
+  .di-ico{color:var(--faint);font-size:13px;}
   .desc{font-size:13px;line-height:1.6;color:var(--muted);margin-bottom:5px;}
   .desc b{color:var(--text);font-weight:600;}
+  .dl{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+      color:var(--run);text-decoration:none;background:rgba(55,138,221,.10);
+      padding:5px 11px;border-radius:8px;margin:3px 6px 3px 0;}
+  .dl:hover{background:rgba(55,138,221,.18);}
   .outputs{background:var(--surface);border:1px solid var(--border);border-radius:14px;
            padding:14px 18px;margin-top:14px;font-size:13px;}
-  .outputs code{font:12px var(--mono);color:var(--run);word-break:break-all;}
   .bage{margin-top:14px;padding:13px 18px;background:var(--surface2);border-radius:14px;
         font-size:13px;line-height:1.6;color:var(--muted);}
   .bage b{color:var(--text);}
@@ -107,7 +127,9 @@
 <script>
 "use strict";
 var KR_PER_H = 9;
-var currentRun = null, timer = null, openPhases = {}, STORY = {}, BAGE = "";
+var currentRun = null, timer = null, tick = null, openPhases = {};
+var STORY = {}, GROUPS = {}, BAGE = "";
+var lastData = null;            // senaste statusfilen (for live-tickaren)
 
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function fmtTs(iso){if(!iso)return "—";return iso.replace("T"," ").replace("Z"," UTC");}
@@ -115,15 +137,24 @@ function ageMin(iso){if(!iso)return null;return (Date.now()-Date.parse(iso))/600
 function escapeHtml(s){if(s==null)return"";return String(s).replace(/[&<>"']/g,function(c){
   return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 
+// Sekunder -> "3h 12m 5s" (speglar run_status._fmt_duration sa frontend och kontrakt sager samma sak)
+function fmtDur(sec){
+  if(sec==null) return "—";
+  sec=Math.floor(sec); var h=Math.floor(sec/3600), r=sec%3600, m=Math.floor(r/60), s=r%60;
+  var p=[]; if(h)p.push(h+"h"); if(m||h)p.push(m+"m"); p.push(s+"s"); return p.join(" ");
+}
+
 var STATE_BADGE={succeeded:["klar","b-ok"],running:["kör","b-run"],
-  waiting:["väntar","b-warn"],failed:["misslyckad","b-bad"],pending:["ej startad","b-idle"]};
+  waiting:["väntar","b-warn"],failed:["misslyckad","b-bad"],pending:["ej startad","b-idle"],
+  starting:["startar","b-run"],deallocated:["VM nedstängd","b-idle"]};
 var PH_DOT={succeeded:"d-ok",running:"d-run",failed:"d-bad",pending:"d-idle",waiting:"d-warn",skipped:"d-idle"};
 var DIR={pos:["↗","var(--ok)"],neg:["↘","var(--bad)"],neut:["=","var(--faint)"]};
 var LOC={vm:"VM",local:"lokalt"};
+var GROUP_ORDER=["before","engine","after"];
 
 function boot(){
   fetch("/api/story").then(function(r){return r.json();}).then(function(d){
-    STORY=d.story||{}; BAGE=d.bage||"";
+    STORY=d.story||{}; GROUPS=d.groups||{}; BAGE=d.bage||"";
     loadRuns();
   }).catch(function(){ loadRuns(); });
 }
@@ -147,7 +178,7 @@ function load(){
   if(!currentRun)return;
   fetch("/api/status/"+encodeURIComponent(currentRun))
     .then(function(r){return r.json();})
-    .then(render)
+    .then(function(d){lastData=d;render(d);})
     .catch(function(e){document.getElementById("app").innerHTML='<div class="alert a-bad">'+escapeHtml(String(e))+'</div>';});
 }
 
@@ -155,11 +186,75 @@ function kpiCard(k){
   var d=DIR[k.dir]||DIR.neut;
   var facit = k.facit==null ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.facit);
   var delta = k.delta==null ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.delta);
+  var now   = k.now==null   ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.now);
   return '<div class="kpi">'+
     '<div class="lbl">'+escapeHtml(k.label)+'</div>'+
     '<div class="vals"><span class="facit">'+facit+'</span>'+
-    '<span class="arrow">→</span><span class="now">'+(k.now==null?'<span class="fill">[fyll i]</span>':escapeHtml(k.now))+'</span></div>'+
+    '<span class="arrow">→</span><span class="now">'+now+'</span></div>'+
     '<div class="delta" style="color:'+d[1]+';">'+d[0]+' '+delta+'</div></div>';
+}
+
+// En fas-kort (anvands inuti gruppering). idx = stabilt index for open/chevron-state.
+function phaseCard(p, idx, liveNow){
+  var st=STORY[p.key]||{};
+  var card=el("div","phase");
+  var head=el("div","ph-head");
+
+  // Live-tickande varaktighet for en fas som kor (FD.22)
+  var durTxt = p.duration_human || "";
+  var ticking = false;
+  if(p.state==="running" && p.started_at){
+    var sec=(Date.now()-Date.parse(p.started_at))/1000;
+    durTxt = fmtDur(sec); ticking = true;
+  }
+
+  head.innerHTML='<span class="dot '+(PH_DOT[p.state]||"d-idle")+'"></span>'+
+    '<span class="ph-name">'+escapeHtml(st.title_sv||p.name)+'</span>'+
+    '<span class="chip">'+(LOC[p.location]||p.location)+'</span>'+
+    '<span class="dur'+(ticking?" ticking":"")+'" data-phase="'+escapeHtml(p.key)+'"'+
+        (p.state==="running"&&p.started_at?' data-start="'+escapeHtml(p.started_at)+'"':'')+'>'+durTxt+'</span>'+
+    '<span class="chev" id="ch'+idx+'">▼</span>';
+  var body=el("div","ph-body");
+
+  var note=p.note?'<div class="note">'+escapeHtml(p.note)+'</div>':'';
+  var rows='<div class="kv">'+
+    '<span>status <b>'+(STATE_BADGE[p.state]?STATE_BADGE[p.state][0]:p.state)+'</b></span>'+
+    '<span>start <b>'+fmtTs(p.started_at)+'</b></span>'+
+    '<span>slut <b>'+fmtTs(p.finished_at)+'</b></span>'+
+    '<span>tid <b>'+(p.duration_human||"—")+'</b></span></div>';
+
+  // HUR-rutan (FD.27) -- forklarar sommen lokalt<->moln
+  var how = st.how_sv ? '<div class="how"><b>Så går det till.</b> '+escapeHtml(st.how_sv)+'</div>' : '';
+
+  // DATA-INFO: vad steget faktiskt producerar i konkreta tal (avlast, ingen ny berakning)
+  var datainfo = st.data ? '<div class="datainfo"><span class="di-ico">▦</span> '+escapeHtml(st.data)+'</div>' : '';
+
+  var story="";
+  if(st.story||((st.kpis||[]).length)){
+    story='<div class="story-sec">'+
+      '<div class="story-head">MOT FACIT (BCG)</div>'+
+      (st.story?'<div class="story-line">'+escapeHtml(st.story)+'</div>':'');
+    if((st.kpis||[]).length){
+      story+='<div class="kpis">'+st.kpis.map(kpiCard).join("")+'</div>';
+    }
+    story+='</div>';
+  }
+  var desc="";
+  if(st.why) desc+='<div class="desc"><b>Vad &amp; varför.</b> '+escapeHtml(st.why)+'</div>';
+  if(st.use) desc+='<div class="desc"><b>Hur det används.</b> '+escapeHtml(st.use)+'</div>';
+  if(st.without) desc+='<div class="desc"><b>Utan steget.</b> '+escapeHtml(st.without)+'</div>';
+
+  body.innerHTML=how+datainfo+note+rows+story+desc;
+  head.onclick=function(){
+    openPhases[idx]=!openPhases[idx];
+    body.style.display=openPhases[idx]?"block":"none";
+    var ch=document.getElementById("ch"+idx);
+    if(ch)ch.style.transform=openPhases[idx]?"rotate(180deg)":"";
+  };
+  if(openPhases[idx]){body.style.display="block";}
+  card.appendChild(head);card.appendChild(body);
+  if(openPhases[idx]){var c2=head.querySelector("#ch"+idx);if(c2)c2.style.transform="rotate(180deg)";}
+  return card;
 }
 
 function render(d){
@@ -168,14 +263,34 @@ function render(d){
   if(d.error && !d.phases){app.appendChild(el("div","alert a-bad",escapeHtml(d.error)));return;}
 
   var hb=ageMin(d.last_heartbeat);
-  var stale=(d.state==="running" && hb!=null && hb>5);
-  var sb=STATE_BADGE[d.state]||[d.state,"b-idle"];
+  // Skilj TVA fall at (FD.30): (a) en aktiv korning vars runner nyss tappade
+  // kontakt -> aterstartbar, varning relevant; (b) en GAMMAL korning vars fil
+  // bara aldrig fick sluttillstand -> historik, ingen varning, visa som vilande.
+  var FRESH_LIMIT=5;          // min: nyligen tappad kontakt
+  var OLD_LIMIT=180;          // min: aldre an 3h = historisk korning, inte aktiv
+  var recentlyStale=(d.state==="running" && hb!=null && hb>FRESH_LIMIT && hb<=OLD_LIMIT);
+  var oldUnfinished=(d.state==="running" && hb!=null && hb>OLD_LIMIT);
+
+  // Harled ett VISNINGS-tillstand utan att roera statusfilen (vi malar inte om
+  // datat, vi tolkar det arligt). En gammal "running"-fil dar minst en fas
+  // lyckats och ingen failat ar i praktiken en avslutad/vilande korning.
+  var anyFailed=d.phases.some(function(p){return p.state==="failed";});
+  var anyDone=d.phases.some(function(p){return p.state==="succeeded";});
+  var displayState=d.state;
+  if(oldUnfinished){
+    displayState = anyFailed ? "failed" : (anyDone ? "deallocated" : "pending");
+  }
+  var stale=recentlyStale;   // bara FARSK stale ger den gula varningen
+  var sb=STATE_BADGE[displayState]||[displayState,"b-idle"];
 
   var strip=el("div","strip");
   strip.appendChild(el("span",null,'<span class="badge '+sb[1]+'">'+sb[0]+'</span>'));
   var done=d.phases.filter(function(p){return p.state==="succeeded";}).length;
   strip.appendChild(el("span",null,'faser klara <b>'+done+' / '+d.phases.length+'</b>'));
   strip.appendChild(el("span",null,'aktiv tid <b>'+(d.total_active_human||"—")+'</b>'));
+  if(d.wall_clock_human){
+    strip.appendChild(el("span",null,'väggklocka <b>'+escapeHtml(d.wall_clock_human)+'</b> <span style="color:var(--faint)">(inkl pauser)</span>'));
+  }
   var vmSec=d.phases.filter(function(p){return p.location==="vm"&&p.duration_seconds;})
                     .reduce(function(a,p){return a+p.duration_seconds;},0);
   strip.appendChild(el("span",null,'VM-kostnad est. <b>'+(vmSec?(vmSec/3600*KR_PER_H).toFixed(0)+' kr':'—')+'</b> <span style="color:var(--faint)">(9 kr/h)</span>'));
@@ -189,6 +304,15 @@ function render(d){
       "blivit klart eller fortfarande köra; filen slutade bara uppdateras. "+
       "Återanslut med <span style='font-family:var(--mono);font-size:12px;'>run_site_model.py --attach</span> för besked."));
   }
+  if(oldUnfinished){
+    // Gammal korning: ingen larmande varning, bara en diskret notis om att
+    // detta ar historik (filen fick aldrig sluttillstand, FD.30).
+    var hrs=Math.round(hb/60);
+    app.appendChild(el("div","alert a-info",
+      "Historisk körning (senaste aktivitet ~"+hrs+" h sedan). Visar de faser som "+
+      "hann rapporteras klara. Statusfilen fick aldrig ett formellt sluttillstånd "+
+      "(åtgärdas av FD.30) — därför tolkas den här som vilande, inte aktiv."));
+  }
   if(d.state==="failed"){
     app.appendChild(el("div","alert a-bad",
       "<b>Misslyckad.</b> "+(d.hint?escapeHtml(d.hint)+"<br>":"")+
@@ -197,64 +321,68 @@ function render(d){
     app.appendChild(el("div","alert a-warn",escapeHtml(d.hint)));
   }
 
-  d.phases.forEach(function(p,i){
-    var st=STORY[p.key]||{};
-    var card=el("div","phase");
-    var head=el("div","ph-head");
-    head.innerHTML='<span class="dot '+(PH_DOT[p.state]||"d-idle")+'"></span>'+
-      '<span class="ph-name">'+escapeHtml(st.title_sv||p.name)+'</span>'+
-      '<span class="chip">'+(LOC[p.location]||p.location)+'</span>'+
-      '<span class="dur">'+(p.duration_human||"")+'</span>'+
-      '<span class="chev" id="ch'+i+'">▼</span>';
-    var body=el("div","ph-body");
-
-    var note=p.note?'<div class="note">'+escapeHtml(p.note)+'</div>':'';
-    var rows='<div class="kv">'+
-      '<span>status <b>'+(STATE_BADGE[p.state]?STATE_BADGE[p.state][0]:p.state)+'</b></span>'+
-      '<span>start <b>'+fmtTs(p.started_at)+'</b></span>'+
-      '<span>slut <b>'+fmtTs(p.finished_at)+'</b></span>'+
-      '<span>tid <b>'+(p.duration_human||"—")+'</b></span></div>';
-
-    var story="";
-    if(st.story||((st.kpis||[]).length)){
-      story='<div class="story-sec">'+
-        '<div class="story-head">MOT FACIT (BCG)</div>'+
-        (st.story?'<div class="story-line">'+escapeHtml(st.story)+'</div>':'');
-      if((st.kpis||[]).length){
-        story+='<div class="kpis">'+st.kpis.map(kpiCard).join("")+'</div>';
-      }
-      story+='</div>';
-    }
-    var desc="";
-    if(st.why) desc+='<div class="desc"><b>Vad &amp; varför.</b> '+escapeHtml(st.why)+'</div>';
-    if(st.use) desc+='<div class="desc"><b>Hur det används.</b> '+escapeHtml(st.use)+'</div>';
-    if(st.without) desc+='<div class="desc"><b>Utan steget.</b> '+escapeHtml(st.without)+'</div>';
-
-    body.innerHTML=note+rows+story+desc;
-    head.onclick=function(){
-      openPhases[i]=!openPhases[i];
-      body.style.display=openPhases[i]?"block":"none";
-      var ch=document.getElementById("ch"+i);
-      if(ch)ch.style.transform=openPhases[i]?"rotate(180deg)":"";
-    };
-    if(openPhases[i]){body.style.display="block";}
-    card.appendChild(head);card.appendChild(body);app.appendChild(card);
-    if(openPhases[i]){var c2=document.getElementById("ch"+i);if(c2)c2.style.transform="rotate(180deg)";}
+  // Gruppera faserna efter Fore-Motor-Efter (FD.21). Index halls stabilt over hela listan.
+  var idxByKey={};
+  d.phases.forEach(function(p,i){idxByKey[p.key]=i;});
+  var gnum=0;
+  GROUP_ORDER.forEach(function(gkey){
+    var inGroup=d.phases.filter(function(p){return (STORY[p.key]||{}).group===gkey;});
+    if(!inGroup.length) return;
+    gnum++;
+    var g=GROUPS[gkey]||{};
+    var gWrap=el("div","group");
+    gWrap.appendChild(el("div","group-title",
+      '<span class="group-num">'+gnum+'</span>'+escapeHtml(g.title_sv||gkey)));
+    if(g.blurb_sv) gWrap.appendChild(el("div","group-blurb",escapeHtml(g.blurb_sv)));
+    app.appendChild(gWrap);
+    inGroup.forEach(function(p){
+      app.appendChild(phaseCard(p, idxByKey[p.key]));
+    });
+  });
+  // Faser utan grupp (skydd om en ny fas-key saknar story_config-post)
+  d.phases.forEach(function(p){
+    if(!(STORY[p.key]||{}).group){ app.appendChild(phaseCard(p, idxByKey[p.key])); }
   });
 
+  // Resultat i Blob -- nu med nedladdningslankar (FD.23)
   if(d.output_blob_paths && d.output_blob_paths.length){
     var out=el("div","outputs","<b style='font-size:13px;'>Resultat i Blob</b><br>");
-    d.output_blob_paths.forEach(function(p){out.appendChild(el("div",null,"<code>"+escapeHtml(p)+"</code>"));});
-    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);">Nedladdnings-/exportlänkar är ett senare steg — sökvägar visas som referens.</span>'));
+    var links=el("div",null,"");
+    links.style.marginTop="8px";
+    d.output_blob_paths.forEach(function(p){
+      var name=String(p).split("/").pop();
+      var a=el("a","dl","⬇ "+escapeHtml(name));
+      a.href="/api/download/"+encodeURIComponent(p);
+      a.setAttribute("download","");
+      links.appendChild(a);
+    });
+    out.appendChild(links);
+    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);margin-top:6px;display:inline-block;">Filerna hämtas direkt från Blob via den lokala vyn.</span>'));
     app.appendChild(out);
   }
 
   var bage=document.getElementById("bage");
-  if(BAGE){bage.innerHTML="<b>Bågen.</b> "+escapeHtml(BAGE).replace(/^Bagen: /,"");bage.style.display="block";}
+  if(BAGE){bage.innerHTML="<b>Bågen.</b> "+escapeHtml(BAGE).replace(/^Bagen: /,"").replace(/^Bågen: /,"");bage.style.display="block";}
 
   app.appendChild(el("div",null,'<div class="sub" style="margin-top:10px;">körning <span style="font-family:var(--mono);">'+escapeHtml(d.run_id)+
     '</span> · startad av '+escapeHtml(d.triggered_by||"—")+' · kontrakt v'+escapeHtml(d.contract_version)+
     (d.git_sha?(' · '+escapeHtml(d.git_sha)):'')+'</div>'));
+
+  startTick();
+}
+
+// Live-tickaren (FD.22): uppdaterar varaktighet for korande faser varje sekund,
+// utan att hamta om hela statusfilen (det sker var 10:e s i load()).
+function startTick(){
+  if(tick) clearInterval(tick);
+  tick=setInterval(function(){
+    var els=document.querySelectorAll('.dur.ticking[data-start]');
+    els.forEach(function(e){
+      var sec=(Date.now()-Date.parse(e.getAttribute("data-start")))/1000;
+      e.textContent=fmtDur(sec);
+    });
+    // uppdatera ocksa "aktiv tid"-fotnoten i stripen via livstecken-aldern? Halls enkelt: bara fas-tid tickar.
+  },1000);
 }
 
 boot();
