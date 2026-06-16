@@ -279,14 +279,135 @@ def find_remote_log(cfg: VmConfig) -> tuple[str, float]:
     return remote_log, launch_epoch
 
 
-def finish_success(rs: RunStatus, run_id: str) -> int:
+def finish_success(rs: RunStatus, run_id: str, cfg: VmConfig) -> int:
     local_file, note, blob_paths = verify_and_fetch(run_id)
+
+    # Bygg 2: hämta ALLA växande output-filer från VM + ladda upp till Blob
+    # (alla storlekar, inga dubbletter -- VM-mappen är ren). Din syfte-B-vision.
+    try:
+        _, all_note = fetch_all_outputs(cfg, run_id)
+        note = f"{note}; {all_note}"
+    except Exception as e:
+        log.warning("Bygg 2 (alla filer till Blob) misslyckades -- summary uppladdad ändå: %s", e)
+
+    # Bygg 1: auto-validera mot fryst BCG-facit, sist (din vision: validera när
+    # familjen körts). Mot SENASTE körning är medvetet utanför scope.
+    try:
+        val_note = run_local_validation("cluster", local_file)
+        note = f"{note}; {val_note}"
+        log.info("Auto-validering klar: %s", val_note)
+    except Exception as e:
+        log.warning("Auto-validering misslyckades (output ändå hämtad): %s", e)
+
     rs.finish_phase(PHASE_KEY, ok=True, note=note)
     rs.output_blob_paths = sorted(set(rs.output_blob_paths) | set(blob_paths))
     rs.beat(); write_status(rs)
     print("\n" + rs.timing_summary())
     print(f"\nSUCCESS: {local_file}\n{note}")
     return 0
+
+
+# ============================================================================
+# TILLÄGG till run_cluster_model.py (Phase Z): auto-validering + alla filer
+# till Blob. Bygg 1+2, 2026-06-16. Hakar in i finish_success före deallocate.
+# ============================================================================
+
+# --- Validerings-orkestratorer per familj (mätt: tar --output-summary / --family) ---
+import subprocess
+VERIFY_ROOT = ORCH.parent / "verify_tool"
+VERIFY_PY = sys.executable  # global 3.11 (verify_tool-miljön; samma som kör runnern)
+
+def run_local_validation(family: str, local_file: Path) -> str:
+    """Bygg 1: auto-validera den hämtade outputen mot FRYST BCG-facit, sist i
+    körningen (din vision: validera när familjen körts). Kör rationality
+    (--output-summary pekar på just denna fil) + proof_chain (--family).
+    Headless subprocess, exit 0=PASS. Returnerar en kort status-note.
+    Validering mot SENASTE körning är medvetet UTANFÖR scope (BCG-facit räcker)."""
+    results = []
+
+    # 1. Rationality (rimlighet) -- tar explicit sökväg till den hämtade filen
+    rat = VERIFY_ROOT / "output_rationality" / "run_all_rationality.py"
+    if rat.exists():
+        try:
+            cp = subprocess.run(
+                [VERIFY_PY, str(rat), "--output-summary", str(local_file)],
+                capture_output=True, text=True, timeout=600)
+            verdict = "PASS" if cp.returncode == 0 else "REVIEW/FAIL"
+            results.append(f"rationality={verdict}")
+            log.info("Auto-validering rationality: %s (exit %d)", verdict, cp.returncode)
+        except Exception as e:
+            results.append("rationality=ERROR")
+            log.warning("Rationality-validering misslyckades: %s", e)
+
+    # 2. Proof-chain (bit-för-bit) -- hittar ours via default (azure_run_model/)
+    pc = VERIFY_ROOT / "proof_chain" / "run_all.py"
+    if pc.exists():
+        try:
+            cp = subprocess.run(
+                [VERIFY_PY, str(pc), "--family", family],
+                capture_output=True, text=True, timeout=1800)
+            verdict = "PASS" if cp.returncode == 0 else "REVIEW/FAIL"
+            results.append(f"proof_chain={verdict}")
+            log.info("Auto-validering proof_chain: %s (exit %d)", verdict, cp.returncode)
+        except Exception as e:
+            results.append("proof_chain=ERROR")
+            log.warning("Proof_chain-validering misslyckades: %s", e)
+
+    return "validering: " + ", ".join(results) if results else "validering: inga skript hittades"
+
+
+# --- Bygg 2: hämta ALLA växande output-filer från VM, ladda upp till Blob ---
+# VM:ens output-mapp är ren (bara färsk körning -- inga lokala _archive/dubbletter).
+# Filtrera bort .pre_-arkiv som runnern själv skapar. Alla storlekar (ditt val).
+SKIP_UPLOAD_SUBSTR = (".pre_", "~$")
+
+def fetch_all_outputs(cfg: VmConfig, run_id: str) -> tuple[list[Path], str]:
+    """Bygg 2: scp:a HELA VM:ens cluster-output-mapp (inte bara summary),
+    ladda upp alla relevanta filer till Blob under output/<date>/cluster/.
+    Inga dubbletter (VM-mappen är ren; .pre_ filtreras)."""
+    remote_dir = "/home/azureuser/bcg/cluster/output"
+    local_root = LOCAL_OUT_DIR.parent / "azure_run_full"
+    local_root.mkdir(parents=True, exist_ok=True)
+
+    # Lista VM:ens output-filer (rekursivt), scp:a var och en
+    cp = ssh_run(cfg, f"find {remote_dir} -type f 2>/dev/null", check=False)
+    remote_files = [l.strip() for l in cp.stdout.splitlines() if l.strip()]
+    fetched = []
+    for rf in remote_files:
+        name = rf.rsplit("/", 1)[-1]
+        if any(s in name for s in SKIP_UPLOAD_SUBSTR):
+            continue
+        rel = rf.replace(remote_dir + "/", "")
+        dest = local_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            scp_from_vm(cfg, rf, str(dest))
+            fetched.append(dest)
+        except Exception as e:
+            log.warning("scp misslyckades för %s: %s", rf, e)
+
+    if not fetched:
+        return [], "0 filer hämtade från VM"
+
+    date_folder = datetime.now().strftime("%Y-%m-%d")
+    # upload_outputs bygger blob_name = f"{run_id}/{path.name}" -- så vi lägger
+    # hela den relativa MAPPEN i run_id-argumentet. Då bevaras strukturen och
+    # filnamns-kollisioner (två output_summary.xlsx i olika undermappar) undviks.
+    # Resultat: output/<date>/cluster/<rel-mapp>/<filnamn> -- förutsägbart för
+    # nästa familjs återanvändning (din vision).
+    blob_paths = []
+    total_mb = 0.0
+    for f in fetched:
+        rel = f.relative_to(local_root)
+        subdir = rel.parent.as_posix()           # "" om filen ligger i roten
+        prefix = f"{date_folder}/cluster" + (f"/{subdir}" if subdir not in ("", ".") else "")
+        mb = f.stat().st_size / 1e6
+        total_mb += mb
+        bp = upload_outputs(prefix, [str(f)])
+        blob_paths.extend(bp)
+    note = f"{len(fetched)} filer -> Blob ({total_mb:.0f} MB)"
+    log.info("Bygg 2: %s", note)
+    return fetched, note
 
 
 def main() -> int:
@@ -399,7 +520,7 @@ def _handle_outcome(outcome: str, tail: str, rs: RunStatus, args, cfg,
     """Deallocate ONLY on confirmed outcomes. Observation loss leaves the VM
     (and the possibly-healthy job) alone -- the FAS 13 rule, now in code."""
     if outcome == "success":
-        rc = finish_success(rs, args.run_id)
+        rc = finish_success(rs, args.run_id, cfg)
         if args.keep_vm:
             log.warning("VM left RUNNING (--keep-vm). ~9 kr/h -- deallocate when done.")
         else:
