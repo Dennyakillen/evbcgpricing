@@ -116,6 +116,27 @@ STORY = {
             {"label": "Andel p<0,05", "facit": "11,26 %", "now": "11,26 %", "delta": "=facit", "dir": "neut"},
         ],
     },
+    "bundle_model": {
+        "group": "engine",
+        "title_sv": "Bundle-modell (varukorgar)",
+        "story": ("Varukorgar på klinik- och sjukhusnivå -- hur priskänsliga är hela "
+                  "korgar av tjänster, inte enskilda koder. Bundle är med för komplett "
+                  "täckning, men driver bara en liten del (~2,2%) av den slutliga "
+                  "väven: den överlappar i hög grad det Cluster och Site redan fångar. "
+                  "Modellen valideras mot fryst BCG-facit som de andra; exakta tal i korten."),
+        "why": "OLS-elasticitet per varukorg (Bundle_code), samma metodik som övriga familjer på korg-nivå.",
+        "use": "Ger bundle-grenen i Step 6-väven -- en liten men komplett pusselbit.",
+        "without": "Step 6 saknar varukorgs-perspektivet; ~2,2% av väven faller tillbaka på frusen gren.",
+        "how_sv": ("Körs på Azure-VM:en (run_bundle_model.py) likt Cluster/Site. Startar VM, "
+                   "kör stegen på Linux, validerar mot fryst facit och deallokerar när klart."),
+        "data": "125 varukorgar (Bundle_code) x klinik/sjukhus, OLS log-log.",
+        "kpis": [
+            # Rimlighet mot facit (mätt: bundle-facit vs azure_run_model, 2026-06-16).
+            {"label": "Median-elasticitet", "facit": "-0,244", "now": "-0,211", "delta": "+0,033", "dir": "neut"},
+            {"label": "Negativ andel", "facit": "87,2 %", "now": "85,6 %", "delta": "-1,6 pp", "dir": "neut"},
+            {"label": "Varukorgar (KEY)", "facit": "125", "now": "125", "delta": "0", "dir": "neut"},
+        ],
+    },
     "site_step5": {
         "group": "after",
         "title_sv": "Site steg 5 (Excel, lokalt)",
@@ -260,6 +281,15 @@ FUNNEL = {
             # Mätt: proof_chain PROFILE (IB.9). Replikerings-talen (6624/6624, korr 1.0) hör till bit-för-bit ovan.
             {"metric": "Median-elasticitet", "facit": "−0,062", "now": "−0,054", "note": "vår vs facit -- nära, rimlig form på sajt-nivå"},
             {"metric": "Negativ andel", "facit": "63,6 %", "now": "62,4 %", "note": "nästan samma -- priskänsligheten håller riktning"},
+        ],
+        "prov": None,
+        "receipt": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
+    },
+    "bundle_model": {
+        "proof": {"label": "Bundle-modell bit-för-bit (FR-6)", "kpi": "population 125/125 (identisk) · rank-korr ~0,93 · median |diff| 0", "ok": True},
+        "facit_nu": [
+            {"metric": "Median-elasticitet", "facit": "-0,244", "now": "-0,211", "note": "vår vs facit -- nära, rimlig form på korg-nivå"},
+            {"metric": "Negativ andel", "facit": "87,2 %", "now": "85,6 %", "note": "högst av familjerna -- varukorgar starkt priskänsliga"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
