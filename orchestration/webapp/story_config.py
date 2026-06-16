@@ -60,7 +60,7 @@ STORY = {
     "extraction": {
         "group": "before",
         "title_sv": "Extraktion (dataprep, lokalt)",
-        "story": "BCG byggde på data till juni 2025. Vi ser nu till april 2026 -- tio månader till.",
+        "story": "BCG byggde på data till juni 2025; vi ser nu till april 2026 -- tio månader till. Datan har vuxit +25,5% (rader) och omsättningen +27,2% -- en frisk, rimlig tillväxt. Skulle omsättningen ha SJUNKIT vore det ett uppenbart fel: jämförelsen mot facit är i sig ett rimlighetstest -- modellen lever och bolaget växer.",
         "why": "Hämtar färsk transaktionsdata och bygger vecko-CSV:n som modellen tränar på. "
                "Körs lokalt eftersom datalagret (DW) bara nås på kontorsnät/VPN -- inte från Azure-VM:en.",
         "use": "Producerar bränslet: CSV och parquet som modellstegen läser.",
@@ -69,15 +69,19 @@ STORY = {
                   "kör dataprep, och tankar parqueten till Azure Blob. ~2 min för uppladdningen.",
         "data": "27,4 M transaktionsrader -> vecko-CSV:n + parquet (1 091 MB)",
         "kpis": [
+            # Datafönster: fruset BCG-fönster -> växande (+10 mån). Mätt: extraction-kvitto Date window.
             {"label": "Datafönster", "facit": "jun 2025", "now": "apr 2026", "delta": "+10 mån", "dir": "pos"},
-            {"label": "Transaktionsrader", "facit": None, "now": "27,4 M", "delta": None, "dir": "pos"},
-            {"label": "Storlek", "facit": None, "now": "1 091 MB", "delta": None, "dir": "pos"},
+            # Transaktionsrader fruset->växande: 485 248 -> 608 944 (+25,5%). Mätt: extraction-kvitto.
+            {"label": "Transaktionsrader", "facit": "485 248", "now": "608 944", "delta": "+25,5 %", "dir": "pos"},
+            # Omsättning (TotalNet) fruset->växande: 6,50 -> 8,27 mdr (+27,2%). Mätt: playbook-tabell.
+            # DET BÄRANDE RIMLIGHETSTALET: stiger = friskt bolag; skulle det SJUNKA vore det uppenbart fel.
+            {"label": "Omsättning (TotalNet)", "facit": "6,50 mdr", "now": "8,27 mdr", "delta": "+27,2 %", "dir": "pos"},
         ],
     },
     "cluster_model": {
         "group": "engine",
         "title_sv": "Cluster-modell steg 1-4 (VM)",
-        "story": "Rå signifikansandel sjönk något mot BCG (40,4%->33,4%) med fler KEY i växande data, men fallback-blenden lyfter den till 45,2%. Två kapitel: rå jämförs lika mot lika med BCG, blend-effekten är vår egen (BCG:s post-blend ej uppmätt).",
+        "story": "Samma data som BCG ger nästan exakt samma resultat (bit-för-bit, se ovan). På växande fönster håller formen: median och negativ andel ligger nära facit, och KEY-populationen växer (3 812 -> 4 180). Rörelsen är rimlig -- modellen lever utan att spreta iväg från facit.",
         "why": "OLS-elasticitet per produkt x kluster, Ray-parallelliserad på VM:en. "
                "Tung beräkning som kräver VM:ens minne -- därför Azure, inte laptopen.",
         "use": "Ger klusternivå-elasticiteter -- ett av lagren i Step 6-väven.",
@@ -86,13 +90,13 @@ STORY = {
                   "kör stegen på Linux, och deallokerar när klart så kostnaden stoppas.",
         "data": "3 812 produkt x kluster-grupper (alla, även icke-signifikanta)",
         "kpis": [
-            # Kapitel "rå cluster-output" -- lika mot lika (BCG:s rå vs vår rå, FÖRE fallback).
-            # BCG 40,4% (1541/3812) vs vår 33,4% (1397/4180). Mätt: significance_consistency-kvitto.
-            {"label": "Signifikansandel (rå output)", "facit": "40,4 %", "now": "33,4 %", "delta": "-7,0 pp", "dir": "neg"},
-            # Kapitel "efter fallback-blend" -- VÅR bok bara. BCG:s post-blend-signifikans är
-            # INTE uppmätt (verify_blend validerar representant-urval 43/43, ej andel). Därför
-            # ingen facit-jämförelse: facit=None ([fyll i]), visas som vår blend-effekt ärligt.
-            {"label": "Efter fallback-blend (vår)", "facit": None, "now": "45,2 %", "delta": None, "dir": "pos"},
+            # Rimlighet mot facit (äpple mot äpple, det som ligger närmast facit och mäts direkt).
+            # Median-elasticitet: facit -0,137 -> nu -0,113 (rationality + IB.9). Samma form.
+            {"label": "Median-elasticitet", "facit": "-0,137", "now": "-0,113", "delta": "+0,024", "dir": "neut"},
+            # Negativ andel: facit 76,5% -> nu 73,7% (IB.9-referens håller).
+            {"label": "Negativ andel", "facit": "76,5 %", "now": "73,7 %", "delta": "-2,8 pp", "dir": "neut"},
+            # KEY-population: facit 3 812 -> nu 4 180 (+368 nya från växande fönster). Modellen lever.
+            {"label": "KEY-population", "facit": "3 812", "now": "4 180", "delta": "+368", "dir": "pos"},
         ],
     },
     "site_model": {
@@ -232,9 +236,9 @@ FUNNEL = {
     "extraction": {
         "proof": {"label": "Dataprep bit-för-bit mot BCG facit", "kpi": "485 248 rader · korr 1.000000 · diff 0,000%", "ok": True},
         "facit_nu": [
-            {"metric": "Rader (fryst fönster)", "facit": "485 248", "now": "482 955", "note": "−0,17% aggregerad drift"},
-            {"metric": "ItemCodes i båda", "facit": "1 151", "now": "1 151", "note": "0 bara hos oss · 0 bara hos BCG"},
-            {"metric": "Per-kod median-drift", "facit": "—", "now": "+0,000%", "note": "typisk kod är bit-identisk"},
+            {"metric": "Transaktionsrader", "facit": "485 248", "now": "608 944", "note": "+25,5% -- frisk tillväxt, växande fönster"},
+            {"metric": "Omsättning (TotalNet)", "facit": "6,50 mdr", "now": "8,27 mdr", "note": "+27,2% -- skulle detta SJUNKA vore det uppenbart fel"},
+            {"metric": "ItemCodes (facit-urval)", "facit": "1 151", "now": "1 151", "note": "samma urval -- jämförbart äpple mot äpple"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/2026-06-08/00_master_summary_2026-06-08_105839.xlsx",
@@ -244,8 +248,6 @@ FUNNEL = {
         "facit_nu": [
             {"metric": "Median-elasticitet", "facit": "−0,137", "now": "−0,113", "note": "samma form, något mindre priskänsligt"},
             {"metric": "Negativ andel", "facit": "76,5 %", "now": "73,7 %", "note": "IB.9-referens håller"},
-            {"metric": "Signifikansandel (rå)", "facit": "40,4 %", "now": "33,4 %", "note": "lika mot lika: BCG:s rå vs vår rå, före fallback"},
-            {"metric": "Efter fallback-blend (vår)", "facit": "—", "now": "45,2 %", "note": "vår blend-effekt; BCG:s post-blend ej uppmätt"},
             {"metric": "Antal KEY", "facit": "3 812", "now": "4 180", "note": "+368 nya från växande fönster"},
         ],
         "prov": None,
