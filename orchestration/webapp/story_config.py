@@ -254,11 +254,12 @@ FUNNEL = {
         "receipt": "verify_tool/receipts/2026-06-08/rationality/00_rationality_master_2026-06-08_130847.xlsx",
     },
     "site_model": {
-        "proof": {"label": "Site-modell bit-för-bit (FR-5)", "kpi": "population 4 673/4 673 · rank-korr 0,9108 · beslutsrelevanta 113/144", "ok": True},
+        "proof": {"label": "Site-modell bit-för-bit (FR-5)", "kpi": "population 4 673/4 673 (identisk) · korr 1.000000 · rank-korr 0,9108 · beslutsrelevanta 113/144", "ok": True},
         "facit_nu": [
-            {"metric": "Unika KEY", "facit": "6 624", "now": "6 624", "note": "identisk population mot referens"},
-            {"metric": "Korrelation", "facit": "1.000000", "now": "1.000000", "note": "bit-för-bit på samma data"},
-            {"metric": "Median-elasticitet", "facit": "−0,062", "now": "−0,054", "note": "finaste granulariteten"},
+            # Rimlighetsprofil: vår vs facit på finaste granulariteten. Nära = rimligt (rör sig inte iväg).
+            # Mätt: proof_chain PROFILE (IB.9). Replikerings-talen (6624/6624, korr 1.0) hör till bit-för-bit ovan.
+            {"metric": "Median-elasticitet", "facit": "−0,062", "now": "−0,054", "note": "vår vs facit -- nära, rimlig form på sajt-nivå"},
+            {"metric": "Negativ andel", "facit": "63,6 %", "now": "62,4 %", "note": "nästan samma -- priskänsligheten håller riktning"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
