@@ -77,7 +77,7 @@ STORY = {
     "cluster_model": {
         "group": "engine",
         "title_sv": "Cluster-modell steg 1-4 (VM)",
-        "story": "Med mer data passerar fler elasticitetsskattningar signifikanströskeln -- modellen blir att lita på.",
+        "story": "Rå signifikansandel sjönk något mot BCG (40,4%->33,4%) med fler KEY i växande data, men fallback-blenden lyfter den till 45,2%. Två kapitel: rå jämförs lika mot lika med BCG, blend-effekten är vår egen (BCG:s post-blend ej uppmätt).",
         "why": "OLS-elasticitet per produkt x kluster, Ray-parallelliserad på VM:en. "
                "Tung beräkning som kräver VM:ens minne -- därför Azure, inte laptopen.",
         "use": "Ger klusternivå-elasticiteter -- ett av lagren i Step 6-väven.",
@@ -86,7 +86,13 @@ STORY = {
                   "kör stegen på Linux, och deallokerar när klart så kostnaden stoppas.",
         "data": "3 812 produkt x kluster-grupper (alla, även icke-signifikanta)",
         "kpis": [
-            {"label": "Signifikansandel", "facit": "33,4 %", "now": "45,2 %", "delta": "+11,8 pp", "dir": "pos"},
+            # Kapitel "rå cluster-output" -- lika mot lika (BCG:s rå vs vår rå, FÖRE fallback).
+            # BCG 40,4% (1541/3812) vs vår 33,4% (1397/4180). Mätt: significance_consistency-kvitto.
+            {"label": "Signifikansandel (rå output)", "facit": "40,4 %", "now": "33,4 %", "delta": "-7,0 pp", "dir": "neg"},
+            # Kapitel "efter fallback-blend" -- VÅR bok bara. BCG:s post-blend-signifikans är
+            # INTE uppmätt (verify_blend validerar representant-urval 43/43, ej andel). Därför
+            # ingen facit-jämförelse: facit=None ([fyll i]), visas som vår blend-effekt ärligt.
+            {"label": "Efter fallback-blend (vår)", "facit": None, "now": "45,2 %", "delta": None, "dir": "pos"},
         ],
     },
     "site_model": {
@@ -238,7 +244,8 @@ FUNNEL = {
         "facit_nu": [
             {"metric": "Median-elasticitet", "facit": "−0,137", "now": "−0,113", "note": "samma form, något mindre priskänsligt"},
             {"metric": "Negativ andel", "facit": "76,5 %", "now": "73,7 %", "note": "IB.9-referens håller"},
-            {"metric": "Signifikansgrad", "facit": "18 %", "now": "33,4 %", "note": "mer data → fler skattningar håller"},
+            {"metric": "Signifikansandel (rå)", "facit": "40,4 %", "now": "33,4 %", "note": "lika mot lika: BCG:s rå vs vår rå, före fallback"},
+            {"metric": "Efter fallback-blend (vår)", "facit": "—", "now": "45,2 %", "note": "vår blend-effekt; BCG:s post-blend ej uppmätt"},
             {"metric": "Antal KEY", "facit": "3 812", "now": "4 180", "note": "+368 nya från växande fönster"},
         ],
         "prov": None,

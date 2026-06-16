@@ -536,6 +536,28 @@ MI:n får Storage Blob Data-rollen (FAS T, Kent), byt till AAD: en envariabel-ä
 **Beror på:** Kent (ABAC-blockerad dataroll). **Estimerad omfattning:** Låg. **Status:** Väntar FAS T.
 **Datum identifierad:** 2026-06-15.
 
+### FD.30 — Avslutade körningar ska sätta sluttillstånd
+**Idé:** En körning som avslutats (lyckad/dealloc) måste sätta state till ett sluttillstånd
+(succeeded/deallocated), annars fastnar statusfilen på running och stale-heartbeat-varningen fyrar
+på en gammal, klar körning. Sågs 2026-06-15: förmiddagens VM-körning visade "318 min sedan" + tunnel-
+varning trots att jobbet var klart. Dagens run_data.py-körning lämnar också state=running (extraktion
+klar men helheten inte) — korrekt nu, men ingen sätter succeeded när alla sex faser en dag är klara.
+**Värde:** Varningen (rätt för aktiva VM-körningar, LB.55) slutar ge falsklarm på historik.
+**Beror på:** lager 2-statusskrivning. Hör ihop med LB.59 (run_id-datum-kollage).
+**Estimerad omfattning:** Låg. **Status:** Idé. **Datum identifierad:** 2026-06-15.
+
+### FD.31 — Cluster/Site/Step5/Step6/R12-runners får lager 2-statusrapportering
+**Idé:** Idag rapporterar bara run_data.py (extraction) och run_site_model.py sin fas till
+statuskontraktet. För att en körning ska visa alla sex faser gröna när de faktiskt körts måste varje
+runner skriva sin fas (start_phase/finish_phase + write_status, best-effort) — samma mönster som
+run_data.py fick 2026-06-15. Då rapporterar varje steg sig självt och dashboarden blir sann av sig
+själv, utan handpåläggning (handmålning av statusfiler avvisades 2026-06-15 — dashboarden får inte
+ljuga, LB.25-anda).
+**Värde:** Framtida körningar lyser helt gröna ärligt; dashboarden speglar verklig körning.
+**Beror på:** lager 2-mönstret (klart, run_data.py som förlaga). **Estimerad omfattning:** Låg-medel
+per runner. Hör ihop med FD.30. **Status:** Specad. **Datum identifierad:** 2026-06-15.
+
+
 ### 2c. Lägg till i "Senaste uppdateringar"-tabellen
 | 2026-06-15 | FD.26-29 tillagda. Arkitekturbeslut: data prep lokalt (LB.65/66), output→Blob. upload_inputs byggd+bevisad (1 GB, 2 min). FD.26 run_data.py = nästa mål. |
 
@@ -551,6 +573,8 @@ En FD revideras eller flyttas:
 - När idén mognat till konkret leverabel → flyttas till `ROADMAP.md` som ny fas
 - När idén visat sig oviktig efter mer kontext → markeras "Avförd" med skäl
 - När en LF eller LB exponerar att FD inte längre är aktuell → uppdatera status
+
+
 
 ---
 
