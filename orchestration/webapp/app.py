@@ -188,7 +188,11 @@ def _key_kpi(path: Path, validator_name: str) -> str:
 def api_receipts_list(phase_key: str):
     """Lista de enskilda valideringskvittona för en fas (drill 3). Ingen
     PASS/REVIEW-dom -- bara filnamn + exportväg, så användaren kan hämta
-    vilken granskning som helst. Senaste datum-mappen per svit."""
+    vilken granskning som helst. SENASTE per validator-typ (inga dubbletter
+    från flera körningar samma dag, LB.69-anda) + datum/tid i namnet så det
+    syns vilken körning det är."""
+    import re as _re
+    from datetime import datetime as _dt
     cfg = PHASE_RECEIPT.get(phase_key)
     if not cfg or not RECEIPTS_DIR.exists():
         return jsonify({"files": []})
@@ -207,14 +211,31 @@ def api_receipts_list(phase_key: str):
                 best_mtime, best_dir = mt, search_dir
     if best_dir is None:
         return jsonify({"files": []})
-    files = []
+
+    # Gruppera per validator-TYP (namn utan datum), behåll bara senaste per typ.
+    # Dubbletterna kom av att samma validator kördes flera ggr samma dag.
+    by_type = {}  # typ -> (mtime, path, datumtext)
     for f in sorted(best_dir.glob("*.xlsx")):
         if f.name.startswith("00_"):
             continue  # master hanteras separat
-        # Snyggt namn: "02_outliers_2026-..." -> "outliers"
-        nice = re.sub(r'^\d+_', '', f.stem)
-        nice = re.sub(r'_\d{4}-\d{2}-\d{2}.*$', '', nice)
-        files.append({"name": nice.replace("_", " "),
+        vtype = _re.sub(r'^\d+_', '', f.stem)           # "02_outliers_2026-..." -> "outliers_2026-..."
+        vtype = _re.sub(r'_\d{4}-\d{2}-\d{2}.*$', '', vtype)  # -> "outliers"
+        # Plocka ut datum+tid ur filnamnet för visning (YYYY-MM-DD_HHMMSS)
+        m = _re.search(r'(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})(\d{2})', f.stem)
+        if m:
+            stamp = f"{m.group(1)} {m.group(2)}:{m.group(3)}"
+        else:
+            stamp = ""
+        mt = f.stat().st_mtime
+        if vtype not in by_type or mt > by_type[vtype][0]:
+            by_type[vtype] = (mt, f, stamp)
+
+    files = []
+    for vtype, (mt, f, stamp) in sorted(by_type.items()):
+        label = vtype.replace("_", " ")
+        if stamp:
+            label = f"{label} · {stamp}"
+        files.append({"name": label,
                       "file": str(f.relative_to(REPO_ROOT)).replace("\\", "/")})
     return jsonify({"files": files})
 
