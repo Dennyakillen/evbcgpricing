@@ -24,9 +24,23 @@ os.environ["PRICINGMODEL_STORAGE"] = "evbcgpricinginput"
 os.environ["PRICINGMODEL_RG"]      = "ev-openai-swce-rg-test"
 os.environ["PRICINGMODEL_AUTH"]    = "key"
 
-# Importera blob.py:s byggstenar (nyckel-läsning, konto-URL)
-_HERE = Path(__file__).parent
-sys.path.insert(0, str(_HERE))
+# Importera blob.py:s byggstenar (nyckel-läsning, konto-URL).
+# blob.py importerar run_status, så den modulens mapp måste på sökvägen.
+# Vi GISSAR inte var den ligger -- vi SÖKER upp den under orchestration/ och
+# lägger dess mapp på path. Robust oavsett katalogstruktur (mät, gissa inte).
+_HERE = Path(__file__).parent                 # orchestration/infrastructure
+_ORCH = _HERE.parent                           # orchestration
+sys.path.insert(0, str(_HERE))                 # för blob.py självt
+
+_run_status_hits = list(_ORCH.rglob("run_status.py"))
+if _run_status_hits:
+    for hit in _run_status_hits:
+        sys.path.insert(0, str(hit.parent))
+    print(f"  [path] run_status hittad: {_run_status_hits[0].parent}")
+else:
+    print("  [VARNING] run_status.py hittades inte under orchestration/ -- "
+          "blob-import kan misslyckas.")
+
 import blob  # noqa: E402
 from azure.storage.blob import BlobServiceClient  # noqa: E402
 
