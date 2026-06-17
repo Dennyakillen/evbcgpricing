@@ -24,8 +24,11 @@ externt. Koden läser dessa värden från env/konfiguration — aldrig hårdkoda
 och en auto-validerar mot fryst facit och laddar upp all output till Blob. En webapp-dashboard visar
 modellens hälsa som en förtroende-tratt per familj. Konto-spretigheten löst (FD.35: allt i ett
 test-konto, 19/19 rör-kontroller gröna). Bundle aktiverad som fullvärdig familj (FD.34). Replikering
-(FAS V) och färsk-data (FAS F) klara. Nästa: varm end-to-end-körning + prod-konto-städning.
-*(Senast verifierad: 2026-06-16)*
+(FAS V) och färsk-data (FAS F) klara. Cluster + Site körda VÄXANDE end-to-end på VM 2026-06-17
+(4180 + 6624 KEY = matchar facit, allt till Blob). Bundle:s växande databygge intrimmat 2026-06-17:
+model-data-creation producerar nu växande output (FD.36) — modellkörningen + xlsx-koppling återstår.
+Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
+*(Senast verifierad: 2026-06-17)*
 
 | Fas | Status | Senast verifierad |
 |---|---|---|
@@ -111,7 +114,8 @@ test-konto, 19/19 rör-kontroller gröna). Bundle aktiverad som fullvärdig fami
 | `transaction_data.parquet` (Blob) | I test-kontots `input/` (27,4M rader, 1144 MB; vaxande t.o.m. 2026-04-30) | 2026-06-16 |
 | Cluster steg-5-routning | FRUSEN (2025) — FD.15 | 2026-06-11 |
 | Väv-vikter | FRUSEN (2025) — FD.14 | 2026-06-11 |
-| Bundle-modell (runner) | KÖRKLAR — aktiverad som familj (FD.34); väv-bidrag ~2,2% | 2026-06-16 |
+| Bundle model-data-creation | VÄXANDE LÖST 2026-06-17 — 27 921 rader, datumspann → 2026-04-27 (FD.36, LB.73-76). Tyst tömnings-bugg i BCG:s process_bundles_with_fte spårad+fixad additivt | 2026-06-17 |
+| Bundle-modell (runner) | KÖRKLAR — input nu byggbar växande; modellkörning + xlsx-koppling återstår | 2026-06-17 |
 | Bundle-gren i Step6-väv | FRUSEN 2025 (FD.11) — separat från bundle-modellen | 2026-06-16 |
 
 > De tre frusna låsen (LF.9) står på 2025-värden medvetet. Kärnsignalen för priskänslighet är färsk.
@@ -149,6 +153,7 @@ test-konto, 19/19 rör-kontroller gröna). Bundle aktiverad som fullvärdig fami
   (weekly_base-fönster + YearFlag-lista) — verifierat 2026-06-15.
 - Redigera filer via skript (backup + UTF-8 utan BOM), inte genom att klistra Python i PowerShell-prompten.
 - Före varm körning: `py -3.11 orchestration\dry_run_pipeline.py` (19 rör-kontroller — konto, parquet, facit, status, runners, app pekar rätt). Fångar fel kallt i stället för mitt i en flertimmars körning.
+- Bundle model-data-creation kräver VM (Ray basket-build, dlmalloc-minnesvägg lokalt) + paket tqdm/ray i VM-venv (ensurepip först — venv saknar pip). BCG-koden anpassas vid INLÄSNING (encoding/kolumnnamn/datatyp), aldrig nedströmslogiken (LB.73-76).
 
 ---
 

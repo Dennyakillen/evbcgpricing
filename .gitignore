@@ -127,3 +127,6 @@ output_analyspaket/*.pdf
 
 # workspace = lokal scratch, inte sanning (orchestration/ ar sanningen)
 workspace/
+
+# Bundle model-data-creation lokala datafiler (stora, byggs av dataprep + original) - 2026-06-17
+Pipeline/02. Elasticity/4. Bundle Clinic Data Prep/1.Data_Pre_Processing/data/

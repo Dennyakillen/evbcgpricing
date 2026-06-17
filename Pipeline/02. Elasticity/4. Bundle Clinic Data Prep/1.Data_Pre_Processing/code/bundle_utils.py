@@ -26,9 +26,11 @@ def load_and_clean_transactions(filepath: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Cleaned transaction data with only positive SalesTotal and SoldQuantity.
     """
-    txn_data = pd.read_csv(filepath, encoding="cp1252")
+    txn_data = pd.read_csv(filepath, encoding="utf-8")  # moderniserat 2026-06-17: vaxande DuckDB-output ar UTF-8 (cp1252 var BCG-miljokvarleva). load_data nedan lamnas cp1252 for BCG:s originalfil.
     txn_data = txn_data[txn_data["SalesTotal"] > 0]
     txn_data = txn_data[txn_data["SoldQuantity"] > 0]
+    txn_data = txn_data.rename(columns={"SoldQuantity": "Qty", "SalesTotal": "TotalNet"})  # Evidensia-namn -> BCG-skriptets Qty/TotalNet (UK-miljonamn). BCG nedstromslogik orord. 2026-06-17.
+    txn_data["week_starting_monday"] = pd.to_datetime(txn_data["week_starting_monday"])  # week som datetime: BCG-koden antar datetime genomgaende (Alteryx-arv). Loser format-divergens i intern slutmerge. 2026-06-17.
     return txn_data
 
 
@@ -336,6 +338,11 @@ def process_bundles_with_fte(
             how="left"
         )
 
+        # Additiv 2026-06-17 (FD.36, Jens Palmo): sakra konsekvent week-typ fore slutmerge.
+        # BCG:s astype(str) traffar bara ena grenen -> datetime/str-divergens pa icke-Alteryx-data.
+        # Bada -> datetime sa BCG:s merge nedan fungerar parallellt. Ingen befintlig BCG-rad rord.
+        txn_elasticity["week_starting_monday"] = pd.to_datetime(txn_elasticity["week_starting_monday"])
+        bundle_visits["week_starting_monday"] = pd.to_datetime(bundle_visits["week_starting_monday"])
         bundle_data_final = txn_elasticity.merge(bundle_visits, on=[level, "week_starting_monday"])
         bundle_data_final["bundle_visits_per_site"] = (
             bundle_data_final["Bundle_visits"] / bundle_data_final["num_of_sites"]

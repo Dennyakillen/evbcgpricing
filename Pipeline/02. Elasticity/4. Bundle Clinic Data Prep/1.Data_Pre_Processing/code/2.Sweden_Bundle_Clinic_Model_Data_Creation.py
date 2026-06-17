@@ -34,6 +34,13 @@ if __name__ == '__main__':
     sweden_bundles.rename(columns = {'Bundle':'Bundle_code', 'Bundle Revenue Sorted (Item Description)':'Bundle_description', "ProductCode":"Product Code"}, inplace = True)
     fte = pd.read_excel(fte_data)
     fte.rename(columns = {'ID_Department':'SiteCode'}, inplace = True)
+    # --- Additiv normalisering 2026-06-17 (FD.36, Jens Palmo): gor FTE-data tolerant for kallformat.
+    # BCG:s join/groupby-logik orord; sakerstaller bara att nycklar matchar oavsett ursprung.
+    # (1) Cluster (BCG Alteryx, singular) -> aven Clusters (koden grupperar pa plural). Bevarar Cluster.
+    if 'Cluster' in fte.columns and 'Clusters' not in fte.columns:
+        fte['Clusters'] = fte['Cluster']
+    # (2) week till str(YYYY-MM-DD) (koden konverterar bundle-datan sa fore FTE-merge; matcha det).
+    fte['week_starting_monday'] = pd.to_datetime(fte['week_starting_monday'])  # datetime: matchar bundle-datans typ vid FTE-merge (koden to_datetime:ar bundle-datan fore merge, str efter).
 
     # 2. Create expected bundles
     expected_bundle_all = all_bundle_data_creation(sweden_bundles, txn_data)

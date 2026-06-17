@@ -713,6 +713,10 @@ server-**omstart**, inte bara omladdning — bara mallar och statiska filer ploc
 | LB.70 | b | Modell-output lever i flera identiska kopior, ingen kanonisk plats | väljer fil för upload/jämförelse och flera finns |
 | LB.71 | a | Webappen renderar statusfilens faser, inte STORY — ny familj kräver fas i default_pipeline | en familj finns i STORY men syns inte i appen |
 | LB.72 | a | PowerShell sväljer citattecken/backslash i echo:ade kommandon med Windows-sökvägar; heredoc finns ej | Claude genererar PS/py-snutt med C:\-sökväg |
+| LB.73 | a | BCG bundle model-data-creation bär UK-miljöfotspår: cp1252, uk_bundles, Qty/TotalNet, week=datetime | bundle-kedjan körs på Evidensia DuckDB-data (UTF-8, Clusters, str-datum) |
+| LB.74 | a | Bundle model-data-creation: config.yml saknades + pekade på spökfiler; sweden_bundles vs uk_bundles nyckel-mismatch | model-data-creation körs första gången på växande data |
+| LB.75 | a | Bundle tömdes tyst: BCG:s ensidiga astype(str) på en gren ger datetime/str-divergens i intern slutmerge (instans av P.1/P.3) | bundle-output blir tom header trots att data flödar till näst sista steget |
+| LB.76 | a | Diagnostisk sond > lager-för-lager: instrumentera kopia, mät population efter varje steg, testa flera hypoteser parallellt, skriv till fil | en pipeline ger fel/tomt men kraschar inte |
 ---
 ### LB.65 — Data prep behöver inte VM:ens RAM; bara modellstegen gör det
 **Symptom:** Sessionen 2026-06-15 utgick från "data prep via Azure", svällt ur det sanna skälet att
@@ -816,6 +820,72 @@ existerar inte i PowerShell — använd here-string `@'...'@`.
 **Gäller om:** Claude genererar PowerShell/Python-snuttar som innehåller Windows-sökvägar.
 **Förkroppsligas i:** alla leveranser efter upptäckten denna session (here-string-mönstret).
 
+### LB.73 — BCG bundle model-data-creation bär UK-miljöfotspår
+**Symptom:** bundle:s `2.Sweden_Bundle_Clinic_Model_Data_Creation.py` + `bundle_utils.py` bröts på
+fyra olika ställen när de kördes på Evidensias växande data: (1) `pd.read_csv(encoding="cp1252")`
+kraschade på UTF-8-tecken (`0x9d`); (2) config-nyckel `uk_bundles` vs skriptets `sweden_bundles`;
+(3) aggregering på `Qty`/`TotalNet` medan datan har `SoldQuantity`/`SalesTotal`; (4) `week_starting_monday`
+antas datetime genomgående medan DuckDB-output är str.
+**Rotorsak:** modellen är återanvänd från ett tidigare BCG-klientprojekt (UK/IVC — `module_path`-kommentar
+pekade på `D:\IVC E Phase 1\...Mohammed Moheed Tai\`, utkommenterad `UK_bundle_cluster`-rad). Ytan
+anpassades för Sverige men inte djupet — miljöantaganden (encoding, kolumnnamn, datatyper) är fotspår
+från ursprungsmiljön, inte medvetna val för Evidensia.
+**Regel:** anpassa ALLTID vår data till BCG:s antaganden vid INLÄSNINGSPUNKTEN (load_and_clean_transactions
++ fte-inläsning i huvudskriptet), aldrig genom att ändra BCG:s nedströmslogik. Encoding→utf-8, kolumnnamn-
+rename, datatyp-normalisering hör alla hemma där. Additivt (bevara BCG:s ursprungstanke parallellt:
+`if 'Cluster' ... and 'Clusters' not in`).
+**Gäller om:** en BCG-modellkomponent körs på data från en annan pipeline än ursprungets (≈ all växande drift).
+**Förkroppsligas i:** bundle_utils.py + 2.Sweden_Bundle_Clinic_Model_Data_Creation.py (additiva fixar 2026-06-17).
+
+### LB.74 — Bundle model-data-creation: saknad config + spökreferenser
+**Symptom:** skriptet läser `src/config.yml` — filen fanns inte (bara `config_data_prep.yml`). Den
+configen pekade på `0826_raw_data_basket_analysis_Clinic_Hospital.csv` (finns ej) och hade nyckeln
+`uk_bundles` (skriptet vill `sweden_bundles`). Dessutom: dry-run/preflight var GRÖN (runnern pekade rätt)
+men input var fryst/saknad — preflight testade att runnern PEKAR rätt, inte att DATAN fanns i rätt version.
+**Rotorsak:** bundle parkerades (FD.11) — runner/app/fas byggdes (FD.34) men den växande databygges-kedjan
+(dataprep→model-data-creation→xlsx→VM) intrimmades aldrig. Kopplingarna var gjorda för BCG:s engångskörning.
+**Regel:** (1) skapa config.yml mot VERIFIERADE filer (mät vad som finns, peka inte på spöken); BOM-fri
+(`UTF8Encoding $false` — annars kraschar yaml.safe_load). (2) En grön dry-run som testar att en runner
+PEKAR rätt bevisar inte att datan EXISTERAR i rätt version — framtida dry-run bör verifiera input-filens
+DATUMSPANN (växande vs fryst), inte bara dess existens.
+**Gäller om:** en parkerad komponent återaktiveras, eller en config ärvs från ursprungsmiljön.
+**Förkroppsligas i:** src/config.yml (skapad 2026-06-17, Evidensia-sökvägar).
+
+### LB.75 — Bundle tömdes tyst på datetime/str-divergens i intern slutmerge (instans av P.1/P.3)
+**Symptom:** bundle model-data-creation gav "Pipeline completed" men `Bundle_Clinic_Data.csv` hade
+1 rad (bara header) på växande data — ingen krasch, tyst tomt. Data flödade till 314k rader genom steg 1-3,
+men `process_bundles_with_fte` returnerade 0.
+**Rotorsak (pinpointad via sond, LB.76):** funktionen bygger två grenar — `txn_elasticity` (week behålls
+datetime) och `bundle_visits` (week → str via BCG:s rad `txn_data_expected["week"] = ...astype(str)` efter
+FTE-merge). Den interna slutmerge:n `txn_elasticity.merge(bundle_visits, on=[level,"week"])` förenar dem —
+men en gren har datetime, andra str (`"2022-06-27 00:00:00"` vs `"2022-06-27"`) → noll matchningar → tom.
+BCG:s `astype(str)` träffar bara ena grenen. Fungerade på deras Alteryx-data (konsekvent datetime); bröts
+på vår DuckDB-data. Detta är exakt P.1 (likhetsvalidering utan täckningskontroll — tyst populationsbortfall)
++ P.3 (anta tyst filtrering). En bugg BCG själva aldrig hittade, eftersom de aldrig körde på icke-Alteryx-data.
+**Regel:** additiv typsäkring FÖRE slutmerge:n (båda grenars nyckelkolumner → samma typ), rör inte BCG:s
+befintliga rader. Generellt: misstänk varje merge mellan grenar som behandlat en nyckelkolumn olika.
+**Gäller om:** en funktion bygger flera grenar ur samma data och förenar dem på en nyckel som genomgått
+typ-/format-konvertering i bara en gren.
+**Förkroppsligas i:** bundle_utils.py (additiv week→datetime före rad 341, 2026-06-17). Bevis: 27 921 rader
+växande output, datumspann 2022-07-04 → 2026-04-27.
+
+### LB.76 — Diagnostisk sond slår lager-för-lager-felsökning
+**Symptom:** bundle-buggen tog en hel dag att lösa lager för lager (input→config→encoding→beroenden→
+kolumnnamn→minne→datetime), där varje fix avslöjade nästa — mycket tid gick till att UPPTÄCKA att det
+fanns ännu ett lager. Den verkliga roten (LB.75) hittades först när vi bytte metod.
+**Rotorsak:** reaktiv felsökning (kör→krascha→fixa→upprepa) ser bara ett lager i taget. En pipeline med
+flera tysta fel ger inte upp sin rot förrän man följer datan genom HELA kedjan i ett svep.
+**Regel (sond-metodik):** när en pipeline ger fel/tomt men inte kraschar — bygg en sond:
+(1) reproducera logiken inline i en KOPIA (rör aldrig originalet); (2) mät population/tillstånd efter VARJE
+transformation (tappet syns som "N→0" på en rad); (3) testa flera rotorsaks-hypoteser PARALLELLT i samma
+körning (uppströms filter/flaggor, mitten joins/aggregeringar, nedströms datatyper/nycklar); (4) skriv till
+FIL (brus som Ray-loggar begraver annars svaret); (5) kör på minsta reproducerande enhet (en bundle/KEY).
+**Formulering som triggar det snabbt (KÄRN-kandidat):** *"Bygg en sond som följer datan steg för steg
+genom [funktionen], mät tillståndet efter varje transformation, och testa dessa hypoteser parallellt:
+[H1 uppströms], [H2 mitten], [H3 datatyp/nyckel]. Rör inte originalkoden."*
+**Gäller om:** en pipeline ger oväntat/tomt resultat utan att krascha, särskilt över flera transformationssteg.
+**Förkroppsligas i:** sond-skripten som löste bundle 2026-06-17 (två körningar gav exakt rad + uttömda hypoteser).
+
 ## Hur listan växer
 
 Ny lärdom läggs till när vi snubblar över en teknisk fälla — miljö, infrastruktur, kod-mekanik,
@@ -844,6 +914,13 @@ minnesbild ljög, mätning mot referens avgjorde.
 2026-05-29 efter session där verify_tool-fällan och venv-divergensen upptäcktes och dokumenterades.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
 förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`). LB.48-51 tillagda 2026-06-11 efter F.9 Bundle-dataprep körd växande + Bundle-modellen datadrivet parkerad (FD.11): läs runnern före patch-deklaration (LB.48), all_varchar vid masterdata-parquet-konvertering (LB.49), dubbel-fönster-fällan/konstant-ankare (LB.50, DRIFT), BCG-kod UK-rester + config-verifiering före körning (LB.51). Bundle-dataprep committad i `1daf093`. LB.52-53 tillagda 2026-06-11 efter F.10 Step 6 körd första gången på växande data (Alternativ A): KEY-split-fällan i blended_model (LB.52), xlwings named-range com_error på mall-skrivning (LB.53). Step 6 producerade 108 979 rader / 15 128 ProductKeys, median final_elasticity -0.497, 100% negativa.*
+
+*LB.73-76 tillagda 2026-06-17 efter sessionen där bundle:s växande databygge intrimmades end-to-end och en
+tyst tömnings-bugg i BCG:s `process_bundles_with_fte` spårades till rotorsak (datetime/str-divergens i intern
+slutmerge, rad 341) via diagnostisk sond. Bundle model-data-creation producerar nu 27 921 rader växande output
+(datumspann → 2026-04-27). Fyra BCG-miljöfotspår dokumenterade (LB.73), config-/dry-run-lucka (LB.74), rotorsak
++ additiv fix (LB.75), sond-metodik (LB.76, KÄRN-kandidat). Alla fixar additiva vid inläsningspunkten —
+BCG:s nedströmslogik orörd.*
 
 *Omstrukturerad 2026-06-13: tier-kolumn (a/b/c) införd i snabbindexet — sessionsstart läser bara tier-a;
 `Gäller om`- och `Förkroppsligas i`-fält tillagda i formatet (KÄRNPRINCIPER §4.6/§7); LB.59-61 infogade
