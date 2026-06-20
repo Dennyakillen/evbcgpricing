@@ -130,3 +130,6 @@ workspace/
 
 # Bundle model-data-creation lokala datafiler (stora, byggs av dataprep + original) - 2026-06-17
 Pipeline/02. Elasticity/4. Bundle Clinic Data Prep/1.Data_Pre_Processing/data/
+
+# Sond-resultatfiler (diagnostik-output, ej kod) - 2026-06-20
+verify_tool/probes/*_result.txt

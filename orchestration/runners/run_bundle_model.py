@@ -90,7 +90,7 @@ REMOTE_PYTHON  = "/home/azureuser/bcg/cluster/.venv/bin/python"
 # unknown until measured. Run measure_cluster_values.py (delivered alongside) or:
 #   ssh azureuser@<ip> "ls -t ~/bcg/cluster/data/*.csv | head -1"
 # then paste the exact path here.
-REMOTE_INPUT   = "/home/azureuser/bcg/bundle/data/Raw_Data_Clinic_Hospital.csv"   # ANTAGET -- MÄT på VM: ssh ... "ls -t ~/bcg/bundle/data/*.csv | head -1"
+REMOTE_INPUT   = "/home/azureuser/bcg/bundle/data/bundle_weekly_model_data_clinic_hospital.xlsx"   # MATT 2026-06-18: bundle-modellen (regular_price.py) laser denna xlsx, ej CSV (FD.36)
 REMOTE_OUTPUT  = "/home/azureuser/bcg/bundle/output/model/output_summary.xlsx"
 REMOTE_LOGDIR  = "/home/azureuser/bcg/logs"
 LOCAL_OUT_DIR  = Path(r"C:\Projekt\BCG\Pipeline\02. Elasticity\5. Bundle Clinic Models\output\azure_run_model")

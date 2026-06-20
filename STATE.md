@@ -115,7 +115,7 @@ Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
 | Cluster steg-5-routning | FRUSEN (2025) — FD.15 | 2026-06-11 |
 | Väv-vikter | FRUSEN (2025) — FD.14 | 2026-06-11 |
 | Bundle model-data-creation | VÄXANDE LÖST 2026-06-17 — 27 921 rader, datumspann → 2026-04-27 (FD.36, LB.73-76). Tyst tömnings-bugg i BCG:s process_bundles_with_fte spårad+fixad additivt | 2026-06-17 |
-| Bundle-modell (runner) | KÖRKLAR — input nu byggbar växande; modellkörning + xlsx-koppling återstår | 2026-06-17 |
+| Bundle-modell (runner) | KÖRD VÄXANDE 2026-06-20 — 125 KEY (matchar facit-ref), elasticitet median -0,21 (86% neg), via run_bundle_model.py. Alla 3 familjer nu körda växande (FD.36) | 2026-06-20 |
 | Bundle-gren i Step6-väv | FRUSEN 2025 (FD.11) — separat från bundle-modellen | 2026-06-16 |
 
 > De tre frusna låsen (LF.9) står på 2025-värden medvetet. Kärnsignalen för priskänslighet är färsk.
@@ -154,6 +154,7 @@ Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
 - Redigera filer via skript (backup + UTF-8 utan BOM), inte genom att klistra Python i PowerShell-prompten.
 - Före varm körning: `py -3.11 orchestration\dry_run_pipeline.py` (19 rör-kontroller — konto, parquet, facit, status, runners, app pekar rätt). Fångar fel kallt i stället för mitt i en flertimmars körning.
 - Bundle model-data-creation kräver VM (Ray basket-build, dlmalloc-minnesvägg lokalt) + paket tqdm/ray i VM-venv (ensurepip först — venv saknar pip). BCG-koden anpassas vid INLÄSNING (encoding/kolumnnamn/datatyp), aldrig nedströmslogiken (LB.73-76).
+- Bundle-MODELLEN (mapp 5) läser bundle_weekly_model_data_clinic_hospital.xlsx (ej CSV). Hela kedjan styrs av ETT datumfönster: constants.py BCG_START_DATE/BCG_END_DATE (env), används i regular_price/data_prep/model. Runnern injicerar dem via --start-date/--end-date. Alla merges i modellen är left/outer (tål växande, till skillnad från model-data-creation). InScope Mapping.xlsx = dött config-arv (regular_price läser den aldrig).
 
 ---
 
