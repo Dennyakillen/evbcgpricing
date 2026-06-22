@@ -108,7 +108,7 @@ PLACEMENTS = [
     {
         "label": "bundle_cluster (Bundle model)",
         "dest": ELAST / "5. Bundle Clinic Models" / "output" / "model" / "output_summary.xlsx",
-        "src": ONEDRIVE_FACIT / "output_summary_bundle.xlsx",
+        "src": FBL / "input_data" / "output_summary_bundle.xlsx",  # overlevnadstes: PULL fyller denna fran Blob (ej OneDrive)
         "kind": "FROZEN (FD.11)",
         "fd": "FD.11",
     },

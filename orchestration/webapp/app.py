@@ -65,6 +65,8 @@ PHASE_RECEIPT = {
     "site_model":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
     "bundle_model":  {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
     "step6":         {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Proveniens"},
+    "build_r12":     {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Proveniens (R12)"},
+    "site_step5":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (Step 5)"},
 }
 
 

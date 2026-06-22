@@ -218,6 +218,73 @@ def upload_inputs(local_paths: list[str]) -> list[str]:
         uploaded.append(f"{CONTAINER_INPUT}/{blob_name}")
     return uploaded
 
+# ==========================================================================
+# TILLAGG till orchestration/infrastructure/blob.py
+# Klistras in EFTER upload_inputs() (ca rad 218), FORE list_runs().
+# Steg A (FD.37 / overlevnadstes): lokalt program hamtar Azures utfall +
+# frusna facit-lager FRAN BLOB sa Efter-steget kor pa Blob, inte lokala filer.
+# ==========================================================================
+
+CONTAINER_PIPELINE = os.environ.get("PRICINGMODEL_PIPELINE_CONTAINER", "pipeline")
+
+# download_outputs v2 (FD.37 / overlevnadstes): destinationerna = run_step6:s
+# KALLOR (PLACEMENTS src + ALREADY path), inte dess placerings-mal -- sa Step 6
+# laser Blob-hamtad data, inte lokala arkiv. Inkl. tx-CSV for build_r12.
+# Verifierat 2026-06-22: Blob-cluster-filen har ra KEY (osplittad) = run_step6:s
+# input, sa skrivning till kallplatsen ger ingen dubbel KEY-split.
+_AFTER_INPUTS = [
+    {"label": "cluster output_summary (LIVE)", "container": "output",
+     "blob": "{date}/cluster/model/output_summary.xlsx",
+     "dest": r"Pipeline\\02. Elasticity\\2. Product Cluster Level Models\\_archive_growing_2026-04-27_v2_pg4fix\\output_summary.xlsx"},
+    {"label": "site output_summary (LIVE)", "container": "output",
+     "blob": "{date}/output_summary.xlsx",
+     "dest": r"Pipeline\\02. Elasticity\\3. Product Site Level Models\\output\\model\\output_summary.xlsx"},
+    {"label": "cluster-steg5 (FROZEN FD.15)", "container": "pipeline",
+     "blob": "00_frozen_facit/cluster_step5/final_model_cluster_granularity_Ivce.xlsx",
+     "dest": r"Pipeline\\02. Elasticity\\6. Fall Back Logic\\input_data\\final_model_cluster_granularity_Ivce.xlsx"},
+    {"label": "bundle (FROZEN FD.11)", "container": "pipeline",
+     "blob": "00_frozen_facit/bundle/output_summary.xlsx",
+     "dest": r"Pipeline\\02. Elasticity\\6. Fall Back Logic\\input_data\\output_summary_bundle.xlsx"},
+    {"label": "vav-vikter (FROZEN FD.14)", "container": "pipeline",
+     "blob": "00_frozen_facit/weave_weights/Complete_Product_Data.xlsx",
+     "dest": r"Pipeline\\02. Elasticity\\6. Fall Back Logic\\input_data\\Complete_Product_Data.xlsx"},
+    {"label": "tx-CSV (build_r12)", "container": "pipeline",
+     "blob": "00_frozen_facit/tx/Sweden_weekly_model_data_site_level.csv",
+     "dest": r"Pipeline\\01. Data Prep\\output\\Sweden_weekly_model_data_site_level_growing.csv"},
+]
+
+
+def download_outputs(date_folder: str, repo_root: str) -> dict:
+    """Steg A v2 (overlevnadstes): hamta Efter-kedjans inputs FRAN BLOB till
+    run_step6:s KALLOR + build_r12:s tx-plats, sa hela Efter-steget laser Blob
+    -- inte lokala arkiv/OneDrive. Datorn blir umbarlig.
+
+    LIVE (cluster+site) ur output/<date_folder>/, FROZEN (FD.11/14/15) + tx ur
+    pipeline/. Returnerar {placed, missing}. Saknad blob loggas + 'missing'."""
+    from pathlib import Path as _Path
+    root = _Path(repo_root)
+    placed, missing = [], []
+    svc = _client()
+    for item in _AFTER_INPUTS:
+        blob_name = item["blob"].format(date=date_folder)
+        dest = root / item["dest"]
+        bc = svc.get_container_client(item["container"]).get_blob_client(blob_name)
+        try:
+            if not bc.exists():
+                log.warning("PULL %s: blob saknas (%s/%s).", item["label"], item["container"], blob_name)
+                missing.append(item["label"]); continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "wb") as fh:
+                fh.write(bc.download_blob().readall())
+            log.info("PULL %s: %s/%s -> %s (%.2f MB)", item["label"], item["container"],
+                     blob_name, dest.name, dest.stat().st_size/1e6)
+            placed.append(str(dest))
+        except Exception as e:
+            log.warning("PULL %s: fel (%s).", item["label"], e); missing.append(item["label"])
+    log.info("PULL klar: %d placerade, %d saknade.", len(placed), len(missing))
+    return {"placed": placed, "missing": missing}
+
+
 def list_runs(prefix: str = "") -> list[str]:
     """Lista run_id:n som har en statusfil. For en framtida frontyta som
     vill visa korhistorik. Bekvamlighetsfunktion, ej kritisk."""
