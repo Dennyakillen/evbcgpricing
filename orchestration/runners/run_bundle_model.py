@@ -66,7 +66,7 @@ sys.path.insert(0, str(ORCH / "infrastructure"))
 # the role exists. Overridable; remove when PRICINGMODEL_AUTH=aad works.
 os.environ.setdefault("PRICINGMODEL_AUTH", "key")
 
-from run_status import RunStatus, RunState, PhaseState, default_pipeline  # noqa: E402
+from run_status import RunStatus, RunState, PhaseState, default_pipeline, window_run_id  # noqa: E402
 from blob import write_status, read_status, upload_outputs                # noqa: E402
 from azure_vm import (                                                    # noqa: E402
     VmConfig, ensure_subscription, start_vm, deallocate_vm,
@@ -115,7 +115,7 @@ def get_or_create_status(run_id: str) -> RunStatus:
         return read_status(run_id)
     except Exception:
         log.info("No status file for run_id=%s -- creating.", run_id)
-        return default_pipeline(run_id=run_id, triggered_by="jens (run_cluster_model)")
+        return default_pipeline(run_id=run_id, triggered_by="jens (run_bundle_model)")
 
 
 def preflight(cfg: VmConfig) -> None:
@@ -146,7 +146,7 @@ def preflight_remote(cfg: VmConfig) -> float:
 def launch(cfg: VmConfig, run_id: str, start_date: str, end_date: str) -> str:
     """Detached setsid launch. No single quotes inside inner_cmd (quoting rule).
     Env vars = the G7 growing-window injection, same as Jens's manual runs."""
-    remote_log = f"{REMOTE_LOGDIR}/{run_id}_cluster.log"
+    remote_log = f"{REMOTE_LOGDIR}/{run_id}_bundle.log"
     inner = (f"export BCG_START_DATE={start_date} BCG_END_DATE={end_date} && "
              f"cd {REMOTE_CODE} && {REMOTE_PYTHON} launcher.py")
     ssh_launch_detached(cfg, inner, remote_log)
@@ -301,6 +301,7 @@ def finish_success(rs: RunStatus, run_id: str, cfg: VmConfig) -> int:
 
     rs.finish_phase(PHASE_KEY, ok=True, note=note)
     rs.output_blob_paths = sorted(set(rs.output_blob_paths) | set(blob_paths))
+    rs.finalize()   # harled run-nivan ur faserna (stang/vilande, ej tickande spoke)
     rs.beat(); write_status(rs)
     print("\n" + rs.timing_summary())
     print(f"\nSUCCESS: {local_file}\n{note}")
@@ -412,8 +413,8 @@ def fetch_all_outputs(cfg: VmConfig, run_id: str) -> tuple[list[Path], str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Run Cluster model steps 1-4 on the VM (Phase Z runner).")
-    ap.add_argument("--run-id", default=datetime.now().strftime("%Y-%m-%d"),
-                    help="Run id; share across phases for one status file (default: today).")
+    ap.add_argument("--run-id", default=None,
+                    help="Run id. Default: datafonstret (window_run_id ur start/end) sa alla familjer for samma period delar EN statusfil.")
     ap.add_argument("--start-date", default="2022-07-01")
     ap.add_argument("--end-date", default="2026-04-30",
                     help="Growing window end. TODO Phase Z vision: empty -> auto last closed month.")
@@ -428,7 +429,10 @@ def main() -> int:
                     help="Re-attach to a run already in progress on the VM (after local interruption). "
                          "No launch -- just observe, fetch, deallocate.")
     args = ap.parse_args()
-
+    # Harled fonster-id ur datumfonstret om --run-id ej angavs, sa alla familjer
+    # for samma parquet-period hamnar i SAMMA statusfil (grona samtidigt, i synk).
+    if args.run_id is None:
+        args.run_id = window_run_id(args.start_date, args.end_date)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     cfg = VmConfig()
 

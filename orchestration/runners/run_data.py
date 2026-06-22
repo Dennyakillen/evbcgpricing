@@ -71,7 +71,7 @@ os.environ.setdefault("PRICINGMODEL_AUTH", "key")   # ABAC-vägg -> nyckel-läge
 log = logging.getLogger("run_data")
 
 # --- Lager 2: statuskontrakt. Importeras högt men användning är best-effort. ---
-from run_status import RunStatus, default_pipeline   # noqa: E402
+from run_status import RunStatus, default_pipeline, window_run_id   # noqa: E402
 try:
     from blob import write_status, read_status        # noqa: E402
     _STATUS_AVAILABLE = True
@@ -156,6 +156,7 @@ def _status_finish(rs: "RunStatus | None", ok: bool, note: str,
         return
     try:
         rs.finish_phase(PHASE_KEY, ok=ok, note=note)
+        rs.finalize()   # harled run-nivan ur faserna (etappmodellen)
         if blob_path:
             rs.output_blob_paths = sorted(set(rs.output_blob_paths) | {blob_path})
     except Exception as e:
@@ -230,12 +231,18 @@ def main() -> int:
     ap.add_argument("--skip-prep", action="store_true", help="Hoppa DuckDB-data-prep.")
     ap.add_argument("--skip-upload", action="store_true", help="Hoppa Blob-uppladdning.")
     ap.add_argument("--dry-run", action="store_true", help="Visa planen, kör ingenting.")
-    ap.add_argument("--run-id", default=time.strftime("%Y-%m-%d"),
-                    help="Status-run-id (delas med modell-runnersna; default dagens datum). "
-                         "extraction-fasen skrivs in i denna gemensamma statusfil.")
+    ap.add_argument("--run-id", default=None,
+                    help="Status-run-id (delas med modell-runnersna). Default: datafonstret "
+                         "(window_run_id ur 2022-07-01..--end) sa extraction hamnar i SAMMA "
+                         "statusfil som modellfamiljerna for samma period. Ange explicit for overstyrning.")
     ap.add_argument("--no-status", action="store_true",
                     help="Kör utan statusrapportering (rent lager 1-beteende).")
     args = ap.parse_args()
+    # Harled fonster-id om --run-id ej angavs. Start = "2022-07-01" (BCG:s frysta
+    # startpunkt, = modell-runnrarnas default) sa extraction delar statusfil med
+    # modellfamiljerna for samma period. run_data har bara --end. Markt (KARN).
+    if args.run_id is None:
+        args.run_id = window_run_id("2022-07-01", args.end)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 

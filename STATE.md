@@ -25,17 +25,19 @@ och en auto-validerar mot fryst facit och laddar upp all output till Blob. En we
 modellens hälsa som en förtroende-tratt per familj. Konto-spretigheten löst (FD.35: allt i ett
 test-konto, 19/19 rör-kontroller gröna). Bundle aktiverad som fullvärdig familj (FD.34). Replikering
 (FAS V) och färsk-data (FAS F) klara. Cluster + Site körda VÄXANDE end-to-end på VM 2026-06-17
-(4180 + 6624 KEY = matchar facit, allt till Blob). Bundle:s växande databygge intrimmat 2026-06-17:
-model-data-creation producerar nu växande output (FD.36) — modellkörningen + xlsx-koppling återstår.
-Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
-*(Senast verifierad: 2026-06-17)*
+(4180 + 6624 KEY = matchar facit, allt till Blob). Alla tre familjer körda VÄXANDE (bundle 2026-06-20: 125 KEY, median -0,21). Orkestrerings-MOTORN
+validerad 2026-06-22 med tre statiska sonder; run_id ändrat till **datafönster** (`window_run_id`) så
+alla familjer för samma period delar EN statusfil, och `RunStatus.finalize()` byggd så run-nivån
+härleds ur faserna (heartbeat-spöket dött). Verifierat i dashboarden via syntetisk statusfil (alla
+gröna i synk, vilande). Nästa: `run_after.py` (Efter-kedjan, FD.37), prod-konto-städning, app-polering.
+*(Senast verifierad: 2026-06-22)*
 
 | Fas | Status | Senast verifierad |
 |---|---|---|
 | FR-1..7 Replikering | KLAR (bit-för-bit mot facit) | 2026-05-27 |
 | FAS V Bevis-bibliotek (verify_tool) | KLAR | 2026-05-27 |
 | FAS F Färsk data | KLAR (alla 3 familjer växande, Step 6 validerad, modell matbar) | 2026-06-11 |
-| FAS A Azure-drift | PÅGÅR (site+cluster bevisade; bränsle→Blob byggt; run_data.py härnäst) | 2026-06-15 |
+| FAS A Azure-drift | PÅGÅR (motor validerad m. sonder; run_id=datafönster + finalize; run_after.py härnäst FD.37) | 2026-06-22 |
 | FAS T Teknisk skuld → IT | ÖPPEN (Blob-dataroll ABAC-blockerad) | 2026-06-12 |
 
 ---
@@ -46,8 +48,8 @@ Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
 |---|---|---|
 | Aktivt repo | `evbcgpricing` (repo-URL i README, ej här) | 2026-06-12 |
 | Lokal sökväg | `C:\Projekt\BCG` | 2026-06-12 |
-| Branch | `main` (bekräftat 2026-06-16) | 2026-06-16 |
-| Senaste relevanta commit | `95aefb5` (FD.35: blob.py->test, dry-run-validator) | 2026-06-16 |
+| Branch | `main` (bekräftat 2026-06-22) | 2026-06-22 |
+| Senaste relevanta commit | `d98c5da` (FD.36 avslut + tre sonder); dagens motor-arbete (run_id/finalize/3 sonder) EJ committat än 2026-06-22 | 2026-06-22 |
 | Orkestrator-push-status | Allt pushat till `main` (orchestration/ är single source; webapp + tre runners + bundle live) | 2026-06-16 |
 | Parallellrepo (DW-extraktion) | `Business_Analytics`, `C:\Projekt\Business_Analytics` | 2026-06-12 |
 
@@ -117,6 +119,8 @@ Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
 | Bundle model-data-creation | VÄXANDE LÖST 2026-06-17 — 27 921 rader, datumspann → 2026-04-27 (FD.36, LB.73-76). Tyst tömnings-bugg i BCG:s process_bundles_with_fte spårad+fixad additivt | 2026-06-17 |
 | Bundle-modell (runner) | KÖRD VÄXANDE 2026-06-20 — 125 KEY (matchar facit-ref), elasticitet median -0,21 (86% neg), via run_bundle_model.py. Alla 3 familjer nu körda växande (FD.36) | 2026-06-20 |
 | Bundle-gren i Step6-väv | FRUSEN 2025 (FD.11) — separat från bundle-modellen | 2026-06-16 |
+| Status-modell (run_id) | run_id = **datafönster** (`window_run_id(start,end)`), EJ körningsdatum — alla familjer/etapper för samma period delar EN statusfil. `finalize()` härleder run-nivån (pending=grå, hängande running stängs, vilande/klar ej tickande). succeed() föråldrad (städas) | 2026-06-22 |
+| Diagnostiska sonder | `verify_tool/probes/` har nu SEX: chain_population, model_chain_validator, support_files_check (FD.36) + infrastructure_map, contract_integrity, after_chain_probe (2026-06-22, tokenfria statiska sonder mot motorn + efter-kedjan) | 2026-06-22 |
 
 > De tre frusna låsen (LF.9) står på 2025-värden medvetet. Kärnsignalen för priskänslighet är färsk.
 > Uppdateringsordning vid behov: FD.15 → FD.14 → FD.11 (kostnad vs påverkan).
@@ -148,6 +152,11 @@ Nästa: bundle-modellkörning, prod-konto-städning, app-polering.
 - DW når INTE VM (LB.58) + data prep behöver inte VM:ens RAM (LB.65) → data prep körs LOKALT, output
   till Blob för överlevnad (LB.66). VM är till för Ray-modellstegens RAM, inget annat.
 - `orchestration/` är enda sanning för motorfilerna; `workspace/`-kopior gitignoreras.
+- ETAPPMODELLEN (operativ sanning): familjerna körs som SEPARATA etapper (komplext flöde, lång VM-tid,
+  facit-validering + haverikontroll per familj), ofta vid olika tillfällen, mot SAMMA datafönster. En
+  statusfil = ETT datafönster. Faserna speglar arbetet på den parquetens data: ny parquet → allt grått
+  (pending); färdig etapp → grön; ej körda steg förblir grå. "Kör pågår, 1 av 7" är legitimt (inte
+  spöke). Spöket = en running-fas som ALDRIG stängs (löst av finalize, LB.59).
 - Regenerera `transaction_data.parquet` FÖRST vid ny period — annars filtreras ny data tyst bort
   (LB.50 / G7-klassen). `_inject_dates` i tools/replicate_dataprep.py patchar BÅDA datumlåsen
   (weekly_base-fönster + YearFlag-lista) — verifierat 2026-06-15.

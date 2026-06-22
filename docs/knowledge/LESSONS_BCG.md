@@ -81,7 +81,7 @@ historik, KÄRNPRINCIPER §4.7), bara om-tierad.
 | LB.32 | b | Ray-OOM plateau ≠ återhämtning, mät CPU-tidens tillväxttakt | Stabil RAM tolkas som "Ray jobbar" men är "Ray gav upp" (instans: KÄRN P.2) |
 | LB.33 | b | Smoke-extrapolation underskattar Ray:s peak-RAM icke-linjärt | Smoke 50 KEY ok → full 1521 KEY OOM:ar |
 | LB.34 | b | `/tmp/ray_spill` försvinner vid VM-omstart, måste skapas vid varje session | Pipeline kraschar vid Ray-start på "ny" VM (= MASTER_AZURE CZ.9) |
-| LB.35 | a | Imports propageras inte automatiskt vid str_replace-patch | NameError efter "lyckad" patch som la till funktion-anrop |
+| LB.35 | a | Imports propageras inte automatiskt vid str_replace-patch. **Ankar-regel:** matcha MINSTA UNIKA ENRADSSTRÄNG, aldrig flerradsblock — CRLF + indentering (8-vs-4 space) + mellanrader spräcker flerrads-matchning (missade samma fix 3 ggr 2026-06-22 tills enradsankare) | NameError efter "lyckad" patch; ELLER str_replace traffar=0 på flerrads-ankare |
 | LB.36 | a | `data_prepration.py`:s "Shape"-print loggar input, inte output (~50% diff) | Loggrad 523k rader, faktisk fil 259k rader (instans: R7) |
 | LB.37 | a | PowerShell multi-line-regex opålitlig på Python-källkod, använd Python själv | `-replace` matchar inte över newlines utan `(?s)`-flagga |
 | LB.38 | a | "Biter inte på kärnelasticiteten" ≠ harmless | Datakvalitetsbrist minimerades, ledde till 73% bortfall (instans: KÄRN P.1) |
@@ -670,15 +670,23 @@ nåbarheten, anta den inte.
 
 ---
 
-### LB.59 — run_id = datum ger statusfil-kollage vid flera körningar samma dag
+### LB.59 — run_id = datum ger statusfil-kollage [LÖST 2026-06-22: run_id = datafönster]
 **Symptom:** `2026-06-12.json` visade `state=running` med `finished_at` (13:15) FÖRE `last_heartbeat`
 (15:20), plus ett `error`-fält från ett tidigare misslyckat försök medan `site_model` var `succeeded`.
 **Rotorsak:** run_id = datumet. Dagens andra körning skrev (overwrite) ovanpå den förstas statusfil men
 ersatte inte alla fält → kollage av två körningars tillstånd.
-**Regel:** run_id ska vara unikt per körning (datum + tidsstämpel, t.ex. `2026-06-12T1408`), inte bara
-datum. Symptomet är ofarligt för enskild avläsning men gör statusen tvetydig.
-**Gäller om:** flera körningar kan ske samma dag och skriver till samma statusnyckel.
-**Förkroppsligas i:** `orchestration/shared/run_status.py` (run_id-generering — kräver kontraktsändring, se FD).
+**Regel (LÖST 2026-06-22):** den ursprungliga regeln föreslog datum+tidsstämpel (unikt per körning) —
+men det FÖRKASTADES. Vald lösning: run_id = **datafönstret** (`window_run_id(start, end)` →
+`2022-07-01_2026-04-30`), INTE körningstidpunkten. Skälet är etappmodellen: familjerna (cluster/site/
+bundle/data) körs som separata etapper, ofta vid olika tillfällen, mot SAMMA datafönster — och ska då
+dela EN statusfil så dashboarden visar alla familjer gröna i synk med perioden. Unikt-per-körning hade
+splittrat familjerna på olika filer. Kollage-symptomet löses i stället av `RunStatus.finalize()`, som
+härleder run-nivåns state ur fasernas tillstånd (pending lämnas grå, hängande running stängs, run blir
+vilande/klar i stället för att ticka i evighet — "80h-spöket"). `succeed()` blev därmed föråldrad.
+**Gäller om:** flera etapper mot samma datafönster skriver till samma statusnyckel.
+**Förkroppsligas i:** `orchestration/shared/run_status.py` (`window_run_id`, `window_label`, `finalize`);
+de fyra runnrarna anropar `finalize()` efter `finish_phase`. *Stänger den öppna FD-referensen — fixen är
+gjord, ej längre "kräver kontraktsändring".*
 
 ### LB.60 — deallocate-i-logg är inte bevis på att VM:en är nere
 **Symptom:** runnern loggade "VM deallocated -- billing stopped" 17:20; en kontroll senare samma kväll
@@ -716,7 +724,7 @@ server-**omstart**, inte bara omladdning — bara mallar och statiska filer ploc
 | LB.73 | a | BCG bundle model-data-creation bär UK-miljöfotspår: cp1252, uk_bundles, Qty/TotalNet, week=datetime | bundle-kedjan körs på Evidensia DuckDB-data (UTF-8, Clusters, str-datum) |
 | LB.74 | a | Bundle model-data-creation: config.yml saknades + pekade på spökfiler; sweden_bundles vs uk_bundles nyckel-mismatch | model-data-creation körs första gången på växande data |
 | LB.75 | a | Bundle tömdes tyst: BCG:s ensidiga astype(str) på en gren ger datetime/str-divergens i intern slutmerge (instans av P.1/P.3) | bundle-output blir tom header trots att data flödar till näst sista steget |
-| LB.76 | a | Diagnostisk sond > lager-för-lager: instrumentera kopia, mät population efter varje steg, testa flera hypoteser parallellt, skriv till fil | en pipeline ger fel/tomt men kraschar inte |
+| LB.76 | a | Diagnostisk sond > lager-för-lager: instrumentera kopia, mät population efter varje steg, testa flera hypoteser parallellt, skriv till fil. **Gäller även egen infrastruktur/kontrakt** (statisk sond mot orkestrering/kod, ej bara datapipeline) — sond 4/5/6 (2026-06-22) kartlade orkestreringslagret + efter-kedjan tokenfritt och fann run-nivå-läckaget | en pipeline ELLER ett kodlager ger fel/tomt/oklart utan att krascha |
 ---
 ### LB.65 — Data prep behöver inte VM:ens RAM; bara modellstegen gör det
 **Symptom:** Sessionen 2026-06-15 utgick från "data prep via Azure", svällt ur det sanna skälet att
@@ -915,6 +923,24 @@ minnesbild ljög, mätning mot referens avgjorde.
 LB.31-37 tillagda 2026-06-02 efter sessionen där full lokal cluster-körning OOM:ade, VM
 förbereddes, och check_env-verktyget byggdes (commits `74f1ab0` + `ef258e5`). LB.38-43 tillagda 2026-06-08 efter VM-körning av cluster pipeline med pg4-fix. LB.44-47 tillagda 2026-06-10 efter F.8 Site körd end-to-end på växande data (steg 1-4 VM, steg 5 lokalt): Excel-stegen körs lokalt (LB.44), write_df_preserve_named_range com_error-fix (LB.45), Azure subscription-fällan (LB.46), scp mellanslags-sökväg (LB.47). LB.40 bekräftad familje-oberoende på Site — 4180 KEY producerade inklusive AAP130 med elasticitet -0.52 p=0.001 (end-to-end-bevis kommiterad i `7e0f11f`..`89b9467`). LB.48-51 tillagda 2026-06-11 efter F.9 Bundle-dataprep körd växande + Bundle-modellen datadrivet parkerad (FD.11): läs runnern före patch-deklaration (LB.48), all_varchar vid masterdata-parquet-konvertering (LB.49), dubbel-fönster-fällan/konstant-ankare (LB.50, DRIFT), BCG-kod UK-rester + config-verifiering före körning (LB.51). Bundle-dataprep committad i `1daf093`. LB.52-53 tillagda 2026-06-11 efter F.10 Step 6 körd första gången på växande data (Alternativ A): KEY-split-fällan i blended_model (LB.52), xlwings named-range com_error på mall-skrivning (LB.53). Step 6 producerade 108 979 rader / 15 128 ProductKeys, median final_elasticity -0.497, 100% negativa.*
 
+### LB.77 — Avsiktlig avvikelse måste märkas på platsen (annars går den ej att skilja från glömska)
+**Symptom:** sond 5 (kontrakts-integritet) flaggade `succeed()` som död kod (0 anrop), tre fas-nycklar
+saknade i `PHASE_RECEIPT`, och 24+ nakna `except: pass`/`log.warning`. Var och en KAN vara medveten —
+men inget i koden sa det, så en sond (eller en efterträdare) kan inte skilja avsikt från olycka.
+**Rotorsak:** en utelämnad nyckel, en oanropad metod, ett svalt fel ser EXAKT likadant ut oavsett om
+det var ett designval eller en miss. Frånvaro är tyst; tystnad bär ingen avsikt.
+**Regel:** gör avsikt MÄTBAR (spegelbild av "mät, gissa inte", KÄRN §8.4). Är något medvetet utelämnat
+eller medvetet tomt — säg det på platsen: en kommentar vid `except`, en markering vid den utelämnade
+nyckeln, en docstring vid den kvarhållna metoden. Då blir en REVIEW-flagga från en sond ett svar
+("medvetet, se rad X"), inte en utredning. Det som inte är märkt behandlas som glömska tills motsatsen
+bevisas.
+**Gäller om:** kod bär avsiktliga avvikelser (utelämnade fält, kvarhållen död kod, medvetet svalda fel)
+som en granskare/sond inte kan härleda avsikten bakom.
+**Förkroppsligas i:** `verify_tool/probes/contract_integrity.py` (sond som flaggar omärkta avvikelser);
+`orchestration/shared/run_status.py` (`finalize`-docstring förklarar varför `succeed` är föråldrad).
+*Instans/spegelbild av KÄRN "gör avsikt mätbar". succeed() ska städas nästa session: tas bort eller
+märkas kvarhållen — själva poängen med denna lärdom.*
+
 *LB.73-76 tillagda 2026-06-17 efter sessionen där bundle:s växande databygge intrimmades end-to-end och en
 tyst tömnings-bugg i BCG:s `process_bundles_with_fte` spårades till rotorsak (datetime/str-divergens i intern
 slutmerge, rad 341) via diagnostisk sond. Bundle model-data-creation producerar nu 27 921 rader växande output
@@ -928,3 +954,8 @@ BCG:s nedströmslogik orörd.*
 från referens (deras brödtext saknades i källfilen — markerade för verifiering mot ursprungssession);
 index-rader korsrefererar nu motsvarande KÄRNPRINCIP/MASTER_AZURE-post där LB:n är en instans; bolagsnamn
 borttaget ur utvecklarrad. Innehåll i LB.1-53 oförändrat.*
+
+*LB.77 tillagd + LB.59 stängd + LB.35/76 utvidgade 2026-06-22 efter sessionen där orkestrerings-motorn
+validerades med tre statiska sonder (infrastructure_map, contract_integrity, after_chain_probe),
+run_id ändrades till datafönster (window_run_id) och RunStatus.finalize() byggdes (heartbeat-spöket
+dött). succeed() föråldrad — städas nästa session.*

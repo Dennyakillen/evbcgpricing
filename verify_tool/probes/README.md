@@ -1,32 +1,46 @@
-# verify_tool/probes -- diagnostiska sonder
+# verify_tool/probes — diagnostiska sonder
 
-Återanvändbara verktyg för att hitta rotorsak när en pipeline ger fel/tomt
-resultat utan att krascha, och för att validera att en modell tål växande data
-*innan* den körs. Kodifierar sond-metodiken (KÄRNPRINCIPER P.5, LESSONS_BCG LB.76).
+**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB), med AI-rådgivare.
 
-Till skillnad från `output_rationality/` (validerar modell-OUTPUT efter körning)
-sonderar dessa pipeline-KEDJAN — var data tappas och var ursprungsmiljöns
-antaganden (UK/Alteryx) biter på Evidensia-data.
+Sonder är **diagnostiska verktyg**, åtskilda från `verify_tool`:s validerare. En validerare svarar
+"stämmer utfallet mot facit/rimlighet?". En sond svarar "VAR i kedjan/koden går något fel, och varför?"
+— den följer data eller kod steg för steg, mäter efter varje transformation, och testar flera hypoteser
+parallellt i samma körning (metodiken: KÄRNPRINCIPER P.5 / LESSONS_BCG LB.76).
 
-## Verktyg
+**Princip (LB.76, utvidgad 2026-06-22):** när en pipeline ELLER ett kodlager ger fel/tomt/oklart utan
+att krascha — bygg en sond som instrumenterar en kopia, mäter population/tillstånd efter varje steg, och
+testar hypoteser parallellt, i stället för reaktiv lager-för-lager-felsökning. Gäller även egen
+infrastruktur (statiska sonder mot orkestrering/kontrakt), inte bara datapipelinen.
 
-| Fil | När | Vad |
-|---|---|---|
-| `chain_population_probe.py` | output tomt/fel men ingen krasch | Mall: följ data genom kedjan, mät population efter varje steg. "N→0 på rad X" = boven. Testa flera hypoteser i samma körning. Löste bundle-tömningsbuggen (LB.75). |
-| `model_chain_validator.py` | innan modellkörning på ny period/familj | Statisk skanning av alla skript i en code-mapp för fem växande-risker: env-fönster, datum-filter, hårdkodade år, inner-merge/isin/dropna, cp1252. |
-| `support_files_check.py` | innan modellkörning | Verifierar att config-refererade stödfiler finns. Skiljer blockerare från dött config-arv (t.ex. InScope Mapping, FD.36). |
+## Sonderna (sex)
 
-## Arbetsflöde (ny familj eller ny period)
+### Datapipeline-sonder (FD.36, 2026-06-17)
+- **`chain_population_probe.py`** — följer population (radantal/unika nycklar) genom en transformations-
+  kedja och visar var rader tappas. För "output blev tomt men inget kraschade".
+- **`model_chain_validator.py`** — validerar att en modellkedjas länkar (input→steg→output) hänger ihop.
+- **`support_files_check.py`** — kontrollerar att stödfiler (config, mappningar) finns och är icke-tomma
+  före en körning.
 
-1. `support_files_check.py` — finns alla stödfiler? (saknad ≠ blockerare om koden ej läser den)
-2. `model_chain_validator.py` — tål kedjan växande? (allt left/outer + env-fönster = grönt)
-3. Om körning ger tomt/fel: `chain_population_probe.py` — pinpointa tappet
+### Infrastruktur-/kontrakts-sonder (2026-06-22, tokenfria statiska)
+- **`infrastructure_map.py`** — statisk AST-karta över orkestreringslagret: importgraf, kontrakts-
+  mutationsspår (vilka RunStatus-metoder rör run-nivå vs fasnivå), avslutsvägs-asymmetri. Fann att alla
+  tre modell-runners läckte run-nivån (finish_success anropade bara finish_phase, aldrig en run-stängare).
+- **`contract_integrity.py`** — tre klasser: (A) livscykel — död kod + terminala tillstånd; (B)
+  kontraktsdrift — fas-nycklar identiska tvärs default_pipeline/STORY/PHASE_RECEIPT; (C) svalda fel.
+  Fann succeed() död, utelämnade PHASE_RECEIPT-nycklar, 24+ nakna except. Grunden för LB.77.
+- **`after_chain_probe.py`** — kartlägger "Efter"-kedjan (run/-filerna): klassificerar produktionssteg
+  vs valideringsverktyg, extraherar in/ut per steg, klassar input live vs fryst, bygger beroendekedjan
+  med binär dom. Spec:en för run_after.py (FD.37) — noll gissning.
 
-## Princip (varför sond, inte lager-för-lager)
+## Körning (global Python 3.11, sonderna är tokenfria)
 
-Reaktiv felsökning (kör→krascha→fixa→upprepa) ser ett lager i taget; mest tid går
-åt att upptäcka att det finns ett till. En sond följer datan genom HELA kedjan i ett
-svep och testar flera hypoteser parallellt → minuter till rotorsak i stället för
-en dag. Bundle-buggen 2026-06-17 är beviset (LB.76).
+```powershell
+py -3.11 verify_tool\probes\infrastructure_map.py
+py -3.11 verify_tool\probes\contract_integrity.py --root "C:\Projekt\BCG\orchestration" --lifecycle
+py -3.11 verify_tool\probes\after_chain_probe.py --root "C:\Projekt\BCG\verify_tool\run"
+```
 
-*Förvaltas av Jens Palmö (Senior Business Analyst).*
+De statiska sonderna kör ingen kod och kräver ingen Azure-token — de läser källkod (AST + mönster).
+
+*Uppdaterad 2026-06-22: tre infrastruktur-sonder tillagda; sond-metodiken (LB.76) utvidgad till att
+gälla egen infrastruktur/kontrakt, inte bara datapipeline.*

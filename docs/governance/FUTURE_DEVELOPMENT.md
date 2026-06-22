@@ -685,3 +685,37 @@ Då: peka blob.py default dit (PRICINGMODEL_STORAGE + PRICINGMODEL_RG), flytta f
 | 2026-06-11 | FD.14-15 tillagda efter `verify_provenance`-suiten byggdes. Provenance-validering av Step 6-inputs avslöjade tre frusna lås: väv-vikter (FD.14, frusen Complete_Product_Data 2025), steg-5-blend/routning (FD.15, _Ivce-facit 2025-12, aldrig regenererad växande), och bundle-grenen (FD.11). Step 6 vilar på växande Cluster+Site-elasticiteter men frusen viktning/routning/bundle. Suiten ligger i `verify_tool/provenance/`. |
 | 2026-06-16 | FD.32 tillagd (facit→nu = rimlighet+liv, ej modellöverlägsenhet; signifikans-KPI borttaget; site-replikering flyttad till bit-för-bit; story-texter talfria). FD.33 tillagd (migrera Blob till BCG-speglande pipeline-struktur — önskat, A räcker nu; motor-output-arkitektur input/output/runstatus redan på plats). Fryst facit uppladdat till Blob `pipeline/00_frozen_facit/` (upload_frozen_facit.py, key-läge, test-konto). |
 | 2026-06-16 | FD.34 tillagd (bundle aktiverad som fullvärdig familj — runner, app-story+FUNNEL, fas i pipeline, PHASE_RECEIPT; copy-adapt från cluster, ärver bygg 1+2). FD.35 tillagd (konto-spretighet: status i prod, facit i test — MÅSTE redas ut till ett hem före end-to-end). Cluster/site/bundle-runners utrustade med auto-validering mot fryst facit (bygg 1) + alla VM-output-filer till Blob med familje-prefix (bygg 2). |
+
+## FD.37 — Efter-kedjans orkestrator (`run_after.py`)
+
+**Status:** Specificerad 2026-06-22, ej byggd. Nästa stora bygge efter att motorn (run_id/finalize/
+sonder) validerats.
+
+**Vad:** En lokal orkestrator som kör "Efter — resultat och affärssignal": de steg som måste köras
+UTANFÖR Azure (xlwings/COM finns ej på Linux, LB.44), och laddar upp utfallet till Blob så allt sparas
+på samma ställe som motorns output. Speglar `run_data.py` (Före-fasen) i anda.
+
+**Ordning (härledd ur sond 6 `after_chain_probe.py` — noll gissning):**
+1. **PULL** — ladda ner motorns LIVE-output från Blob (fönster-run_id) → placera på run_step6:s
+   LIVE-destinationer: cluster steg 1-4 (growing) + site (growing). De FRUSNA placeringarna
+   (FD.11 bundle, FD.14 väv-vikter, FD.15 cluster-steg-5) rör PULL INTE.
+2. **STEP 6** — subprocess `verify_tool/run/run_step6.py` (preflightar, placerar, väver F1-F7,
+   verifierar R7, tolererar LB.53-mallfelet). → `Final_Fallback_Data_<stamp>.xlsx`.
+3. **STEP 7** — subprocess `verify_tool/run/build_r12_for_model.py --tx <growing-csv>`
+   (auto-hittar senaste Final_Fallback_Data). → `Model_Feed_<stamp>.xlsx`.
+4. **PUSH** — ladda upp Final_Fallback_Data + Model_Feed till Blob (samma fönster-run_id);
+   uppdatera statusfilen: `step6` + `build_r12` → gröna, kör `finalize()` → fönstret blir
+   "alla sju gröna" → run = SUCCEEDED.
+
+**Beroende att bygga FÖRST:** `blob.py` saknar `download_outputs(run_id)` — PULL-helpern måste byggas
+(sond 6 fångade detta). Allt annat orkestrerar BEFINTLIGA, beprövade runners.
+
+**Viktigt (rapportera, dölj ej):** utfallet bär de tre frusna låsen (FD.11/14/15). Provenance-kvittot
+märker det REVIEW med flit. `run_after.py` ska RAPPORTERA detta i sin status/logg, inte dölja det —
+annars tror någon att hela väven är färsk. (Spegel av LB.77: avsiktlig avvikelse märks på platsen.)
+
+**Vad som INTE ligger i kedjan:** Step 5 (`data_prep_after_model_output.py`) är femte scriptet i varje
+familjs egen launcher, INTE ett led i Efter-kedjan — run_step6 placerar omdöpt growing-output + frysta
+lager och behöver ingen lokal step 5. `fallback_blend.py` är validering (bevis-spåret), ej produktion.
+(Sond 6 klassificerade båda korrekt — bevarar mot att de vävs in av misstag.)
+

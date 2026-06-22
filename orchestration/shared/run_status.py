@@ -64,6 +64,30 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def window_run_id(start_date: str, end_date: str) -> str:
+    """Statusfilens identitet = DATAFONSTRET, inte korningsdatumet.
+
+    SYFTE (matbart mot avsikt, KARN 'gor avsikt matbar'): alla familje-etapper
+    (cluster/site/bundle/data) mot SAMMA parquet-period delar EN statusfil ->
+    dashboarden visar alla familjer grona samtidigt, i synk med perioden. Gamla
+    defaulten (korningsdatum) splittrade familjerna pa olika filer per DAG.
+
+    Nyckeln ar exakt datumspann (entydigt). Overwrite per fonster (farsk);
+    kvitton bevaras separat som permanent historik. Etikett via window_label."""
+    return f"{start_date}_{end_date}"
+
+
+def window_label(run_id: str) -> str:
+    """Lasbar manads-etikett ur window_run_id for dashboardens rullgardin.
+    '2022-07-01_2026-04-30' -> '2022-07 -> 2026-04'. Faller tillbaka pa run_id
+    ratt av for gamla datum-baserade id (bakatkompatibelt -- gar ej sonder)."""
+    import re as _re
+    m = _re.match(r"^(\d{4})-(\d{2})-\d{2}_(\d{4})-(\d{2})-\d{2}$", run_id)
+    if not m:
+        return run_id
+    return f"{m.group(1)}-{m.group(2)} -> {m.group(3)}-{m.group(4)}"
+
+
 def _fmt_duration(seconds: Optional[int]) -> Optional[str]:
     """Sekunder -> lasbar strang for loggen. Ex: 11532 -> '3h 12m 12s'.
     Tar med timmar bara nar de finns, sa korta steg blir '4m 30s' / '45s'."""
@@ -320,6 +344,43 @@ class RunStatus:
                 if note:
                     p.note = note
         self.beat()
+
+    def finalize(self) -> "RunState":
+        """Harled run-nivans state ur fasernas tillstand (etappmodellen).
+
+        SYFTE (KARN 'gor avsikt matbar'): en statusfil = ETT datafonster.
+        Familjerna kors som separata etapper, ofta vid olika tillfallen, mot
+        samma fonster-run_id. Run-nivan ska spegla verkligheten utan att ticka
+        i evighet (heartbeat-spoket) och utan att fargga PENDING-faser (gra,
+        'ej kord pa detta fonster') som klara i fortid.
+
+        Regler:
+          - PENDING-faser ror vi ALDRIG (gra; ny parquet => alla gra tills korda).
+          - Nagon FAILED        -> run = FAILED.
+          - Annars nagon RUNNING -> run = RUNNING (en etapp kor NU).
+          - Annars done+pending -> run = WAITING (vilande mellan etapper; ingen
+            running-fas => ingen tickande raknare => spoket dor).
+          - Annars allt done    -> run = SUCCEEDED + finished_at (fonstret klart).
+          - Annars              -> run = PENDING (nytt fonster, inget kort).
+        Ersatter den tidigare oanvanda succeed() funktionellt. Idempotent --
+        anropas efter varje etapps finish_phase. (LB: avsiktlig avvikelse markt.)"""
+        states = [p.state for p in self.phases]
+        if any(s == PhaseState.FAILED for s in states):
+            self.state = RunState.FAILED
+        elif any(s == PhaseState.RUNNING for s in states):
+            self.state = RunState.RUNNING
+        else:
+            done    = any(s in (PhaseState.SUCCEEDED, PhaseState.SKIPPED) for s in states)
+            pending = any(s == PhaseState.PENDING for s in states)
+            if done and pending:
+                self.state = RunState.WAITING
+            elif done and not pending:
+                self.state = RunState.SUCCEEDED
+                self.finished_at = utcnow_iso()
+            else:
+                self.state = RunState.PENDING
+        self.beat()
+        return self.state
 
     def mark_waiting(self, reason: str) -> None:
         """Satt nar pipelinen overlamnar till ett lokalt/manuellt steg (LB.44).
