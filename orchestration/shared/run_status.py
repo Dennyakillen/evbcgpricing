@@ -64,6 +64,50 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def resolve_window_end(parquet_path: "str | None" = None,
+                       fallback: str = "2026-04-30") -> str:
+    """Phase Z: harled vaxande fonstrets SLUTDATUM dynamiskt ur parquetens data
+    i stallet for hardkodat datum. Las MAX(InvoiceDate), trunkera till sista
+    KOMPLETTA kalendermanad (en halv sista vecka/manad ar vardelos for modellen).
+
+    Regel (entydig, bevisad 2026-06-22):
+      - om MAX ar sista dagen i sin manad  -> anvand den manaden  (data komplett)
+      - annars                             -> foregaende manads sista dag
+
+    Foljer DATAN, inte kalendern (mat-gissa-inte): om DW slapar anvands det som
+    FAKTISKT finns, inte vad kalendern sager borde finnas. Detta ar superset-
+    arkitekturen: parqueten bar allt, fonstret foljer dess innehall.
+
+    parquet_path: default = den vaxande transaction_data.parquet. fallback
+    anvands om parqueten saknas/olasbar (sa en runner aldrig kraschar pa detta --
+    den faller pa ett kant gott datum och loggar).
+    """
+    import datetime
+    from pathlib import Path as _P
+    pq = parquet_path or (
+        r"C:\Projekt\BCG\Pipeline\02. Elasticity"
+        r"\Sweden_Elasticity_Data_Prep_SQL\parquet\transaction_data.parquet"
+    )
+    if not _P(pq).exists():
+        return fallback
+    try:
+        import duckdb
+        con = duckdb.connect()
+        row = con.execute(
+            f"SELECT MAX(InvoiceDate)::VARCHAR FROM read_parquet('{pq.replace(chr(92),'/')}')"
+        ).fetchone()
+        con.close()
+        if not row or not row[0]:
+            return fallback
+        d = datetime.date.fromisoformat(row[0][:10])
+        first_next = (d.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+        last_of_month = first_next - datetime.timedelta(days=1)
+        end = d if d == last_of_month else (d.replace(day=1) - datetime.timedelta(days=1))
+        return end.isoformat()
+    except Exception:
+        return fallback
+
+
 def window_run_id(start_date: str, end_date: str) -> str:
     """Statusfilens identitet = DATAFONSTRET, inte korningsdatumet.
 

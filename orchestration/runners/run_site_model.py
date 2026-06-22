@@ -66,7 +66,7 @@ sys.path.insert(0, str(ORCH / "infrastructure"))
 # the role exists. Overridable; remove when PRICINGMODEL_AUTH=aad works.
 os.environ.setdefault("PRICINGMODEL_AUTH", "key")
 
-from run_status import RunStatus, RunState, PhaseState, default_pipeline, window_run_id  # noqa: E402
+from run_status import RunStatus, RunState, PhaseState, default_pipeline, window_run_id, resolve_window_end  # noqa: E402
 from blob import write_status, read_status, upload_outputs                # noqa: E402
 from azure_vm import (                                                    # noqa: E402
     VmConfig, ensure_subscription, start_vm, deallocate_vm,
@@ -399,7 +399,7 @@ def main() -> int:
     ap.add_argument("--run-id", default=None,
                     help="Run id. Default: datafonstret (window_run_id ur start/end) sa alla familjer for samma period delar EN statusfil.")
     ap.add_argument("--start-date", default="2022-07-01")
-    ap.add_argument("--end-date", default="2026-04-30",
+    ap.add_argument("--end-date", default=None,
                     help="Growing window end. TODO Phase Z vision: empty -> auto last closed month.")
     ap.add_argument("--max-hours", type=float, default=2.5, help="Site ref: ~70 min.")
     ap.add_argument("--poll-seconds", type=int, default=90)
@@ -412,6 +412,13 @@ def main() -> int:
                     help="Re-attach to a run already in progress on the VM (after local interruption). "
                          "No launch -- just observe, fetch, deallocate.")
     args = ap.parse_args()
+    # Phase Z: harled vaxande fonstrets slut dynamiskt ur parquetens data om
+    # --end-date ej angavs (ingen hardkodning -> foljer datan, sista kompletta manad).
+    if args.end_date is None:
+        args.end_date = resolve_window_end()
+        logging.getLogger(__name__).info(
+            "WINDOW: end-date harlett dynamiskt -> %s (sista kompletta manad i parquet)",
+            args.end_date)
     # Harled fonster-id ur datumfonstret om --run-id ej angavs, sa alla familjer
     # for samma parquet-period hamnar i SAMMA statusfil (grona samtidigt, i synk).
     if args.run_id is None:
