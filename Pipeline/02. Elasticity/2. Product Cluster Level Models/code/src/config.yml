@@ -45,7 +45,7 @@ feature_selection:
     baseline_control_file : 'baseline_control.csv'
     control_file_path : "code/control_files/control_file.xlsx"
     # PoC-2: YOY_SEASONALITY removed (depends on service/L4 + prior-year; out of scope for smoke test)
-    cols_to_try : ['major_holiday_count','non_major_holiday_count', 'month_end_week', 'No of Sites',
+    cols_to_try : ['major_holiday_count','non_major_holiday_count', 'month_end_week', 'No of Sites','No_of_Sites',
                    'negative_media_coverage_flag_mar24', 'negative_media_coverage_flag_jan25']
     # PoC-2: Sum_FTE_Interpolated removed (Quinyx upstream, not built)
     cols_needed : ['CONST', 'Regular_Price_fwbw_max_6', 'Seasonality_KEY_fwbw_6', 'Sum_FTE_Interpolated']
@@ -70,6 +70,7 @@ col_type:
     FORWARD_ROLLING : 'float64'
     BACKWARD_ROLLING : 'float64'
     No of Sites : 'float64'  
+    No_of_Sites : 'float64'  
     SoldQuantity : 'float64'  
     NoofUnits : 'float64'  
     TotalNet : 'float64'  
