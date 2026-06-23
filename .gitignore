@@ -133,3 +133,8 @@ Pipeline/02. Elasticity/4. Bundle Clinic Data Prep/1.Data_Pre_Processing/data/
 
 # Sond-resultatfiler (diagnostik-output, ej kod) - 2026-06-20
 verify_tool/probes/*_result.txt
+
+# Engangs-backuper och VM-loggar (hor ej i repot)
+tools/status_backup_*/
+tools/timing_backup_*/
+Pipeline/02. Elasticity/_vm_logs/
