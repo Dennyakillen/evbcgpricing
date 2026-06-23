@@ -1,243 +1,246 @@
 """
-story_config.py -- Facit-referens + berättartexter för Phase Z-dashboarden
-===========================================================================
-Statisk konfiguration, medvetet INTE i Blob: BCG:s frysta facit ändras
-aldrig, alltså är referensvärden konfiguration -- inte data som hämtas.
-Dashboarden väver ihop detta (det frysta) med statusfilen (det levande).
+story_config.py -- Facit reference + narrative texts for the Phase Z dashboard
+==============================================================================
+Static configuration, deliberately NOT in Blob: BCG's frozen facit never
+changes, so the reference values are configuration -- not data that is fetched.
+The dashboard weaves this (the frozen) together with the status file (the live).
 
-ÄRLIGHETSREGEL (honesty contract): varje tal har en källkommentar.
-None betyder "ännu ej verifierat mot kvitto" och renderas som "[fyll i]"
-i gränssnittet -- ALDRIG ett påhittat värde. Fyll på här, en plats, när
-fler facit-tal verifieras ur valideringskvittona.
+HONESTY CONTRACT: every number carries a source comment. None means "not yet
+verified against a receipt" and renders as "[fill in]" in the UI -- NEVER a
+made-up value. Fill in here, in one place, as more facit numbers are verified
+from the validation receipts.
 
-STRUKTUR (FD.21 -- frontend speglar flödet): varje fas bär ett 'group'
-som placerar den i berättelsen Före (bränsle) -> Motor (Azure) -> Efter
-(lokal efterbearbetning + matning). Dashboarden grupperar faserna så att
-en kollega ser HELHETEN: var datan kommer in, var den räknas, var den blir
-affärsbeslut. Metaforen är Jens egen ("Före-Motor-Efter").
+STRUCTURE (FD.21 -- frontend mirrors the flow): each phase carries a 'group'
+that places it in the narrative Before (fuel) -> Engine (Azure) -> After
+(local post-processing + feed). The dashboard groups the phases so a colleague
+sees the WHOLE: where data comes in, where it is computed, where it becomes a
+business decision. The metaphor is Jens's own ("Before-Engine-After").
 
-HUR-FÄLT (FD.27): varje fas bär 'how_sv' -- en kollega-vänlig mening om
-HUR steget körs (lokalt/VM, vad som triggar det, vilket kommando). Det
-förklarar sömmen lokalt<->moln i stället för att dölja den.
+HOW FIELD (FD.27): each phase carries 'how_sv' -- a colleague-friendly sentence
+about HOW the step runs (local/VM, what triggers it, which command). It explains
+the local<->cloud seam instead of hiding it.
 
-DATA-INFO (FD): varje fas kan bära 'data' -- vad steget faktiskt producerar
-i konkreta tal (rader, koder, storlek), från färdiga filer/kvitton. Ingen
-ny beräkning; avlästa värden. None -> visas ej.
+DATA INFO (FD): each phase can carry 'data' -- what the step actually produces
+in concrete numbers (rows, codes, size), from finished files/receipts. No new
+computation; read-off values. None -> not shown.
 
-Nycklarna MASTE matcha statuskontraktets phase keys (run_status.py):
+The keys MUST match the status contract's phase keys (run_status.py):
 extraction, cluster_model, site_model, site_step5, step6, build_r12.
 
-FRAMTID (FD): när runnern skriver KPI:er strukturerat i statusfilen
-(metrics-fält i kontraktet, nästa kontraktsversion) försvinner behovet
-av "now"-värden här -- då blir denna fil enbart facit + texter.
+FUTURE (FD): when the runner writes KPIs structurally into the status file
+(metrics field in the contract, next contract version) the need for "now"
+values here disappears -- then this file becomes facit + texts only.
 
-Utvecklare: Jens Palmö (Senior Business Analyst)
-Författare: Claude-rådgivare, Phase Z-session (växer fram iterativt).
+Developer: Jens Palmö (Senior Business Analyst)
+Author: Claude advisor, Phase Z session (grows iteratively).
+
+Note: field names keep the _sv suffix for continuity with the contract/template;
+only the VALUES are in English. Keys and field names are untouched (keep it simple).
 """
 
-# Grupper i berättelsen (FD.21). Ordningen styr renderingen.
+# Groups in the narrative (FD.21). The order drives the rendering.
 GROUPS = {
     "before": {
-        "title_sv": "Före  --  bränslet in",
-        "blurb_sv": "Färsk transaktionsdata hämtas och tankas till Azure. "
-                    "Detta sker lokalt eftersom datalagret (DW) bara nås på kontorsnät/VPN.",
+        "title_sv": "Before  --  the fuel coming in",
+        "blurb_sv": "Fresh transaction data is fetched and loaded to Azure. "
+                    "This happens locally because the data warehouse (DW) is only reachable on the office network/VPN.",
     },
     "engine": {
-        "title_sv": "Motor  --  modellen räknar (Azure)",
-        "blurb_sv": "De tunga elasticitetsberäkningarna körs på Azure-VM:en -- "
-                    "där finns minnet och kraften. Detta är den bevisade motorn.",
+        "title_sv": "Engine  --  the model computes (Azure)",
+        "blurb_sv": "The heavy elasticity computations run on the Azure VM -- "
+                    "that is where the memory and power are. This is the proven engine.",
     },
     "after": {
-        "title_sv": "Efter  --  resultat och affärssignal",
-        "blurb_sv": "Modelloutputen efterbearbetas lokalt (Excel/COM, Windows) och "
-                    "vävs till EN elasticitet per produkt -- talet som styr prissättningen.",
+        "title_sv": "After  --  result and business signal",
+        "blurb_sv": "The model output is post-processed locally (Excel/COM, Windows) and "
+                    "woven into ONE elasticity per product -- the number that drives pricing.",
     },
 }
 
-# Varje KPI: label, facit (str|None), now (str|None), delta (str|None),
-# dir: "pos" (grön uppåt-pil), "neg" (röd nedåt), "neut" (grå =).
+# Each KPI: label, facit (str|None), now (str|None), delta (str|None),
+# dir: "pos" (green up arrow), "neg" (red down), "neut" (grey =).
 STORY = {
     "extraction": {
         "group": "before",
-        "title_sv": "Extraktion (dataprep, lokalt)",
-        "story": "BCG byggde modellen på ett fruset datafönster. Här jämförs det frysta facit-fönstret mot vårt växande fönster, mått för mått nedan. En rimlig tillväxt visar att modellen lever och att bolaget växer -- skulle något centralt i stället ha sjunkit vore jämförelsen i sig ett larm. Exakta fönster och tal framgår i korten.",
-        "why": "Hämtar färsk transaktionsdata och bygger vecko-CSV:n som modellen tränar på. "
-               "Körs lokalt eftersom datalagret (DW) bara nås på kontorsnät/VPN -- inte från Azure-VM:en.",
-        "use": "Producerar bränslet: CSV och parquet som modellstegen läser.",
-        "without": "Modellen kör på fryst data -- nya månader saknas tyst (G7-lärdomen).",
-        "how_sv": "Ett kommando lokalt: run_data.py regenererar parqueten ur DW (kräver VPN), "
-                  "kör dataprep, och tankar parqueten till Azure Blob. ~2 min för uppladdningen.",
-        "data": "27,4 M transaktionsrader -> vecko-CSV:n + parquet (1 091 MB)",
+        "title_sv": "Extraction (data prep, local)",
+        "story": "BCG built the model on a frozen data window. Here the frozen facit window is compared against our growing window, metric by metric below. Reasonable growth shows the model is alive and the company is growing -- if something central had instead fallen, the comparison itself would be an alarm. Exact windows and numbers appear in the cards.",
+        "why": "Fetches fresh transaction data and builds the weekly CSV the model trains on. "
+               "Runs locally because the data warehouse (DW) is only reachable on the office network/VPN -- not from the Azure VM.",
+        "use": "Produces the fuel: CSV and parquet that the model steps read.",
+        "without": "The model runs on frozen data -- new months are silently dropped (the G7 lesson).",
+        "how_sv": "One command locally: run_data.py regenerates the parquet from the DW (requires VPN), "
+                  "runs data prep, and loads the parquet to Azure Blob. ~2 min for the upload.",
+        "data": "27.4 M transaction rows -> the weekly CSV + parquet (1 091 MB)",
         "kpis": [
-            # Datafönster: fruset BCG-fönster -> växande (+10 mån). Mätt: extraction-kvitto Date window.
-            {"label": "Datafönster", "facit": "jun 2025", "now": "apr 2026", "delta": "+10 mån", "dir": "pos"},
-            # Transaktionsrader fruset->växande: 485 248 -> 608 944 (+25,5%). Mätt: extraction-kvitto.
-            {"label": "Transaktionsrader", "facit": "485 248", "now": "608 944", "delta": "+25,5 %", "dir": "pos"},
-            # Omsättning (TotalNet) fruset->växande: 6,50 -> 8,27 mdr (+27,2%). Mätt: playbook-tabell.
-            # DET BÄRANDE RIMLIGHETSTALET: stiger = friskt bolag; skulle det SJUNKA vore det uppenbart fel.
-            {"label": "Omsättning (TotalNet)", "facit": "6,50 mdr", "now": "8,27 mdr", "delta": "+27,2 %", "dir": "pos"},
+            # Data window: frozen BCG window -> growing (+10 mo). Measured: extraction receipt Date window.
+            {"label": "Data window", "facit": "jun 2025", "now": "apr 2026", "delta": "+10 mo", "dir": "pos"},
+            # Transaction rows frozen->growing: 485 248 -> 608 944 (+25.5%). Measured: extraction receipt.
+            {"label": "Transaction rows", "facit": "485 248", "now": "608 944", "delta": "+25.5 %", "dir": "pos"},
+            # Revenue (TotalNet) frozen->growing: 6.50 -> 8.27 bn (+27.2%). Measured: playbook table.
+            # THE LOAD-BEARING REASONABLENESS NUMBER: rising = healthy company; falling would be obvious error.
+            {"label": "Revenue (TotalNet)", "facit": "6.50 bn", "now": "8.27 bn", "delta": "+27.2 %", "dir": "pos"},
         ],
     },
     "cluster_model": {
         "group": "engine",
-        "title_sv": "Cluster-modell steg 1-4 (VM)",
-        "story": "Samma data som BCG ger nästan exakt samma resultat (bit-för-bit, se ovan). På växande fönster håller formen: median och negativ andel ligger nära facit medan KEY-populationen växer. Rörelsen är rimlig -- modellen lever utan att spreta iväg från facit. Exakta tal i korten.",
-        "why": "OLS-elasticitet per produkt x kluster, Ray-parallelliserad på VM:en. "
-               "Tung beräkning som kräver VM:ens minne -- därför Azure, inte laptopen.",
-        "use": "Ger klusternivå-elasticiteter -- ett av lagren i Step 6-väven.",
-        "without": "Step 6 saknar klusternivån i fallback-väven.",
-        "how_sv": "Körs på Azure-VM:en (bcg-poc-vm) via run_cluster_model.py. Startar VM:en, "
-                  "kör stegen på Linux, och deallokerar när klart så kostnaden stoppas.",
-        "data": "3 812 produkt x kluster-grupper (alla, även icke-signifikanta)",
+        "title_sv": "Cluster model steps 1-4 (VM)",
+        "story": "The same data as BCG gives almost exactly the same result (bit-for-bit, see above). On the growing window the shape holds: median and negative share sit close to facit while the KEY population grows. The movement is reasonable -- the model is alive without drifting away from facit. Exact numbers in the cards.",
+        "why": "OLS elasticity per product x cluster, Ray-parallelized on the VM. "
+               "Heavy computation that needs the VM's memory -- hence Azure, not the laptop.",
+        "use": "Provides cluster-level elasticities -- one of the layers in the Step 6 weave.",
+        "without": "Step 6 lacks the cluster level in the fallback weave.",
+        "how_sv": "Runs on the Azure VM (bcg-poc-vm) via run_cluster_model.py. Starts the VM, "
+                  "runs the steps on Linux, and deallocates when done so the cost stops.",
+        "data": "3 812 product x cluster groups (all, including non-significant)",
         "kpis": [
-            # Rimlighet mot facit (äpple mot äpple, det som ligger närmast facit och mäts direkt).
-            # Median-elasticitet: facit -0,137 -> nu -0,113 (rationality + IB.9). Samma form.
-            {"label": "Median-elasticitet", "facit": "-0,137", "now": "-0,113", "delta": "+0,024", "dir": "neut"},
-            # Negativ andel: facit 76,5% -> nu 73,7% (IB.9-referens håller).
-            {"label": "Negativ andel", "facit": "76,5 %", "now": "73,7 %", "delta": "-2,8 pp", "dir": "neut"},
-            # KEY-population: facit 3 812 -> nu 4 180 (+368 nya från växande fönster). Modellen lever.
-            {"label": "KEY-population", "facit": "3 812", "now": "4 180", "delta": "+368", "dir": "pos"},
+            # Reasonableness vs facit (apple to apple, what sits closest to facit and is measured directly).
+            # Median elasticity: facit -0.137 -> now -0.113 (rationality + IB.9). Same shape.
+            {"label": "Median elasticity", "facit": "-0.137", "now": "-0.113", "delta": "+0.024", "dir": "neut"},
+            # Negative share: facit 76.5% -> now 73.7% (IB.9 reference holds).
+            {"label": "Negative share", "facit": "76.5 %", "now": "73.7 %", "delta": "-2.8 pp", "dir": "neut"},
+            # KEY population: facit 3 812 -> now 4 180 (+368 new from growing window). The model is alive.
+            {"label": "KEY population", "facit": "3 812", "now": "4 180", "delta": "+368", "dir": "pos"},
         ],
     },
     "site_model": {
         "group": "engine",
-        "title_sv": "Site-modell steg 1-4 (VM)",
-        "story": "Motorn bevisad: orchestrator-körningen är bit-för-bit identisk med facit på samma data.",
-        "why": "OLS-elasticitet per produkt x site -- modellens finaste granularitet. "
-               "Validerad bit-för-bit mot facit-körningen 2026-06-09.",
-        "use": "Primär elasticitetssignal -- matar Step 6 och R12-matningen.",
-        "without": "Ingen sitenivå-elasticitet; väven faller tillbaka på grövre nivåer.",
-        "how_sv": "Körs på Azure-VM:en via run_site_model.py -- samma motor som cluster. "
-                  "Rapporterar sin fas live till statusfilen medan den kör.",
-        "data": "6 624 unika KEY (produkt x site), 0,6 MB output_summary",
+        "title_sv": "Site model steps 1-4 (VM)",
+        "story": "Engine proven: the orchestrator run is bit-for-bit identical to facit on the same data.",
+        "why": "OLS elasticity per product x site -- the model's finest granularity. "
+               "Validated bit-for-bit against the facit run of 2026-06-09.",
+        "use": "Primary elasticity signal -- feeds Step 6 and the R12 feed.",
+        "without": "No site-level elasticity; the weave falls back on coarser levels.",
+        "how_sv": "Runs on the Azure VM via run_site_model.py -- same engine as cluster. "
+                  "Reports its phase live to the status file while it runs.",
+        "data": "6 624 unique KEY (product x site), 0.6 MB output_summary",
         "kpis": [
-            {"label": "Unika KEY", "facit": "6 624", "now": "6 624", "delta": "=facit", "dir": "neut"},
-            {"label": "Korrelation", "facit": "1.000000", "now": "1.000000", "delta": "bit-för-bit", "dir": "neut"},
-            {"label": "Andel p<0,05", "facit": "11,26 %", "now": "11,26 %", "delta": "=facit", "dir": "neut"},
+            {"label": "Unique KEY", "facit": "6 624", "now": "6 624", "delta": "=facit", "dir": "neut"},
+            {"label": "Correlation", "facit": "1.000000", "now": "1.000000", "delta": "bit-for-bit", "dir": "neut"},
+            {"label": "Share p<0.05", "facit": "11.26 %", "now": "11.26 %", "delta": "=facit", "dir": "neut"},
         ],
     },
     "bundle_model": {
         "group": "engine",
-        "title_sv": "Bundle-modell (varukorgar)",
-        "story": ("Varukorgar på klinik- och sjukhusnivå -- hur priskänsliga är hela "
-                  "korgar av tjänster, inte enskilda koder. Bundle är med för komplett "
-                  "täckning, men driver bara en liten del (~2,2%) av den slutliga "
-                  "väven: den överlappar i hög grad det Cluster och Site redan fångar. "
-                  "Modellen valideras mot fryst BCG-facit som de andra; exakta tal i korten."),
-        "why": "OLS-elasticitet per varukorg (Bundle_code), samma metodik som övriga familjer på korg-nivå.",
-        "use": "Ger bundle-grenen i Step 6-väven -- en liten men komplett pusselbit.",
-        "without": "Step 6 saknar varukorgs-perspektivet; ~2,2% av väven faller tillbaka på frusen gren.",
-        "how_sv": ("Körs på Azure-VM:en (run_bundle_model.py) likt Cluster/Site. Startar VM, "
-                   "kör stegen på Linux, validerar mot fryst facit och deallokerar när klart."),
-        "data": "125 varukorgar (Bundle_code) x klinik/sjukhus, OLS log-log.",
+        "title_sv": "Bundle model (baskets)",
+        "story": ("Baskets at clinic and hospital level -- how price-sensitive whole "
+                  "baskets of services are, not individual codes. Bundle is included for complete "
+                  "coverage, but drives only a small part (~2.2%) of the final "
+                  "weave: it overlaps heavily with what Cluster and Site already capture. "
+                  "The model is validated against frozen BCG facit like the others; exact numbers in the cards."),
+        "why": "OLS elasticity per basket (Bundle_code), same methodology as the other families at basket level.",
+        "use": "Provides the bundle branch in the Step 6 weave -- a small but complete puzzle piece.",
+        "without": "Step 6 lacks the basket perspective; ~2.2% of the weave falls back on a frozen branch.",
+        "how_sv": ("Runs on the Azure VM (run_bundle_model.py) like Cluster/Site. Starts the VM, "
+                   "runs the steps on Linux, validates against frozen facit, and deallocates when done."),
+        "data": "125 baskets (Bundle_code) x clinic/hospital, OLS log-log.",
         "kpis": [
-            # Rimlighet mot facit (mätt: bundle-facit vs azure_run_model, 2026-06-16).
-            {"label": "Median-elasticitet", "facit": "-0,244", "now": "-0,211", "delta": "+0,033", "dir": "neut"},
-            {"label": "Negativ andel", "facit": "87,2 %", "now": "85,6 %", "delta": "-1,6 pp", "dir": "neut"},
-            {"label": "Varukorgar (KEY)", "facit": "125", "now": "125", "delta": "0", "dir": "neut"},
+            # Reasonableness vs facit (measured: bundle facit vs azure_run_model, 2026-06-16).
+            {"label": "Median elasticity", "facit": "-0.244", "now": "-0.211", "delta": "+0.033", "dir": "neut"},
+            {"label": "Negative share", "facit": "87.2 %", "now": "85.6 %", "delta": "-1.6 pp", "dir": "neut"},
+            {"label": "Baskets (KEY)", "facit": "125", "now": "125", "delta": "0", "dir": "neut"},
         ],
     },
     "site_step5": {
         "group": "after",
-        "title_sv": "Site steg 5 (Excel, lokalt)",
-        "story": "Efterbearbetning: modelloutput blir den Excel verksamheten läser. Körs lokalt -- xlwings styr Excel via COM, som inte finns på Linux.",
-        "why": "Bearbetar modelloutputen till BCG:s Excel-format via xlwings. "
-               "Måste köras på Windows från Site-roten (CWD-beroende config).",
-        "use": "Skapar Excel-sammanställningen (elasticity summary) som verksamheten konsumerar.",
-        "without": "Rådata finns men inte i det format prismodellen läser.",
-        "how_sv": "Körs lokalt på Windows efter att VM-modellen laddat ner sin output. "
-                  "xlwings öppnar Excel via COM -- därför Windows, aldrig Linux-VM:en (LB.44).",
-        "data": "Excel-sammanställning (elasticity summary), 83 MB",
+        "title_sv": "Site step 5 (Excel, local)",
+        "story": "Post-processing: model output becomes the Excel the business reads. Runs locally -- xlwings drives Excel via COM, which does not exist on Linux.",
+        "why": "Processes the model output into BCG's Excel format via xlwings. "
+               "Must run on Windows from the Site root (CWD-dependent config).",
+        "use": "Creates the Excel summary (elasticity summary) that the business consumes.",
+        "without": "Raw data exists but not in the format the pricing model reads.",
+        "how_sv": "Runs locally on Windows after the VM model has downloaded its output. "
+                  "xlwings opens Excel via COM -- hence Windows, never the Linux VM (LB.44).",
+        "data": "Excel summary (elasticity summary), 83 MB",
         "kpis": [
-            {"label": "Excel-storlek", "facit": None, "now": "83 MB", "delta": None, "dir": "neut"},
+            {"label": "Excel size", "facit": None, "now": "83 MB", "delta": None, "dir": "neut"},
         ],
     },
     "step6": {
         "group": "after",
-        "title_sv": "Step 6 -- fallback-väv (lokalt)",
-        "story": "Affärssignalen: kärnelasticiteten har rört sig något uppåt -- kunderna är marginellt mindre priskänsliga än vid BCG:s mätning.",
-        "why": "Väver ihop cluster- och sitenivå till EN elasticitet per produkt (F1-F7-fallback). "
-               "Ren pandas/openpyxl, körs lokalt.",
-        "use": "Producerar den slutliga blandade elasticiteten per ProductKey -- talet som styr prissättningen.",
-        "without": "Ingen enhetlig elasticitet -- bara separata nivåer utan vägning.",
-        "how_sv": "Körs lokalt på Windows (ren pandas/openpyxl, ingen Excel-COM, ingen VM). "
-                  "Läser cluster- och site-output och väver ihop dem till en elasticitet per produkt.",
-        "data": "15 128 produkter i väven, en elasticitet per ProductKey",
+        "title_sv": "Step 6 -- fallback weave (local)",
+        "story": "The business signal: the core elasticity has moved slightly upward -- customers are marginally less price-sensitive than at BCG's measurement.",
+        "why": "Weaves cluster and site level into ONE elasticity per product (F1-F7 fallback). "
+               "Pure pandas/openpyxl, runs locally.",
+        "use": "Produces the final blended elasticity per ProductKey -- the number that drives pricing.",
+        "without": "No unified elasticity -- only separate levels without weighting.",
+        "how_sv": "Runs locally on Windows (pure pandas/openpyxl, no Excel COM, no VM). "
+                  "Reads cluster and site output and weaves them into one elasticity per product.",
+        "data": "15 128 products in the weave, one elasticity per ProductKey",
         "kpis": [
-            {"label": "Oms.vägd elasticitet", "facit": "-0,532", "now": "-0,512", "delta": "+0,020", "dir": "pos"},
-            {"label": "Median-elasticitet", "facit": None, "now": "-0,497", "delta": None, "dir": "pos"},
-            {"label": "Produkter i väven", "facit": None, "now": "15 128", "delta": None, "dir": "pos"},
+            {"label": "Rev-weighted elasticity", "facit": "-0.532", "now": "-0.512", "delta": "+0.020", "dir": "pos"},
+            {"label": "Median elasticity", "facit": None, "now": "-0.497", "delta": None, "dir": "pos"},
+            {"label": "Products in the weave", "facit": None, "now": "15 128", "delta": None, "dir": "pos"},
         ],
     },
     "build_r12": {
         "group": "after",
-        "title_sv": "Bygg R12-matning (lokalt)",
-        "story": "Sista ledet -- gör färska elasticiteter matbara till prismodellens blå flikar.",
-        "why": "Aggregerar R12 volym + omsättning per kod x site och joinar färsk elasticitet, "
-               "i copy-paste-format till BCG-prismodellen.",
-        "use": "Filen som klistras in i prismodellen för att räkna omsättningseffekt av prisförslag.",
-        "without": "Elasticiteterna finns men är inte matbara till prismodellen.",
-        "how_sv": "Körs lokalt på Windows (build_r12_for_model.py). Sista steget innan talen "
-                  "klistras in i prismodellens flikar -- ingen VM, ingen Excel-COM.",
-        "data": "Model_Feed: 22 913 rader (kod x klinik), 896 koder, 59 siter",
+        "title_sv": "Build R12 feed (local)",
+        "story": "The final link -- makes fresh elasticities feedable into the pricing model's blue tabs.",
+        "why": "Aggregates R12 volume + revenue per code x site and joins fresh elasticity, "
+               "in copy-paste format for the BCG pricing model.",
+        "use": "The file pasted into the pricing model to compute the revenue effect of a price proposal.",
+        "without": "The elasticities exist but are not feedable into the pricing model.",
+        "how_sv": "Runs locally on Windows (build_r12_for_model.py). The last step before the numbers "
+                  "are pasted into the pricing model's tabs -- no VM, no Excel COM.",
+        "data": "Model_Feed: 22 913 rows (code x clinic), 896 codes, 59 sites",
         "kpis": [],
     },
 }
 
-BAGE_SV = ("Bågen: mer data gör modellen säkrare, vilket skärper affärssignalen "
-           "som styr prissättningen. Facit (BCG, fryst jun 2025) är nollpunkten -- "
-           "allt mäts som rörelse därifrån.")
+BAGE_SV = ("The arc: more data makes the model more certain, which sharpens the business signal "
+           "that drives pricing. Facit (BCG, frozen jun 2025) is the zero point -- "
+           "everything is measured as movement from there.")
 
 
 # ---------------------------------------------------------------------
-# VALIDATOR-förklaringar (etapp 3). Per validator: vad den kollar (kort),
-# och varför PASS/REVIEW är väntat. KPI:erna kommer MÄTTA ur kvittona i
-# appen; detta är den kuraterade tolkningen (Jens röst) -- åtskilt så det
-# är tydligt vad som är mätning och vad som är bedömning.
+# VALIDATOR explanations (stage 3). Per validator: what it checks (short),
+# and why PASS/REVIEW is expected. The KPIs come MEASURED from the receipts
+# in the app; this is the curated interpretation (Jens's voice) -- kept
+# separate so it is clear what is measurement and what is judgment.
 #
-# Top-management-princip: en rad key insight per validator. Vill man gräva
-# -> exportera kvittot. Förklaringen säger om REVIEW är "väntat/hanterat"
-# eller en verklig flagga, så sju REVIEW inte skapar onödig oro.
+# Top-management principle: one key-insight line per validator. To dig
+# deeper -> export the receipt. The explanation says whether REVIEW is
+# "expected/handled" or a real flag, so seven REVIEWs do not create needless worry.
 # ---------------------------------------------------------------------
 VALIDATORS = {
-    "extraction_coverage": "Kontrollerar att all förväntad transaktionsdata kom med i extraktionen. PASS = inga tysta tapp.",
-    "cluster_seed":        "Verifierar att klusterindelningen är deterministisk (samma seed ger samma kluster). PASS = reproducerbart.",
-    "facit_selection":     "Bekräftar att rätt facit-period valdes som referens. PASS = jämför mot rätt nollpunkt.",
-    "fte_coverage":        "Kollar FTE-täckning per period. PASS = ingen lucka som tyst skulle snedvrida normaliseringen.",
-    "dropped_rows":        "Forensisk genomgång av vilka rader som filtrerades bort och varför. INFO = ingen pass/fail-grind, bara spårbarhet.",
-    "cluster_distribution":"Kontrollerar att kliniker fördelas rimligt över kluster. PASS = ingen degenererad klusterstruktur.",
-    "volume_quantity":     "Verifierar volym- och kvantitetssummor mot väntat. PASS = inga skaltappade fält.",
-    "baseline_replication":"Jämför mot BCG:s baslinje bit-för-bit. PASS = extraktionen replikerar exakt.",
+    "extraction_coverage": "Checks that all expected transaction data was included in the extraction. PASS = no silent drops.",
+    "cluster_seed":        "Verifies that the cluster assignment is deterministic (same seed gives same clusters). PASS = reproducible.",
+    "facit_selection":     "Confirms that the right facit period was chosen as reference. PASS = comparing against the right zero point.",
+    "fte_coverage":        "Checks FTE coverage per period. PASS = no gap that would silently skew the normalization.",
+    "dropped_rows":        "Forensic review of which rows were filtered out and why. INFO = no pass/fail gate, just traceability.",
+    "cluster_distribution":"Checks that clinics are distributed reasonably across clusters. PASS = no degenerate cluster structure.",
+    "volume_quantity":     "Verifies volume and quantity sums against expected. PASS = no scale-dropped fields.",
+    "baseline_replication":"Compares against BCG's baseline bit-for-bit. PASS = the extraction replicates exactly.",
 
-    # output_rationality (cluster/site) -- flera REVIEW, var och en VÄNTAD:
-    "distribution": "Formen på elasticiteterna (median, andel negativa, spridning) mot BCG:s referens. PASS = fördelningen ser ut som den ska.",
-    "outliers":     "Fångar extremvärden (|elast|>5). REVIEW är meningen: 0,77% extremvärden flaggas för mänsklig blick (t.ex. MBAS0703 −320) -- forensisk fångst, inte modellfel.",
-    "drift_vs_bcg": "Mäter hur den växande datan rört sig från fryst facit. REVIEW på medeldrift, MEN beslutsrelevant drift bara 2,8% -- rörelsen sitter i svaga tail-grupper, inte i de prissättande. Detta ÄR affärssignalen.",
-    "sign_flips":   "Elasticiteter som bytt tecken mot facit. REVIEW på totalen (13,9%), MEN bara 0,69% med båda signifikanta -- resten är svag-signal-brus, väntat (IB.10).",
-    "per_cluster":  "Rimlighet per kluster (median, %neg, %sig). REVIEW för att ett litet kluster (Södran) ligger under signifikansgrinden -- konservativ tröskel, inte fel.",
-    "per_itemcode_family": "Rimlighet per produktfamilj. REVIEW för att 3 av 173 familjer har svagt positiv median -- små familjer, ingen prispåverkan.",
-    "top_leverage": "Identifierar KEY med störst omsättningshävstång (de som faktiskt styr pris). PASS = top 50 fångar 38% av all hävstång, alltid manuellt granskade.",
-    "significance_consistency": "Jämför signifikansgrad mot BCG. REVIEW för att BCG-recovery är 70,6% mot grind 80% -- men agreement 82% och sig-grad inom 7pp. Grinden är hårt satt.",
-    "review_required": "Aggregatet: den samlade manuella granskningslistan (outliers + drift + sign-flips + top-leverage). REVIEW = 9,1% av KEY flaggas för chefsblick innan prisbeslut -- precis det granskningssteget ska göra.",
+    # output_rationality (cluster/site) -- several REVIEW, each one EXPECTED:
+    "distribution": "The shape of the elasticities (median, negative share, spread) against BCG's reference. PASS = the distribution looks as it should.",
+    "outliers":     "Catches extreme values (|elast|>5). REVIEW is intended: 0.77% extreme values flagged for a human eye (e.g. MBAS0703 -320) -- forensic catch, not model error.",
+    "drift_vs_bcg": "Measures how the growing data has moved from frozen facit. REVIEW on mean drift, BUT decision-relevant drift only 2.8% -- the movement sits in weak tail groups, not in the price-setting ones. This IS the business signal.",
+    "sign_flips":   "Elasticities that flipped sign vs facit. REVIEW on the total (13.9%), BUT only 0.69% with both significant -- the rest is weak-signal noise, expected (IB.10).",
+    "per_cluster":  "Reasonableness per cluster (median, %neg, %sig). REVIEW because one small cluster (Southern) sits below the significance gate -- conservative threshold, not error.",
+    "per_itemcode_family": "Reasonableness per product family. REVIEW because 3 of 173 families have a weakly positive median -- small families, no price impact.",
+    "top_leverage": "Identifies the KEY with the greatest revenue leverage (the ones that actually drive price). PASS = the top 50 capture 38% of all leverage, always manually reviewed.",
+    "significance_consistency": "Compares significance rate against BCG. REVIEW because BCG recovery is 70.6% vs gate 80% -- but agreement 82% and sig rate within 7pp. The gate is set strictly.",
+    "review_required": "The aggregate: the combined manual review list (outliers + drift + sign-flips + top-leverage). REVIEW = 9.1% of KEY flagged for a manager's eye before pricing decisions -- exactly what the review step should do.",
 
     # provenance (step6):
-    "step6_provenance":      "Spårar att Step 6-väven byggdes på färsk modelloutput, inte gammal. PASS = rätt input.",
-    "fallback_freshness":    "Kontrollerar att fallback-routningen är aktuell mot växande data. PASS = ingen fryst routning.",
+    "step6_provenance":      "Tracks that the Step 6 weave was built on fresh model output, not old. PASS = correct input.",
+    "fallback_freshness":    "Checks that the fallback routing is current against the growing data. PASS = no frozen routing.",
 }
 
-# proof_chain: bit-för-bit mot fryst facit -- FÖRTROENDELAGRET. Mätta tal ur
-# verify_receipt (2026-05-28). Detta är det starkaste beviset: motorn
-# replikerar BCG exakt. Skilt från rationality (som granskar växande output).
+# proof_chain: bit-for-bit against frozen facit -- THE TRUST LAYER. Measured numbers from
+# verify_receipt (2026-05-28). This is the strongest proof: the engine
+# replicates BCG exactly. Separate from rationality (which reviews growing output).
 PROOF_CHAIN = {
-    "intro": "Bit-för-bit mot BCG:s frysta facit. Detta bevisar att motorn replikerar BCG exakt på samma data -- "
-             "nollpunkten allt växande mäts från. 6 av 6 milstolpar PASS.",
+    "intro": "Bit-for-bit against BCG's frozen facit. This proves the engine replicates BCG exactly on the same data -- "
+             "the zero point everything growing is measured from. 6 of 6 milestones PASS.",
     "items": [
-        {"fr": "FR-1", "name": "Dataprep (rader/omsättning/volym)", "kpi": "485 248 rader, korr 1.000000, diff 0,000%"},
-        {"fr": "FR-4", "name": "Cluster-modell", "kpi": "population 3 812/3 812, beslutsrel. 1 118/1 118 (100%)"},
-        {"fr": "FR-5", "name": "Site-modell", "kpi": "population 4 673/4 673, rank-korr 0,9108, beslutsrel. 113/144"},
-        {"fr": "FR-6", "name": "Bundle-modell", "kpi": "population 125/125, beslutsrel. 57/70 (81%)"},
-        {"fr": "FR-3", "name": "Cluster-blend / steg 5", "kpi": "43/43 representanter matchar BCG"},
-        {"fr": "FR-7", "name": "Fallback-väv / steg 6", "kpi": "108 979 rader, korr 1.000000, nivå-match 100%"},
+        {"fr": "FR-1", "name": "Data prep (rows/revenue/volume)", "kpi": "485 248 rows, corr 1.000000, diff 0.000%"},
+        {"fr": "FR-4", "name": "Cluster model", "kpi": "population 3 812/3 812, decision-rel. 1 118/1 118 (100%)"},
+        {"fr": "FR-5", "name": "Site model", "kpi": "population 4 673/4 673, rank-corr 0.9108, decision-rel. 113/144"},
+        {"fr": "FR-6", "name": "Bundle model", "kpi": "population 125/125, decision-rel. 57/70 (81%)"},
+        {"fr": "FR-3", "name": "Cluster blend / step 5", "kpi": "43/43 representatives match BCG"},
+        {"fr": "FR-7", "name": "Fallback weave / step 6", "kpi": "108 979 rows, corr 1.000000, level-match 100%"},
     ],
     "overall": "6/6 PASS",
     "receipt_file": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
@@ -245,74 +248,74 @@ PROOF_CHAIN = {
 
 
 # =====================================================================
-# FUNNEL (etapp 4) -- trattmodellen per familj. Tre lager:
-#   topp    : bit-för-bit mot facit (brett förtroende, grönt, korrekt PASS)
-#   facit_nu: "vad BCG hade -> vad det blev nu" (berättelsen, ingen dom)
-#   prov    : proveniens/nyans (vad är färskt vs fryst) -- ärlighet
-# Alla tal MÄTTA ur verify_tool-kvittona. Stora matchande belopp bygger
-# förtroende i sig (1151 koder, 0 only-ours, 0 only-facit). Spot-on, inte
-# drunkning i detaljer: få starka tal per familj.
+# FUNNEL (stage 4) -- the funnel model per family. Three layers:
+#   top     : bit-for-bit against facit (broad trust, green, correct PASS)
+#   facit_nu: "what BCG had -> what it became now" (the story, no verdict)
+#   prov    : provenance/nuance (what is fresh vs frozen) -- honesty
+# All numbers MEASURED from the verify_tool receipts. Large matching amounts build
+# trust in themselves (1151 codes, 0 only-ours, 0 only-facit). Spot-on, not
+# drowning in detail: a few strong numbers per family.
 # =====================================================================
 FUNNEL = {
     "extraction": {
-        "proof": {"label": "Dataprep bit-för-bit mot BCG facit", "kpi": "485 248 rader · korr 1.000000 · diff 0,000%", "ok": True},
+        "proof": {"label": "Data prep bit-for-bit vs BCG facit", "kpi": "485 248 rows · corr 1.000000 · diff 0.000%", "ok": True},
         "facit_nu": [
-            {"metric": "Transaktionsrader", "facit": "485 248", "now": "608 944", "note": "+25,5% -- frisk tillväxt, växande fönster"},
-            {"metric": "Omsättning (TotalNet)", "facit": "6,50 mdr", "now": "8,27 mdr", "note": "+27,2% -- skulle detta SJUNKA vore det uppenbart fel"},
-            {"metric": "ItemCodes (facit-urval)", "facit": "1 151", "now": "1 151", "note": "samma urval -- jämförbart äpple mot äpple"},
+            {"metric": "Transaction rows", "facit": "485 248", "now": "608 944", "note": "+25.5% -- healthy growth, growing window"},
+            {"metric": "Revenue (TotalNet)", "facit": "6.50 bn", "now": "8.27 bn", "note": "+27.2% -- if this FELL it would be obvious error"},
+            {"metric": "ItemCodes (facit selection)", "facit": "1 151", "now": "1 151", "note": "same selection -- comparable apple to apple"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/2026-06-08/00_master_summary_2026-06-08_105839.xlsx",
     },
     "cluster_model": {
-        "proof": {"label": "Cluster-modell bit-för-bit (FR-4)", "kpi": "population 3 812/3 812 · beslutsrelevanta 1 118/1 118 (100%) · rank-korr 1.0000", "ok": True},
+        "proof": {"label": "Cluster model bit-for-bit (FR-4)", "kpi": "population 3 812/3 812 · decision-relevant 1 118/1 118 (100%) · rank-corr 1.0000", "ok": True},
         "facit_nu": [
-            {"metric": "Median-elasticitet", "facit": "−0,137", "now": "−0,113", "note": "samma form, något mindre priskänsligt"},
-            {"metric": "Negativ andel", "facit": "76,5 %", "now": "73,7 %", "note": "IB.9-referens håller"},
-            {"metric": "Antal KEY", "facit": "3 812", "now": "4 180", "note": "+368 nya från växande fönster"},
+            {"metric": "Median elasticity", "facit": "-0.137", "now": "-0.113", "note": "same shape, slightly less price-sensitive"},
+            {"metric": "Negative share", "facit": "76.5 %", "now": "73.7 %", "note": "IB.9 reference holds"},
+            {"metric": "Number of KEY", "facit": "3 812", "now": "4 180", "note": "+368 new from growing window"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/2026-06-08/rationality/00_rationality_master_2026-06-08_130847.xlsx",
     },
     "site_model": {
-        "proof": {"label": "Site-modell bit-för-bit (FR-5)", "kpi": "population 4 673/4 673 (identisk) · korr 1.000000 · rank-korr 0,9108 · beslutsrelevanta 113/144", "ok": True},
+        "proof": {"label": "Site model bit-for-bit (FR-5)", "kpi": "population 4 673/4 673 (identical) · corr 1.000000 · rank-corr 0.9108 · decision-relevant 113/144", "ok": True},
         "facit_nu": [
-            # Rimlighetsprofil: vår vs facit på finaste granulariteten. Nära = rimligt (rör sig inte iväg).
-            # Mätt: proof_chain PROFILE (IB.9). Replikerings-talen (6624/6624, korr 1.0) hör till bit-för-bit ovan.
-            {"metric": "Median-elasticitet", "facit": "−0,062", "now": "−0,054", "note": "vår vs facit -- nära, rimlig form på sajt-nivå"},
-            {"metric": "Negativ andel", "facit": "63,6 %", "now": "62,4 %", "note": "nästan samma -- priskänsligheten håller riktning"},
+            # Reasonableness profile: ours vs facit at the finest granularity. Close = reasonable (does not drift away).
+            # Measured: proof_chain PROFILE (IB.9). Replication numbers (6624/6624, corr 1.0) belong to bit-for-bit above.
+            {"metric": "Median elasticity", "facit": "-0.062", "now": "-0.054", "note": "ours vs facit -- close, reasonable shape at site level"},
+            {"metric": "Negative share", "facit": "63.6 %", "now": "62.4 %", "note": "almost the same -- price sensitivity keeps direction"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
     },
     "bundle_model": {
-        "proof": {"label": "Bundle-modell bit-för-bit (FR-6)", "kpi": "population 125/125 (identisk) · rank-korr ~0,93 · median |diff| 0", "ok": True},
+        "proof": {"label": "Bundle model bit-for-bit (FR-6)", "kpi": "population 125/125 (identical) · rank-corr ~0.93 · median |diff| 0", "ok": True},
         "facit_nu": [
-            {"metric": "Median-elasticitet", "facit": "-0,244", "now": "-0,211", "note": "vår vs facit -- nära, rimlig form på korg-nivå"},
-            {"metric": "Negativ andel", "facit": "87,2 %", "now": "85,6 %", "note": "högst av familjerna -- varukorgar starkt priskänsliga"},
+            {"metric": "Median elasticity", "facit": "-0.244", "now": "-0.211", "note": "ours vs facit -- close, reasonable shape at basket level"},
+            {"metric": "Negative share", "facit": "87.2 %", "now": "85.6 %", "note": "highest of the families -- baskets strongly price-sensitive"},
         ],
         "prov": None,
         "receipt": "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
     },
     "step6": {
-        "proof": {"label": "Fallback-väv bit-för-bit (FR-7)", "kpi": "108 979 rader · korr 1.000000 · nivå-match 100,00%", "ok": True},
+        "proof": {"label": "Fallback weave bit-for-bit (FR-7)", "kpi": "108 979 rows · corr 1.000000 · level-match 100.00%", "ok": True},
         "facit_nu": [
-            {"metric": "Median blandad elasticitet", "facit": "−0,532", "now": "−0,497", "note": "100% negativ, 100% i (−10,0)-band → beslutsduglig"},
-            {"metric": "Inom band (|Δ|<0,5)", "facit": "—", "now": "95,0 %", "note": "beslutsrelevant drift bara 1,6%"},
-            {"metric": "Produkter i väven", "facit": "15 128", "now": "15 128", "note": "identisk population"},
+            {"metric": "Median blended elasticity", "facit": "-0.532", "now": "-0.497", "note": "100% negative, 100% in (-10,0) band -> decision-ready"},
+            {"metric": "Within band (|delta|<0.5)", "facit": "—", "now": "95.0 %", "note": "decision-relevant drift only 1.6%"},
+            {"metric": "Products in the weave", "facit": "15 128", "now": "15 128", "note": "identical population"},
         ],
-        # Proveniens-nyansen (ärlig): vad är färskt vs fryst i väven.
+        # The provenance nuance (honest): what is fresh vs frozen in the weave.
         "prov": {
-            "headline": "Väven blandar färska och frusna inddata — ärlig nyans, inte fel.",
+            "headline": "The weave mixes fresh and frozen inputs -- an honest nuance, not an error.",
             "fresh": 2, "frozen": 3, "total": 5,
             "rows": [
-                {"part": "Site-elasticiteter (F1)", "state": "FÄRSK", "reach": "2026-06-10"},
-                {"part": "Cluster-elasticiteter (F3/F5/F6/F7)", "state": "FÄRSK", "reach": "2026-06-08"},
-                {"part": "Cluster steg-5-routning (43 rep)", "state": "FRUSEN", "reach": "2025-12 (FD.15)"},
-                {"part": "Bundle-modell (F2/F4)", "state": "FRUSEN", "reach": "2025-12 (FD.11)"},
-                {"part": "Omsättningsvikter", "state": "FRUSEN", "reach": "2025 (FD.14)"},
+                {"part": "Site elasticities (F1)", "state": "FRESH", "reach": "2026-06-10"},
+                {"part": "Cluster elasticities (F3/F5/F6/F7)", "state": "FRESH", "reach": "2026-06-08"},
+                {"part": "Cluster step-5 routing (43 rep)", "state": "FROZEN", "reach": "2025-12 (FD.15)"},
+                {"part": "Bundle model (F2/F4)", "state": "FROZEN", "reach": "2025-12 (FD.11)"},
+                {"part": "Revenue weights", "state": "FROZEN", "reach": "2025 (FD.14)"},
             ],
-            "bundle_reliance": "Bundle-andel i väven: 2,2% (frusen via FD.11)",
+            "bundle_reliance": "Bundle share in the weave: 2.2% (frozen via FD.11)",
         },
         "receipt": "verify_tool/receipts/2026-06-11/provenance/00_provenance_master_2026-06-11_181714.xlsx",
     },

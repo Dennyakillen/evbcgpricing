@@ -60,13 +60,13 @@ RECEIPTS_DIR = REPO_ROOT / "verify_tool" / "receipts"
 # Mappning: fas-key -> vilken master-receipt-typ validerar den fasen.
 # (Etapp 2: extraction klar. cluster/site/step6 fylls pa i etapp 3.)
 PHASE_RECEIPT = {
-    "extraction":    {"glob": "00_master_summary_*.xlsx",    "subdir": "",            "suite": "Extraktion"},
-    "cluster_model": {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
-    "site_model":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
-    "bundle_model":  {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (output)"},
-    "step6":         {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Proveniens"},
-    "build_r12":     {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Proveniens (R12)"},
-    "site_step5":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rimlighet (Step 5)"},
+    "extraction":    {"glob": "00_master_summary_*.xlsx",    "subdir": "",            "suite": "Extraction"},
+    "cluster_model": {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rationality (output)"},
+    "site_model":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rationality (output)"},
+    "bundle_model":  {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rationality (output)"},
+    "step6":         {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Provenance"},
+    "build_r12":     {"glob": "00_provenance_master_*.xlsx",  "subdir": "provenance",  "suite": "Provenance (R12)"},
+    "site_step5":    {"glob": "00_rationality_master_*.xlsx", "subdir": "rationality", "suite": "Rationality (Step 5)"},
 }
 
 

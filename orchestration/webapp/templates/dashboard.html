@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="sv">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Modellkörning — status</title>
+<title>Model run — status</title>
 <style>
   :root{
     --bg:#faf9f7; --surface:#ffffff; --surface2:#f0eeea; --border:#e4e2dd;
@@ -40,7 +40,7 @@
   .a-bad{border-color:rgba(226,75,74,.4);background:rgba(226,75,74,.10);color:var(--bad);}
   .a-warn{border-color:rgba(186,117,23,.4);background:rgba(186,117,23,.10);color:var(--warn);}
   .a-info{border-color:rgba(111,109,104,.35);background:var(--surface2);color:var(--muted);}
-  /* Grupprubrik: Fore - Motor - Efter (FD.21) */
+  /* Group heading: Before - Engine - After (FD.21) */
   .group{margin:22px 0 8px;}
   .group:first-of-type{margin-top:8px;}
   .group-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.3px;
@@ -85,7 +85,7 @@
   .datainfo{font-size:12px;color:var(--muted);margin-bottom:10px;font-family:var(--mono);
             background:var(--surface2);border-radius:8px;padding:7px 11px;display:flex;align-items:center;gap:7px;}
   .di-ico{color:var(--faint);font-size:13px;}
-  /* Validerings-drill-down (etapp 2) */
+  /* Validation drill-down (stage 2) */
   .valbox{border-top:1px solid var(--border);padding-top:12px;margin-top:6px;}
   .val-head{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;
             display:flex;align-items:center;gap:9px;}
@@ -107,7 +107,7 @@
   .val-ctx{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:11px;
            background:rgba(186,117,23,.08);border-left:3px solid var(--warn);
            border-radius:0 8px 8px 0;padding:8px 12px;}
-  /* Klickbara validator-rader */
+  /* Clickable validator rows */
   .vrows{display:flex;flex-direction:column;gap:4px;margin-bottom:11px;}
   .vrow{background:var(--surface2);border-radius:9px;overflow:hidden;}
   .vrow-head{display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;user-select:none;}
@@ -124,7 +124,7 @@
         border-radius:7px;padding:7px 10px;margin-bottom:7px;word-break:break-word;}
   .vexpl{font-size:12px;line-height:1.55;color:var(--muted);margin-bottom:8px;}
   .dl-sm{font-size:11px;padding:4px 9px;}
-  /* Proof-chain: bit-för-bit-förtroendelagret */
+  /* Proof-chain: bit-for-bit trust layer */
   .proofchain{border:1px solid rgba(29,158,117,.3);background:rgba(29,158,117,.05);
               border-radius:11px;padding:12px 14px;margin:6px 0 11px;}
   .pc-head{font-size:11px;font-weight:700;color:var(--ok);letter-spacing:.3px;margin-bottom:5px;
@@ -134,16 +134,16 @@
   .pc-fr{font-family:var(--mono);font-weight:700;color:var(--ok);min-width:42px;}
   .pc-name{color:var(--text);min-width:150px;}
   .pc-kpi{font-family:var(--mono);color:var(--muted);font-size:11px;}
-  /* ===== TRATT (etapp 4) ===== */
+  /* ===== FUNNEL (stage 4) ===== */
   .funnel{border-top:1px solid var(--border);padding-top:13px;margin-top:6px;}
-  /* Lager 1: bit-för-bit-bevis (topp, grönt, brett förtroende) */
+  /* Layer 1: bit-for-bit proof (top, green, broad trust) */
   .fn-proof{border:1px solid rgba(29,158,117,.32);background:rgba(29,158,117,.06);
             border-radius:11px;padding:12px 15px;margin-bottom:14px;}
   .fn-proof-head{font-size:13px;font-weight:700;color:var(--ok);display:flex;align-items:center;gap:8px;margin-bottom:4px;}
   .fn-check{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
             border-radius:50%;background:var(--ok);color:#fff;font-size:11px;font-weight:700;}
   .fn-proof-kpi{font-family:var(--mono);font-size:12px;color:var(--text);line-height:1.5;}
-  /* Lager 2: facit -> nu (berättelsen) */
+  /* Layer 2: facit -> now (the story) */
   .fn-sec-head{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:9px;}
   .fn-rows{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;}
   .fn-row{background:var(--surface2);border-radius:10px;padding:10px 13px;}
@@ -153,7 +153,7 @@
   .fn-arrow{color:var(--faint);font-size:13px;}
   .fn-now{font:700 17px var(--mono);color:var(--text);}
   .fn-note{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;}
-  /* Lager 3: proveniens (färskt vs fryst) */
+  /* Layer 3: provenance (fresh vs frozen) */
   .fn-prov{border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:13px;background:var(--surface);}
   .fn-prov-head{font-size:12px;font-weight:700;color:var(--text);margin-bottom:5px;display:flex;align-items:center;}
   .fn-prov-count{font-size:11px;font-weight:600;color:var(--ok);background:rgba(29,158,117,.12);padding:2px 9px;border-radius:99px;}
@@ -205,24 +205,24 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>Modellkörning — status</h1>
-      <div class="sub">Skrivskyddad vy av orchestratorns statusfil i Blob · grått = BCG:s frysta facit, färgat = nu, pilen = rörelsen</div>
+      <h1>Model run — status</h1>
+      <div class="sub">Read-only view of the orchestrator status file in Blob · grey = BCG frozen facit, coloured = now, the arrow = the movement</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
-      <label for="run" style="font-size:13px;color:var(--muted);">Körning</label>
+      <label for="run" style="font-size:13px;color:var(--muted);">Run</label>
       <select id="run"></select>
       <span class="stamp" id="stamp"></span>
     </div>
   </header>
 
-  <div id="app"><div class="sub">Laddar… (första anropet hämtar lagringsnyckeln, ~3–5 s)</div></div>
+  <div id="app"><div class="sub">Loading… (the first call fetches the storage key, ~3–5 s)</div></div>
 
   <div class="bage" id="bage" style="display:none;"></div>
 
-  <footer>Skrivskyddad: denna vy kan inte starta, stoppa eller ändra något.
-    Sanningskälla: <span style="font-family:var(--mono);">runstatus/&lt;körnings-id&gt;.json</span> i
+  <footer>Read-only: this view cannot start, stop, or change anything.
+    Source of truth: <span style="font-family:var(--mono);">runstatus/&lt;run-id&gt;.json</span> in
     <span style="font-family:var(--mono);">evipricingmodelstprod</span>.
-    Facit-referens och texter: <span style="font-family:var(--mono);">story_config.py</span> ("[fyll i]" = ännu ej verifierat tal).</footer>
+    Facit reference and texts: <span style="font-family:var(--mono);">story_config.py</span> ("[fill in]" = number not yet verified).</footer>
 </div>
 
 <script>
@@ -230,7 +230,7 @@
 var KR_PER_H = 9;
 var currentRun = null, timer = null, tick = null, openPhases = {};
 var STORY = {}, GROUPS = {}, BAGE = "", VALIDATORS = {}, PROOF = null, FUNNEL = {}, DWIN = {};
-var lastData = null;            // senaste statusfilen (for live-tickaren)
+var lastData = null;            // the latest status file (for the live ticker)
 
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;}
 function fmtTs(iso){if(!iso)return "—";return iso.replace("T"," ").replace("Z"," UTC");}
@@ -238,19 +238,19 @@ function ageMin(iso){if(!iso)return null;return (Date.now()-Date.parse(iso))/600
 function escapeHtml(s){if(s==null)return"";return String(s).replace(/[&<>"']/g,function(c){
   return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 
-// Sekunder -> "3h 12m 5s" (speglar run_status._fmt_duration sa frontend och kontrakt sager samma sak)
+// Seconds -> "3h 12m 5s" (mirrors run_status._fmt_duration so frontend and contract agree)
 function fmtDur(sec){
   if(sec==null) return "—";
   sec=Math.floor(sec); var h=Math.floor(sec/3600), r=sec%3600, m=Math.floor(r/60), s=r%60;
   var p=[]; if(h)p.push(h+"h"); if(m||h)p.push(m+"m"); p.push(s+"s"); return p.join(" ");
 }
 
-var STATE_BADGE={succeeded:["klar","b-ok"],running:["kör","b-run"],
-  waiting:["väntar","b-warn"],failed:["misslyckad","b-bad"],pending:["ej startad","b-idle"],
-  starting:["startar","b-run"],deallocated:["VM nedstängd","b-idle"]};
+var STATE_BADGE={succeeded:["done","b-ok"],running:["running","b-run"],
+  waiting:["waiting","b-warn"],failed:["failed","b-bad"],pending:["not started","b-idle"],
+  starting:["starting","b-run"],deallocated:["VM stopped","b-idle"]};
 var PH_DOT={succeeded:"d-ok",running:"d-run",failed:"d-bad",pending:"d-idle",waiting:"d-warn",skipped:"d-idle"};
 var DIR={pos:["↗","var(--ok)"],neg:["↘","var(--bad)"],neut:["=","var(--faint)"]};
-var LOC={vm:"VM",local:"lokalt"};
+var LOC={vm:"VM",local:"local"};
 var GROUP_ORDER=["before","engine","after"];
 
 function boot(){
@@ -267,7 +267,7 @@ function loadRuns(){
     if(d.error){document.getElementById("app").innerHTML='<div class="alert a-bad">'+escapeHtml(d.error)+'</div>';return;}
     sel.innerHTML="";
     d.runs.forEach(function(id){var o=document.createElement("option");o.value=o.textContent=id;sel.appendChild(o);});
-    if(!d.runs.length){document.getElementById("app").innerHTML='<div class="sub">Inga körningar i Blob ännu.</div>';return;}
+    if(!d.runs.length){document.getElementById("app").innerHTML='<div class="sub">No runs in Blob yet.</div>';return;}
     currentRun=d.runs[0]; sel.value=currentRun;
     sel.onchange=function(){currentRun=sel.value;openPhases={};load();};
     load();
@@ -326,7 +326,7 @@ function phaseCard(p, idx, liveNow){
     '<span>tid <b>'+(p.duration_human||"—")+'</b></span></div>';
 
   // HUR-rutan (FD.27) -- forklarar sommen lokalt<->moln
-  var how = st.how_sv ? '<div class="how"><b>Så går det till.</b> '+escapeHtml(st.how_sv)+'</div>' : '';
+  var how = st.how_sv ? '<div class="how"><b>How it works.</b> '+escapeHtml(st.how_sv)+'</div>' : '';
 
   // DATA-INFO: vad steget faktiskt producerar i konkreta tal (avlast, ingen ny berakning)
   var datainfo = st.data ? '<div class="datainfo"><span class="di-ico">▦</span> '+escapeHtml(st.data)+'</div>' : '';
@@ -334,7 +334,7 @@ function phaseCard(p, idx, liveNow){
   var story="";
   if(st.story||((st.kpis||[]).length)){
     story='<div class="story-sec">'+
-      '<div class="story-head">MOT FACIT (BCG)</div>'+
+      '<div class="story-head">VS FACIT (BCG)</div>'+
       (st.story?'<div class="story-line">'+escapeHtml(st.story)+'</div>':'');
     if((st.kpis||[]).length){
       story+='<div class="kpis">'+st.kpis.map(kpiCard).join("")+'</div>';
@@ -342,13 +342,13 @@ function phaseCard(p, idx, liveNow){
     story+='</div>';
   }
   var desc="";
-  if(st.why) desc+='<div class="desc"><b>Vad &amp; varför.</b> '+escapeHtml(st.why)+'</div>';
-  if(st.use) desc+='<div class="desc"><b>Hur det används.</b> '+escapeHtml(st.use)+'</div>';
-  if(st.without) desc+='<div class="desc"><b>Utan steget.</b> '+escapeHtml(st.without)+'</div>';
+  if(st.why) desc+='<div class="desc"><b>What &amp; why.</b> '+escapeHtml(st.why)+'</div>';
+  if(st.use) desc+='<div class="desc"><b>How it is used.</b> '+escapeHtml(st.use)+'</div>';
+  if(st.without) desc+='<div class="desc"><b>Without this step.</b> '+escapeHtml(st.without)+'</div>';
 
-  // TRATT (etapp 4): bygg förtroende uppifrån. Topp = bit-för-bit mot facit
-  // (grönt, brett). Mitt = "BCG hade X -> nu Y" (berättelsen, ingen dom).
-  // Botten = proveniens-nyans + export. Renderas direkt ur FUNNEL (statiskt).
+  // FUNNEL (stage 4): build trust top-down. Top = bit-for-bit vs facit
+  // (green, broad). Middle = "BCG had X -> now Y" (the story, no verdict).
+  // Bottom = provenance nuance + export. Rendered directly from FUNNEL (static).
   var funnel = renderFunnel(p.key);
 
   body.innerHTML=how+datainfo+note+rows+story+desc+funnel;
@@ -366,35 +366,35 @@ function phaseCard(p, idx, liveNow){
 }
 
 // =====================================================================
-// TRATT-rendering (etapp 4). Bygger förtroende uppifrån: bit-för-bit-bevis
-// överst (grönt, brett), sedan "BCG hade X -> nu Y" (berättelsen, ingen dom),
-// sedan proveniens-nyans + export. All data ur FUNNEL (story_config, statiskt).
-// Den fulla validator-för-validator-detaljen finns i det exporterade kvittot.
+// Funnel rendering (stage 4). Builds trust top-down: bit-for-bit proof
+// at the top (green, broad), then "BCG had X -> now Y" (the story, no verdict),
+// then provenance nuance + export. All data from FUNNEL (story_config, static).
+// The full validator-by-validator detail is in the exported receipt.
 // =====================================================================
 function renderFunnel(phaseKey){
   var f = FUNNEL[phaseKey];
   if(!f) return "";
   var html = '<div class="funnel">';
 
-  // LAGER 1 (topp): bit-för-bit mot facit -- brett förtroende
+  // LAYER 1 (top): bit-for-bit vs facit -- broad trust
   if(f.proof){
     html += '<div class="fn-proof'+(f.proof.ok?' ok':'')+'">'+
       '<div class="fn-proof-head"><span class="fn-check">✓</span> '+escapeHtml(f.proof.label)+'</div>'+
       '<div class="fn-proof-kpi">'+escapeHtml(f.proof.kpi)+'</div></div>';
   }
 
-  // LAGER 2 (mitt): BCG hade -> nu blev. HELA blocket (period + kort) ligger i en
-  // utfällbar drop-down -- hopfällt som standard, klick på rubriken fäller ut allt.
+  // LAYER 2 (middle): BCG had -> now became. The WHOLE block (period + cards) sits in a
+  // collapsible drop-down -- collapsed by default, clicking the heading expands all.
   if(f.facit_nu && f.facit_nu.length){
     var hasWin = DWIN.facit || DWIN.now;
     html += '<div class="fn-sec-head fn-fn-toggle" data-fn="'+escapeHtml(phaseKey)+'">'+
-      'BCG FACIT &nbsp;→&nbsp; VÄXANDE DATA NU <span class="fn-win-toggle">visa <span class="fn-win-chev">▼</span></span></div>';
+      'BCG FACIT &nbsp;→&nbsp; GROWING DATA NOW <span class="fn-win-toggle">show <span class="fn-win-chev">▼</span></span></div>';
     html += '<div class="fn-fn-body" data-fnbody="'+escapeHtml(phaseKey)+'" style="display:none;">';
     if(hasWin){
       html += '<div class="fn-win-body">'+
-        '<div class="fn-win-row"><span class="fn-win-lbl">Fryst BCG-fönster</span>'+
+        '<div class="fn-win-row"><span class="fn-win-lbl">Frozen BCG window</span>'+
           '<span class="fn-win-val">'+escapeHtml(DWIN.facit||"—")+'</span></div>'+
-        '<div class="fn-win-row"><span class="fn-win-lbl">Växande fönster nu</span>'+
+        '<div class="fn-win-row"><span class="fn-win-lbl">Growing window now</span>'+
           '<span class="fn-win-val">'+escapeHtml(DWIN.now||"—")+'</span></div>'+
         '</div>';
     }
@@ -411,14 +411,14 @@ function renderFunnel(phaseKey){
     html += '</div></div>';
   }
 
-  // LAGER 3 (botten): proveniens-nyans (vad är färskt vs fryst) -- ärlighet
+  // LAYER 3 (bottom): provenance nuance (what is fresh vs frozen) -- honesty
   if(f.prov){
     html += '<div class="fn-prov">';
-    html += '<div class="fn-prov-head">Färskt vs fryst i väven &nbsp;'+
-      '<span class="fn-prov-count">'+f.prov.fresh+'/'+f.prov.total+' färska</span></div>';
+    html += '<div class="fn-prov-head">Fresh vs frozen in the weave &nbsp;'+
+      '<span class="fn-prov-count">'+f.prov.fresh+'/'+f.prov.total+' fresh</span></div>';
     if(f.prov.headline) html += '<div class="fn-prov-lead">'+escapeHtml(f.prov.headline)+'</div>';
     f.prov.rows.forEach(function(pr){
-      var fresh = pr.state.indexOf("FÄRSK")!==-1;
+      var fresh = pr.state.indexOf("FRESH")!==-1;
       html += '<div class="fn-prov-row">'+
         '<span class="fn-prov-dot '+(fresh?"fresh":"frozen")+'"></span>'+
         '<span class="fn-prov-part">'+escapeHtml(pr.part)+'</span>'+
@@ -429,25 +429,25 @@ function renderFunnel(phaseKey){
     html += '</div>';
   }
 
-  // DRILL 3 (botten): alla enskilda valideringskvitton att exportera -- INGEN
-  // PASS/REVIEW-dom, bara namn + hämta. Lazy-laddas när man fäller ut.
+  // DRILL 3 (bottom): all individual validation receipts to export -- NO
+  // PASS/REVIEW verdict, just name + fetch. Lazy-loaded when expanded.
   html += '<div class="fn-drill3" data-r3="'+escapeHtml(phaseKey)+'">'+
-    '<div class="fn-drill3-head">Alla granskningar (exportera) <span class="fn-d3-chev">▼</span></div>'+
-    '<div class="fn-drill3-body" style="display:none;"><div class="val-loading">Laddar…</div></div>'+
+    '<div class="fn-drill3-head">All reviews (export) <span class="fn-d3-chev">▼</span></div>'+
+    '<div class="fn-drill3-body" style="display:none;"><div class="val-loading">Loading…</div></div>'+
     '</div>';
 
   // Export: hela master-kvittot (sammanfattningen)
   if(f.receipt){
-    html += '<a class="dl" href="/api/receipt/'+encodeURIComponent(f.receipt)+'" download>⬇ Exportera sammanfattning (Excel)</a>';
+    html += '<a class="dl" href="/api/receipt/'+encodeURIComponent(f.receipt)+'" download>⬇ Export summary (Excel)</a>';
   }
 
   html += '</div>';
   return html;
 }
 
-// Drill 3: koppla utfällning + lazy-ladda kvitto-listan (delegering).
+// Drill 3: wire expand + lazy-load the receipt list (delegation).
 function wireDrill3(body){
-  // Facit->nu-blocket (period + kort) fälls ut/in vid klick på rubriken. Hopfällt som standard.
+  // The facit->now block (period + cards) expands/collapses on heading click. Collapsed by default.
   var ft=body.querySelector(".fn-fn-toggle[data-fn]");
   if(ft && !ft.getAttribute("data-wired")){
     ft.setAttribute("data-wired","1");
@@ -477,82 +477,82 @@ function wireDrill3(body){
         .then(function(r){return r.json();})
         .then(function(d){
           var files=d.files||[];
-          if(!files.length){ inner.innerHTML='<div class="val-loading">Inga enskilda kvitton hittade.</div>'; return; }
+          if(!files.length){ inner.innerHTML='<div class="val-loading">No individual receipts found.</div>'; return; }
           inner.innerHTML=files.map(function(fl){
             return '<a class="d3-item" href="/api/receipt/'+encodeURIComponent(fl.file)+'" download>'+
                    '<span class="d3-name">'+escapeHtml(fl.name)+'</span><span class="d3-dl">⬇ Excel</span></a>';
           }).join("");
         })
-        .catch(function(){ inner.innerHTML='<div class="val-loading">Kunde inte hämta listan.</div>'; });
+        .catch(function(){ inner.innerHTML='<div class="val-loading">Could not fetch the list.</div>'; });
     }
   };
 }
 
 function render(d){
   var app=document.getElementById("app"); app.innerHTML="";
-  document.getElementById("stamp").textContent="uppdaterad "+new Date().toTimeString().slice(0,8);
+  document.getElementById("stamp").textContent="updated "+new Date().toTimeString().slice(0,8);
   if(d.error && !d.phases){app.appendChild(el("div","alert a-bad",escapeHtml(d.error)));return;}
 
   var hb=ageMin(d.last_heartbeat);
-  // Skilj TVA fall at (FD.30): (a) en aktiv korning vars runner nyss tappade
-  // kontakt -> aterstartbar, varning relevant; (b) en GAMMAL korning vars fil
-  // bara aldrig fick sluttillstand -> historik, ingen varning, visa som vilande.
-  var FRESH_LIMIT=5;          // min: nyligen tappad kontakt
-  var OLD_LIMIT=180;          // min: aldre an 3h = historisk korning, inte aktiv
+  // Separate TWO cases (FD.30): (a) an active run whose runner just lost
+  // contact -> restartable, warning relevant; (b) an OLD run whose file
+  // simply never got a final state -> history, no warning, show as idle.
+  var FRESH_LIMIT=5;          // min: recently lost contact
+  var OLD_LIMIT=180;          // min: older than 3h = historical run, not active
   var recentlyStale=(d.state==="running" && hb!=null && hb>FRESH_LIMIT && hb<=OLD_LIMIT);
   var oldUnfinished=(d.state==="running" && hb!=null && hb>OLD_LIMIT);
 
-  // Harled ett VISNINGS-tillstand utan att roera statusfilen (vi malar inte om
-  // datat, vi tolkar det arligt). En gammal "running"-fil dar minst en fas
-  // lyckats och ingen failat ar i praktiken en avslutad/vilande korning.
+  // Derive a DISPLAY state without touching the status file (we do not repaint
+  // the data, we interpret it honestly). An old "running" file where at least one phase
+  // succeeded and none failed is in practice a finished/idle run.
   var anyFailed=d.phases.some(function(p){return p.state==="failed";});
   var anyDone=d.phases.some(function(p){return p.state==="succeeded";});
   var displayState=d.state;
   if(oldUnfinished){
     displayState = anyFailed ? "failed" : (anyDone ? "deallocated" : "pending");
   }
-  var stale=recentlyStale;   // bara FARSK stale ger den gula varningen
+  var stale=recentlyStale;   // only FRESH stale gives the yellow warning
   var sb=STATE_BADGE[displayState]||[displayState,"b-idle"];
 
   var strip=el("div","strip");
   strip.appendChild(el("span",null,'<span class="badge '+sb[1]+'">'+sb[0]+'</span>'));
   var done=d.phases.filter(function(p){return p.state==="succeeded";}).length;
-  strip.appendChild(el("span",null,'faser klara <b>'+done+' / '+d.phases.length+'</b>'));
-  strip.appendChild(el("span",null,'aktiv tid <b>'+(d.total_active_human||"—")+'</b>'));
+  strip.appendChild(el("span",null,'phases done <b>'+done+' / '+d.phases.length+'</b>'));
+  strip.appendChild(el("span",null,'active time <b>'+(d.total_active_human||"—")+'</b>'));
   if(d.wall_clock_human){
-    strip.appendChild(el("span",null,'väggklocka <b>'+escapeHtml(d.wall_clock_human)+'</b> <span style="color:var(--faint)">(inkl pauser)</span>'));
+    strip.appendChild(el("span",null,'wall clock <b>'+escapeHtml(d.wall_clock_human)+'</b> <span style="color:var(--faint)">(incl. pauses)</span>'));
   }
   var vmSec=d.phases.filter(function(p){return p.location==="vm"&&p.duration_seconds;})
                     .reduce(function(a,p){return a+p.duration_seconds;},0);
-  strip.appendChild(el("span",null,'VM-kostnad est. <b>'+(vmSec?(vmSec/3600*KR_PER_H).toFixed(0)+' kr':'—')+'</b> <span style="color:var(--faint)">(9 kr/h)</span>'));
-  strip.appendChild(el("span",null,'senaste livstecken <b>'+(hb==null?"—":(hb<1?"just nu":Math.round(hb)+" min sedan"))+'</b>'));
+  strip.appendChild(el("span",null,'VM cost est. <b>'+(vmSec?(vmSec/3600*KR_PER_H).toFixed(0)+' kr':'—')+'</b> <span style="color:var(--faint)">(9 kr/h)</span>'));
+  strip.appendChild(el("span",null,'last heartbeat <b>'+(hb==null?"—":(hb<1?"just now":Math.round(hb)+" min ago"))+'</b>'));
   app.appendChild(strip);
 
   if(stale){
     app.appendChild(el("div","alert a-warn",
-      "Statusen säger <b>kör</b> men senaste livstecknet är "+Math.round(hb)+
-      " min gammalt — den lokala runnern observerar inte längre. Det fristående jobbet på VM:en kan ha "+
-      "blivit klart eller fortfarande köra; filen slutade bara uppdateras. "+
-      "Återanslut med <span style='font-family:var(--mono);font-size:12px;'>run_site_model.py --attach</span> för besked."));
+      "The status says <b>running</b> but the last heartbeat is "+Math.round(hb)+
+      " min old — the local runner is no longer observing. The detached job on the VM may have "+
+      "finished or still be running; the file just stopped updating. "+
+      "Re-attach with <span style='font-family:var(--mono);font-size:12px;'>run_site_model.py --attach</span> for an update."));
   }
   if(oldUnfinished){
-    // Gammal korning: ingen larmande varning, bara en diskret notis om att
-    // detta ar historik (filen fick aldrig sluttillstand, FD.30).
+    // Old run: no alarming warning, just a discreet note that
+    // this is history (the file never got a final state, FD.30).
     var hrs=Math.round(hb/60);
     app.appendChild(el("div","alert a-info",
-      "Historisk körning (senaste aktivitet ~"+hrs+" h sedan). Visar de faser som "+
-      "hann rapporteras klara. Statusfilen fick aldrig ett formellt sluttillstånd "+
-      "(åtgärdas av FD.30) — därför tolkas den här som vilande, inte aktiv."));
+      "Historical run (last activity ~"+hrs+" h ago). Shows the phases that "+
+      "managed to report as done. The status file never got a formal final state "+
+      "(handled by FD.30) — so this is interpreted as idle, not active."));
   }
   if(d.state==="failed"){
     app.appendChild(el("div","alert a-bad",
-      "<b>Misslyckad.</b> "+(d.hint?escapeHtml(d.hint)+"<br>":"")+
+      "<b>Failed.</b> "+(d.hint?escapeHtml(d.hint)+"<br>":"")+
       (d.error?'<span style="font-family:var(--mono);font-size:12px;white-space:pre-wrap;">'+escapeHtml(d.error).slice(0,600)+'</span>':"")));
   } else if(d.hint && d.state==="waiting"){
     app.appendChild(el("div","alert a-warn",escapeHtml(d.hint)));
   }
 
-  // Gruppera faserna efter Fore-Motor-Efter (FD.21). Index halls stabilt over hela listan.
+  // Group the phases by Before-Engine-After (FD.21). Index stays stable across the whole list.
   var idxByKey={};
   d.phases.forEach(function(p,i){idxByKey[p.key]=i;});
   var gnum=0;
@@ -570,14 +570,14 @@ function render(d){
       app.appendChild(phaseCard(p, idxByKey[p.key]));
     });
   });
-  // Faser utan grupp (skydd om en ny fas-key saknar story_config-post)
+  // Phases without a group (guard if a new phase key lacks a story_config entry)
   d.phases.forEach(function(p){
     if(!(STORY[p.key]||{}).group){ app.appendChild(phaseCard(p, idxByKey[p.key])); }
   });
 
-  // Resultat i Blob -- nu med nedladdningslankar (FD.23)
+  // Results in Blob -- now with download links (FD.23)
   if(d.output_blob_paths && d.output_blob_paths.length){
-    var out=el("div","outputs","<b style='font-size:13px;'>Resultat i Blob</b><br>");
+    var out=el("div","outputs","<b style='font-size:13px;'>Results in Blob</b><br>");
     var links=el("div",null,"");
     links.style.marginTop="8px";
     d.output_blob_paths.forEach(function(p){
@@ -588,22 +588,22 @@ function render(d){
       links.appendChild(a);
     });
     out.appendChild(links);
-    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);margin-top:6px;display:inline-block;">Filerna hämtas direkt från Blob via den lokala vyn.</span>'));
+    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);margin-top:6px;display:inline-block;">The files are fetched directly from Blob via the local view.</span>'));
     app.appendChild(out);
   }
 
   var bage=document.getElementById("bage");
-  if(BAGE){bage.innerHTML="<b>Bågen.</b> "+escapeHtml(BAGE).replace(/^Bagen: /,"").replace(/^Bågen: /,"");bage.style.display="block";}
+  if(BAGE){bage.innerHTML="<b>The arc.</b> "+escapeHtml(BAGE).replace(/^The arc: /,"");bage.style.display="block";}
 
-  app.appendChild(el("div",null,'<div class="sub" style="margin-top:10px;">körning <span style="font-family:var(--mono);">'+escapeHtml(d.run_id)+
-    '</span> · startad av '+escapeHtml(d.triggered_by||"—")+' · kontrakt v'+escapeHtml(d.contract_version)+
+  app.appendChild(el("div",null,'<div class="sub" style="margin-top:10px;">run <span style="font-family:var(--mono);">'+escapeHtml(d.run_id)+
+    '</span> · triggered by '+escapeHtml(d.triggered_by||"—")+' · contract v'+escapeHtml(d.contract_version)+
     (d.git_sha?(' · '+escapeHtml(d.git_sha)):'')+'</div>'));
 
   startTick();
 }
 
-// Live-tickaren (FD.22): uppdaterar varaktighet for korande faser varje sekund,
-// utan att hamta om hela statusfilen (det sker var 10:e s i load()).
+// Live ticker (FD.22): updates the duration of running phases every second,
+// without refetching the whole status file (that happens every 10s in load()).
 function startTick(){
   if(tick) clearInterval(tick);
   tick=setInterval(function(){
@@ -612,7 +612,7 @@ function startTick(){
       var sec=(Date.now()-Date.parse(e.getAttribute("data-start")))/1000;
       e.textContent=fmtDur(sec);
     });
-    // uppdatera ocksa "aktiv tid"-fotnoten i stripen via livstecken-aldern? Halls enkelt: bara fas-tid tickar.
+    // also update the "active time" footnote in the strip via heartbeat age? Keep it simple: only phase time ticks.
   },1000);
 }
 
