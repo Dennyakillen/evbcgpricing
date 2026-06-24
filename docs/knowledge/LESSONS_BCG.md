@@ -959,3 +959,98 @@ borttaget ur utvecklarrad. Innehåll i LB.1-53 oförändrat.*
 validerades med tre statiska sonder (infrastructure_map, contract_integrity, after_chain_probe),
 run_id ändrades till datafönster (window_run_id) och RunStatus.finalize() byggdes (heartbeat-spöket
 dött). succeed() föråldrad — städas nästa session.*
+
+---
+
+### LB.78 — Bundle-modellen var aldrig G7-patchad (hårdkodad END_DATE kapade växande data)
+
+**Symptom:** bundle-modellen kördes på maj-input (xlsx → 2026-05-25) men `data_for_model.csv`
+slutade 2025-06-23 (BCG:s frysta fönster). model.py loggade "Finished model.py in 6.57 sec"
+utan att producera output. Tre tidigare körningar gav identisk april-revenue maskerad som maj.
+
+**Rotorsak:** bundle constants.py (`5. Bundle Clinic Models/code/`) hade HÅRDKODADE datum
+(`START_DATE='2022-07-01'`, `END_DATE='2025-06-29'`, `END_DATE2='2025-06-30'`), använda som
+filter i model.py L482 och regular_price.py L224: `df[(week >= START_DATE) & (week < END_DATE2)]`.
+Cluster + Site G7-patchades i FAS 13 (LB-G7-klassen); **bundle missades.** Bundle-runnern
+injicerade redan `export BCG_START_DATE/BCG_END_DATE` korrekt (run_bundle_model L150), men
+constants.py läste aldrig env:en → END_DATE förblev 2025-06-29 → maj kapades.
+
+**Regel:** alla tre familjers constants.py ska ha env-override (`os.environ.get("BCG_END_DATE",
+"2025-06-29")`) + `END_DATE2` HÄRLEDD via datetime (+1 dag), aldrig hårdkodad separat. Tomma
+env-vars = BCG fryst (bit-identisk repro). Horisontell validering: när en familj patchas, kontrollera
+de andra TVÅ samma session — denna lärdom uppstod just för att bundle aldrig kontrollerades mot
+cluster/site-fixen.
+
+**Gäller om:** den hårdkodade-datum-arkitekturen finns kvar (deaktiveras om BCG byter datummodell).
+
+**Förkroppsligas i:** `tools/patch_bundle_constants_g7.py` (idempotent env-override-patch, speglar
+cluster), bundle/site/cluster `constants.py` (alla tre nu env-överbara).
+
+---
+
+### LB.79 — feature_selection skapar inte sina automl-mappar (OSError om output rensats)
+
+**Symptom:** efter G7-fix nådde feature_selection automl-iterationen men kraschade med
+`RayTaskError(OSError)` inuti en Ray-worker, vid `to_excel(f"{summary_path}{mg}_All_itrs.xlsx")`
+(feature_selection.py rad 338). Pipeline dog efter ~24 sek.
+
+**Rotorsak:** feature_selection skriver en xlsx per model-group till `output/model/automl/` men har
+INGEN `os.makedirs` — mappen måste finnas. Egen cleanup (`rm -rf output/model/*`) raderade den.
+FAS 18 (april) hade automl-mappen kvar sedan en tidigare körning, så felet syntes aldrig då —
+det dök upp först när vi rensade output rent inför maj.
+
+**Regel:** före D-körning, skapa automl-mappstrukturen om den saknas:
+`mkdir -p ~/bcg/bundle/output/model/automl/details ~/bcg/bundle/output/model/automl/results
+~/bcg/bundle/output/model/model_objects`. Generellt: rensa ALDRIG output/model/* utan att
+återskapa mappstrukturen modellen skriver till. (Permanent kandidat: patcha feature_selection med
+`os.makedirs(summary_path, exist_ok=True)`.)
+
+**Gäller om:** feature_selection saknar egen makedirs (deaktiveras om den patchas att skapa mappen).
+
+**Förkroppsligas i:** `BUNDLE_KEDJAN_KARTLAGD.md` §7, bundle-körschemat (mkdir-steg i förkrav D).
+
+---
+
+### LB.80 — poll rapporterar running=True i minuter efter att jobbet kraschat
+
+**Symptom:** run_bundle_model:s poll visade "poll: running=True | Finished data_prepration.py" i
+28 minuter EFTER att pipelinen kraschat (remote-loggen visade pipeline död efter 24 sek, pgrep
+visade ingen launcher-process). Vi väntade i onödan, och trodde flera gånger att en körning
+arbetade när den var död.
+
+**Rotorsak:** poll-mekanismen läser senaste klara steget ur loggen men upptäcker inte
+process-död (ingen pgrep-koll i poll-loopen). En kraschad pipeline lämnar "Finished
+data_prepration.py" som sista rad → poll upprepar den + running=True i all evighet.
+
+**Regel:** lita ALDRIG på poll-raden för sann körstatus. Mät direkt:
+`ssh ... 'tail -20 ~/bcg/logs/<run_id>_p1_bundle.log; pgrep -af launcher.py || echo INGEN'`.
+Remote-logg (visar Error/Traceback) + pgrep (visar liv) = sanning. Samma klass som LB.60
+(verifiera mot faktiskt tillstånd, ej logg-/antagande).
+
+**Gäller om:** poll-loopen saknar process-livskoll (deaktiveras om poll får pgrep-verifiering).
+
+**Förkroppsligas i:** `BUNDLE_KEDJAN_KARTLAGD.md` §8, `verify_tool/probes/bundle_model_output_sond.py`
+(mäter faktisk output istället för att lita på poll).
+
+---
+
+### LB.81 — Bundle steg C (model-data-creation) är ett VM-steg, ej lokalt (Ray-krasch på Windows)
+
+**Symptom:** `2.Sweden_Bundle_Clinic_Model_Data_Creation.py` kraschade lokalt på Windows med
+`Windows fatal exception: access violation` i Ray:s remote_function.py, vid
+`all_bundle_data_creation` (bundle_utils.py ~rad 151), på `build_bundle_for_type.remote()`.
+
+**Rotorsak:** model-data-creation använder Ray (`@ray.remote`, init med `num_cpus=12,
+object_store_memory=2 GB`). Lokala maskinen (31 GB) klarar inte Ray:s shared-memory-allokering
+→ access violation. Samma minnesvägg som hela modell-pipelinen (varför VM finns). Bevisat
+identiskt 2026-06-24 OCH FAS 18. Den lokala bundle_weekly_model...xlsx (2025-10-03 = BCG-original)
+var aldrig omskriven lokalt — bekräftar att xlsx:en alltid byggts på VM.
+
+**Regel:** bundle steg C körs ALLTID på VM (`~/bcg/bundle_dataprep/`, via `~/bcg/cluster/.venv`).
+Lokalt körs BARA steg A + B (DuckDB, ej Ray). Bundle korsar miljöer: A/B lokalt, C/D på VM, E lokalt.
+
+**Gäller om:** lokala maskinen saknar RAM för Ray (deaktiveras på en maskin med tillräckligt minne).
+
+**Förkroppsligas i:** `BUNDLE_KEDJAN_KARTLAGD.md` §3, `verify_tool/probes/bundle_chain_validator.py`
+(H1 FAIL-flaggar lokal körning av steg C).
+
