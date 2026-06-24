@@ -192,8 +192,6 @@ def ssh_launch_detached(cfg: VmConfig, inner_cmd: str, remote_log: str) -> None:
         f"printf '%s\\n' '#!/bin/bash' '{inner_cmd} > {remote_log} 2>&1' > {launcher_sh} && "
         f"chmod +x {launcher_sh}"
     )
-    ssh_run(cfg, write_script, timeout=30)
-
     # Step 2: launch fully detached. setsid + redirect ALL of the script's
     # std streams to /dev/null means the child holds no descriptor on this
     # ssh channel; 'echo started' completes the channel immediately.
@@ -201,10 +199,43 @@ def ssh_launch_detached(cfg: VmConfig, inner_cmd: str, remote_log: str) -> None:
         f"setsid {launcher_sh} </dev/null >/dev/null 2>&1 & "
         f"echo started"
     )
-    cp = ssh_run(cfg, launch_cmd, timeout=20)
-    if "started" not in cp.stdout:
-        raise RuntimeError(f"Detached launch did not confirm start: {cp.stdout!r} {cp.stderr!r}")
-    log.info("Detached launch confirmed. Remote log: %s", remote_log)
+    # A2 (2026-06-24): launch must inherit poll_until_done's AZ.7 tolerance.
+    # ssh_run already retries each call on a tunnel blink; on top of that we
+    # VERIFY the job actually started (pgrep, out-of-band-tolerant) and retry
+    # the whole launch sequence once if not. This closes the "half launch"
+    # gap: step 1 wrote .launch.sh but step 2's blink meant nothing started
+    # (the exact failure of the cluster-maj run, ps=0 + no logfile + .launch.sh
+    # absent). A launch that "confirmed" but left no live process is a lie we
+    # now catch instead of handing to poll as a phantom run.
+    proc_sig = inner_cmd.split("&&")[-1].split()[-1] if "&&" in inner_cmd else "launcher.py"
+    last_err = ""
+    for launch_attempt in (1, 2):
+        # (re)write the launcher script -- idempotent, owns its own redirection
+        ssh_run(cfg, write_script, timeout=30, retries=2)
+        cp = ssh_run(cfg, launch_cmd, timeout=20, retries=2)
+        if "started" not in cp.stdout:
+            last_err = f"no 'started' confirmation: {cp.stdout!r} {cp.stderr!r}"
+            log.warning("Launch attempt %d: %s", launch_attempt, last_err)
+            continue
+        # Verify the job is actually alive on the VM (not just that echo printed).
+        # check=False + retries=2 so a blink on THIS probe doesn't false-negative.
+        try:
+            alive = bool(ssh_run(cfg, f"pgrep -f {proc_sig} || true",
+                                 check=False, timeout=30, retries=2).stdout.strip())
+        except SshUnreachable as e:
+            # Could not verify due to tunnel -- per AZ.7, observation loss is not
+            # failure. Trust the 'started' echo; poll_until_done will confirm via
+            # az out-of-band. Do NOT relaunch (would risk a duplicate job).
+            log.warning("Post-launch verify unreachable (%s) -- trusting 'started' "
+                        "(AZ.7: observation optional, poll will confirm out-of-band).", e)
+            log.info("Detached launch confirmed (unverified). Remote log: %s", remote_log)
+            return
+        if alive:
+            log.info("Detached launch confirmed + verified alive. Remote log: %s", remote_log)
+            return
+        last_err = "launch echoed 'started' but pgrep found no live process"
+        log.warning("Launch attempt %d: %s -- relaunching.", launch_attempt, last_err)
+    raise RuntimeError(f"Detached launch failed after 2 attempts: {last_err}")
 
 
 def ssh_launch_selftest(cfg: VmConfig) -> bool:
@@ -228,14 +259,26 @@ def ssh_launch_selftest(cfg: VmConfig) -> bool:
 
 
 def scp_from_vm(cfg: VmConfig, remote_path: str, local_path: str) -> None:
-    cp = subprocess.run(
-        ["scp", "-o", "ConnectTimeout=10",
-         f"{cfg.ssh_target}:{remote_path}", local_path],
-        capture_output=True, text=True, timeout=600,
-    )
-    if cp.returncode != 0:
-        raise RuntimeError(f"scp failed ({cp.returncode}): {cp.stderr.strip()[:400]}")
-    log.info("Fetched %s -> %s", remote_path, local_path)
+    # B (2026-06-24): scp goes through the SAME flaky tunnel as ssh_run but was
+    # a raw subprocess with no ServerAlive + no retry -- a blink in minute 50 of
+    # a successful run would lose the whole output fetch. Mirror ssh_run's
+    # keepalive + add a retry loop. "self-terminate a stalled tunnel in ~30s
+    # instead of hanging to the 600s timeout, then retry."
+    last_err = ""
+    for attempt in range(3):                         # 1 try + 2 retries
+        cp = subprocess.run(
+            ["scp", "-o", "ConnectTimeout=10", "-o", "BatchMode=yes",
+             "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3",
+             f"{cfg.ssh_target}:{remote_path}", local_path],
+            capture_output=True, text=True, timeout=600,
+        )
+        if cp.returncode == 0:
+            log.info("Fetched %s -> %s", remote_path, local_path)
+            return
+        last_err = cp.stderr.strip()[:400]
+        log.warning("scp failed (attempt %d/3, rc=%d): %s -- retrying.",
+                    attempt + 1, cp.returncode, last_err)
+    raise RuntimeError(f"scp failed after 3 attempts ({cp.returncode}): {last_err}")
 
 
 if __name__ == "__main__":
