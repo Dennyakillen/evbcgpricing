@@ -60,17 +60,10 @@ RESULTS = []
 
 
 def _cfg():
-    # Hamta default-config samma vag runnern gor. Justera om din azure_vm
-    # exponerar en annan factory.
-    for name in ("default_config", "load_config", "get_config", "VmConfig"):
-        fn = getattr(A, name, None)
-        if fn is None:
-            continue
-        try:
-            return fn() if name != "VmConfig" else None
-        except Exception:
-            continue
-    return None
+    # VmConfig ar en @dataclass(frozen=True) med alla falt defaultade
+    # (resource_group, vm_name, vm_ip, vm_user). Runnern gor exakt VmConfig()
+    # (run_cluster_model.py L444). Ingen factory -- bara instansiera.
+    return A.VmConfig()
 
 
 def _line(tag, ok, detail=""):
