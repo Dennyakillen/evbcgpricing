@@ -118,13 +118,13 @@ def preflight_remote(cfg: VmConfig) -> float:
     for path, label in [(REMOTE_INPUT, "input CSV"),
                         (REMOTE_PYTHON, "pipeline venv python"),
                         (f"{REMOTE_CODE}/launcher.py", "launcher.py")]:
-        cp = ssh_run(cfg, f"test -e {path} && echo yes || echo no")
+        cp = ssh_run(cfg, f"test -e {path} && echo yes || echo no", retries=2)
         if "yes" not in cp.stdout:
             raise RuntimeError(f"Missing on VM: {label} ({path})")
         log.info("OK on VM: %s", label)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     ssh_run(cfg, f"test -f {REMOTE_OUTPUT} && cp {REMOTE_OUTPUT} {REMOTE_OUTPUT}.pre_{stamp} "
-                 f"&& echo archived || echo none")
+                 f"&& echo archived || echo none", retries=2)
     log.info("Existing remote output archived (frozen-baseline, Way A).")
     return _now_utc()
 
