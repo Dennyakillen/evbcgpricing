@@ -138,3 +138,5 @@ verify_tool/probes/*_result.txt
 tools/status_backup_*/
 tools/timing_backup_*/
 Pipeline/02. Elasticity/_vm_logs/
+
+tools/diagnos/sond5_*.txt
