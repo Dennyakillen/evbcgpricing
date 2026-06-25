@@ -2,7 +2,7 @@
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
 **Repo:** https://github.com/Dennyakillen/evbcgpricing.git
-**Senast uppdaterad:** 2026-06-11 (FAS F KLAR — Step 6 körd växande, output validerad, modellen kan matas)
+**Senast uppdaterad:** 2026-06-16 (FAS A pågår — webapp-dashboard byggd, tre familje-runners med auto-validering + Blob-upload, bundle aktiverad FD.34)
 
 Detta dokument visar **var projektet står** och **vart det bär** — för Jens som genomförare och för
 beställare/beslutsfattare. Varje fas har en mognadsbedömning: är vi redo att börja, eller beror den på
@@ -74,8 +74,10 @@ Delsteg (F.7-F.10), alla klara:
 - **F.7 Cluster** ✅ — step 5 fallback-blend körd växande (4180 KEY, 33.4%→45.2% signifikans).
 - **F.8 Site** ✅ — steg 1-4 på VM (~70 min, 6624 KEY), steg 5 lokalt. Arkitektonisk lärdom: Excel-stegen
   (5 + Step 6) körs lokalt, modellstegen (1-4) på VM (LB.44).
-- **F.9 Bundle** ✅ dataprep körd växande, **modellen PARKERAD på evidens** (FD.11): bundle vinner bara
-  2,2 % av besluten i väven trots 23,9 % av transaktionsvolymen (IB.12). Återbesöks-trigger dokumenterad.
+- **F.9 Bundle** ✅ dataprep körd växande; **modellen AKTIVERAD som fullvärdig familj 2026-06-16**
+  (FD.34): `run_bundle_model.py` kör på VM som cluster/site, auto-valideras mot fryst facit, alla
+  filer till Blob. Väv-bidraget är fortf. ~2,2 % (IB.12) — aktiveringen handlar om komplett täckning
+  och stängd skuld, inte om ökad affärsvikt. Bundle-GRENEN i Step6-väven är fortf. frusen 2025 (FD.11).
 - **F.10 Step 6** ✅ (`Fall_Back_Logic.py`) — körd första gången växande: 108 979 rader / 15 128 produkter,
   median −0,497, 100 % negativa, 100 % i (−10,0). Körs via `run_step6.py` (tolererar LB.53-mallfelet).
 - **Output-rimlighetsgrind** ✅ — på färsk data finns inget facit; grinden bedömer negativ/band/drift.
