@@ -99,7 +99,7 @@ LOCAL_OUT_DIR  = Path(r"C:\Projekt\BCG\Pipeline\02. Elasticity\2. Product Cluste
 # the model steps 1-4 KEY count (Site steps 1-4 = 6624). Read the cluster facit
 # steps-1-4 output_summary.xlsx KEY count. measure_cluster_values.py reads it.
 # None until measured -> verify reports the count without asserting a guessed target.
-EXPECTED_KEYS  = 4180          # cluster GROWING steps-1-4 (F.7 ref; 3812 was the FROZEN facit -- wrong baseline)
+EXPECTED_KEYS  = None          # 4180 var STEG-5-BLEND-talet (FEL LAGER); modellstegen 1-4 = 3791 (vaxande). None = rapportera utan att havda fel mal. Satt 3812 (frusen facit, LB.16) for drift-baslinje. (all_chain_validator-fynd 2026-06-25)
 BENIGN_STEP5   = "Error in data_prep_after_model_output.py"   # xlwings on Linux, always (LB.44)
 TWO_PASS_SIG   = "Error in feature_selection.py"              # pass-1 template crash (LB.18-class)
 
@@ -140,6 +140,14 @@ def preflight_remote(cfg: VmConfig) -> float:
     ssh_run(cfg, f"test -f {REMOTE_OUTPUT} && cp {REMOTE_OUTPUT} {REMOTE_OUTPUT}.pre_{stamp} "
                  f"&& echo archived || echo none", retries=2)
     log.info("Existing remote output archived (frozen-baseline, Way A).")
+    # LB.79 (additiv): feature_selection skriver per-KEY xlsx till
+    # output/model/automl/* + model_objects men skapar INTE mapparna
+    # -> RayTaskError(OSError) om output/model rensats. mkdir -p ar
+    # idempotent. BCG-kod oror; detta ar runnerns ansvar.
+    _model_dir = os.path.dirname(REMOTE_OUTPUT)
+    ssh_run(cfg, f"mkdir -p {_model_dir}/automl/details {_model_dir}/automl/results "
+                 f"{_model_dir}/model_objects", retries=2)
+    log.info("LB.79: automl/details, automl/results, model_objects sakerstallda pa VM.")
     return _now_utc()
 
 

@@ -140,6 +140,14 @@ def preflight_remote(cfg: VmConfig) -> float:
     ssh_run(cfg, f"test -f {REMOTE_OUTPUT} && cp {REMOTE_OUTPUT} {REMOTE_OUTPUT}.pre_{stamp} "
                  f"&& echo archived || echo none", retries=2)
     log.info("Existing remote output archived (frozen-baseline, Way A).")
+    # LB.79 (additiv): feature_selection skriver per-KEY xlsx till
+    # output/model/automl/* + model_objects men skapar INTE mapparna
+    # -> RayTaskError(OSError) om output/model rensats. mkdir -p ar
+    # idempotent. BCG-kod oror; detta ar runnerns ansvar.
+    _model_dir = os.path.dirname(REMOTE_OUTPUT)
+    ssh_run(cfg, f"mkdir -p {_model_dir}/automl/details {_model_dir}/automl/results "
+                 f"{_model_dir}/model_objects", retries=2)
+    log.info("LB.79: automl/details, automl/results, model_objects sakerstallda pa VM.")
     return _now_utc()
 
 
