@@ -58,6 +58,141 @@ anger `--end YYYY-MM`. Ankaret för det växande elasticitetsfönstret är fast 
 
 ---
 
+---
+
+## 2.5 Kör modellfamiljerna (FÖRE → MOTOR → EFTER)
+
+> Den här sektionen täcker stegen *före* Step 6: att producera modelloutput från färsk data.
+> Sektion 3 (Step 6 och framåt) förutsätter att det här körts. Kedjan går i **tre delar på
+> två platser** — FÖRE och EFTER lokalt, MOTOR på Azure-VM:en — eftersom DW bara nås via VPN
+> och xlwings/COM bara kör på Windows, medan Ray-modellstegen kräver VM:ens RAM.
+
+Orkestrerarna ligger i `orchestration\runners\` och körs alla med `py -3.11` från repo-roten.
+Var och en stöder `--dry-run` (visa planen, gör inget) och `--check` (lokal preflight).
+`<END>` = växande fönstrets slutdatum, t.ex. `2026-05-31`. `<YYYY-MM-DD>` = datummappen för
+körningen (samma fönster).
+
+### Innan något körs mot Azure — token + subscription
+
+Token lever 4 timmar (E.3). Verifiera alltid subscription *före* VM-kommandon (az cachar den).
+
+```powershell
+az login --scope https://management.core.windows.net//.default
+az account show --query name -o tsv          # ska vara: ev-lz3-ai (SE)
+```
+
+### (1) FÖRE — bränsleledet (lokal dator)
+
+`run_data.py` kedjar REGEN (DW → parquet, BA-venvens pyodbc-python) → PREP (DuckDB → vecko-CSV)
+→ UPLOAD (parquet → Blob `input`). Datumfönstret styrs av `BCG_END_DATE`, som runnern sätter
+internt — du anger bara `--end`. **Kräver VPN** till DW (port 40615).
+
+```powershell
+cd "C:\Projekt\BCG"
+py -3.11 orchestration\runners\run_data.py --dry-run --end <END>   # se planen forst
+py -3.11 orchestration\runners\run_data.py --end <END>             # hela bransleledet
+```
+
+### (2) MOTOR — modellstegen 1–4 per familj (Azure-VM)
+
+Varje runner startar VM:en, kör BCG:s launcher (5 steg) detached via setsid, pollar med pgrep,
+hanterar two-pass och feature_selections automl-mappar (LB.79), hämtar output lokalt + till Blob,
+auto-validerar mot fryst facit, och **deallokerar VM:en vid bekräftat utfall**. Step 5 (xlwings)
+kraschar alltid benignt på Linux (LB.44) — steg 1–4 klara = lyckad fas; Step 5 körs lokalt i EFTER.
+
+Kör en familj i taget. Vill du köra flera i rad utan att VM:en stängs emellan, lägg `--keep-vm`
+på alla utom den sista (då deallokerar bara den sista).
+
+```powershell
+py -3.11 orchestration\runners\run_site_model.py --keep-vm
+py -3.11 orchestration\runners\run_cluster_model.py --keep-vm
+py -3.11 orchestration\runners\run_bundle_model.py            # sista -> deallokerar VM:en
+```
+
+Tappar du tunneln mitt i en körning: jobbet lever vidare på VM:en (setsid-detached). Återanslut
+med `--attach` istället för att starta om:
+
+```powershell
+py -3.11 orchestration\runners\run_cluster_model.py --attach
+```
+
+### (3) Följ körningen i statusdashboarden (valfritt, lokal)
+
+En läs-bara Flask-app som renderar modellens hälsa per fas. Den *speglar* statusfilen (Blob),
+den styr ingenting.
+
+```powershell
+cd "C:\Projekt\BCG"
+py -3.11 -m pip install flask          # forsta gangen
+py -3.11 orchestration\webapp\app.py   # -> http://127.0.0.1:5000  (--port for annan port)
+```
+
+Öppna `http://127.0.0.1:5000` i webbläsaren. `Ctrl+F5` för hård omladdning efter mall-ändringar.
+Se `orchestration\README.md` för detaljer.
+
+### (4) EFTER — Step 5/6/7 (lokal dator)
+
+Step 5 (familjernas Excel-steg) körs lokalt. Step 6 + build_r12 körs av `run_after.py`, som
+hämtar motorns utfall + de tre frusna lagren **från Blob** (inte lokala filer), kör väven och
+matningen, och laddar upp resultatet tillbaka. Därefter fortsätter du i sektion 3.
+
+```powershell
+py -3.11 orchestration\runners\run_after.py --dry-run --date-folder <YYYY-MM-DD>
+py -3.11 orchestration\runners\run_after.py --date-folder <YYYY-MM-DD>
+```
+
+> Detaljerna för Step 6 (vad väven gör, F-nivåerna, kvitton) och build_r12 står i **3.1 och 3.3**.
+> `run_after.py` är orkestreraren *runt* dem; sektion 3 beskriver stegen själva.
+
+### (5) Validera hela kedjan i ett svep
+
+Allkedje-sonden validerar hela den röda tråden FÖRE → MOTOR → EFTER statiskt (kör var som helst,
+även på en frisk GitHub-klon — ingen VM/azure/DW krävs), och skriver en fristående flödeskarta
+(`workspace\flow_map\`) som kan klistras in som kontext till en framtida AI-session.
+
+```powershell
+py -3.11 verify_tool\probes\all_chain_validator.py          # struktur, runner-synk, kontrakt, fallor
+py -3.11 verify_tool\probes\all_chain_validator.py --vm     # + levande VM-kontroller (VM uppe)
+```
+
+`FAIL=0` = kedjan håller. `REVIEW` = väntad designnot eller äkta data-drift att *läsa*, inte fixa
+(t.ex. KEY-drift = managementinsikt, IB.6/IB.11). De domänspecifika valideringssviterna
+(rationality, provenance) körs separat — se **3.2**.
+
+### Stäng alltid av VM:en efter MOTOR-arbete
+
+Runnarna deallokerar själva vid bekräftat utfall. Men verifiera mot **faktiskt** tillstånd (LB.60),
+och deallokera manuellt om något lämnade VM:en igång (`--keep-vm`, avbruten körning, observationsförlust):
+
+```powershell
+az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm `
+  --query "instanceView.statuses[1].displayStatus" -o tsv
+# om "VM running":
+az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm
+```
+
+`deallocate`, inte `stop` — `stop` lämnar compute-debiteringen på (~9 kr/h).
+
+### Starta en ny dag / ett nytt fönster — hela loopen
+
+När en ny månad stängt, kör i ordning:
+
+```powershell
+cd "C:\Projekt\BCG"
+az login --scope https://management.core.windows.net//.default          # token (4h)
+py -3.11 orchestration\runners\run_data.py --end <END>                   # FÖRE
+py -3.11 orchestration\runners\run_site_model.py --keep-vm               # MOTOR
+py -3.11 orchestration\runners\run_cluster_model.py --keep-vm           #   (en familj
+py -3.11 orchestration\runners\run_bundle_model.py                       #    i taget)
+py -3.11 orchestration\runners\run_after.py --date-folder <YYYY-MM-DD>   # EFTER
+py -3.11 verify_tool\probes\all_chain_validator.py                       # validera kedjan
+# verifiera VM deallokerad (se ovan), fortsatt sedan i sektion 3.2-3.4 for matning + Excel
+```
+
+Alla familjer för samma fönster delar **en statusfil** (`run_id` härlett ur datumfönstret), så
+dashboarden visar FÖRE + MOTOR + EFTER i en vy. R12-fönstret i build_r12 (sektion 3.3) rullar
+fram automatiskt till senaste kompletta månad.
+
 ## 3. Steg för steg
 
 ### 3.1 Kör Step 6 — fallback-väven (F1–F7)
