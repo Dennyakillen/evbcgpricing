@@ -167,6 +167,7 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 | `INSIGHTS_BCG.md` | Analytical insights (IB.N) — observations about the model and data |
 | `ROADMAP.md` | Phase overview: V → T → F → A (F done, A next) |
 | `FUTURE_DEVELOPMENT.md` | Future tracks (FD.N), incl. Phase Z productionization (the next session's plan lives here now) |
+| `verify_tool/probes/all_chain_validator.py` | **Allkedje-sond (Leverans 2)** - end-to-end statisk validering av hela kedjan (FORE->MOTOR->EFTER), harledd ur run_status.default_pipeline. Replikeringskontrakt (kor pa en frisk klon) + fristaende flodeskarta for AI-kontext. Skriver workspace/flow_map + Consolas Excel-receipt. |
 | `orchestration/` | **Phase Z orchestrator** — three family runners (`runners/run_cluster_model.py`, `run_site_model.py`, `run_bundle_model.py`) run model steps 1-4 on the Azure VM, each auto-validating against frozen facit and uploading all output to Blob. `shared/run_status.py` (status contract, all phases incl. bundle), `infrastructure/azure_vm.py` + `blob.py`, `webapp/` (read-only status dashboard). See `orchestration/README.md`. |
 | `FAS_F_G7.md` | Date window parametrization design |
 | `UBUNTU_AZURE_VM.md` | Linux/bash specifics for Azure VM operations |
