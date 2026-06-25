@@ -34,14 +34,14 @@ with current data:
 
 ---
 
-## Current state (2026-06-16)
+## Current state (2026-06-25)
 
 | Phase | Status |
 |---|---|
 | FAS V — Validate that we reproduce BCG | **DONE.** verify_tool proves FR-1 through FR-7. |
 | FAS T — Tech debt to IT (reproducible env, pinned venv) | Open; not blocking experimental runs. |
 | FAS F — Fresh-data prerequisites | **DONE.** All 3 model families run on growing data; Step 6 (fallback weave) run and validated; model can be fed via `build_r12_for_model.py`. Bundle parked on evidence (FD.11); 3 inputs intentionally frozen (LF.9). |
-| FAS A — Azure automation | **In progress.** Three family runners (cluster, site, bundle) run model steps 1-4 on the Azure VM, each auto-validating against frozen facit and uploading all output files to Blob (build 1+2, 2026-06-16). A read-only Flask status dashboard (`orchestration/webapp/`) renders the model's health as a per-phase trust funnel (bit-for-bit proof → facit→now plausibility → exportable receipts). Bundle activated as a full family (FD.34). Remaining before full autonomy: account consolidation (FD.35 — status in prod-account, facit in test-account), the read-side of purpose B (next family reads prior Blob output), sequencer, Blob data role (ABAC-blocked, FAS T). Local Excel steps (5/6/r12) stay local by necessity (xlwings/COM, LB.44). See `FUTURE_DEVELOPMENT.md` Phase Z + `NEXT_SESSION.md`. |
+| FAS A — Azure automation | **In progress.** Five runners cover the full chain in three parts (FORE/MOTOR/EFTER): `run_data.py` (local fuel: DW→parquet→Blob), three family model runners (cluster/site/bundle) on the Azure VM auto-validating against frozen facit + uploading to Blob, and `run_after.py` (local Step 5/6/7 + push). A read-only Flask status dashboard (`orchestration/webapp/`) renders per-phase health. **Leverans 2 (2026-06-25):** `verify_tool/probes/all_chain_validator.py` validates the whole chain statically (runs on a fresh clone — no VM/azure/DW), derived from `run_status.default_pipeline` (FLOW out of sync with the contract = FAIL by design), doubling as a replication contract + a standalone flow map (AI-session context). It ran FAIL=0 and caught a real defect (cluster `EXPECTED_KEYS` was the step-5 blend count, wrong layer → set to None) plus the LB.79 automl-dir gap (now `mkdir -p` in `preflight_remote`, all three runners). Operational runbook: `DRIFT.md` §2.5. Remaining before full autonomy: account consolidation (FD.35), the read-side of purpose B (next family reads prior Blob output), sequencer, Blob data role (ABAC-blocked, FAS T). Local Excel steps (5/6/r12) stay local by necessity (xlwings/COM, LB.44). See `FUTURE_DEVELOPMENT.md` Phase Z + `NEXT_SESSION.md`. |
 
 **Fresh-data result (2026-06-11):** the model now runs end-to-end on Evidensia's own growing data
 through 2026-04. Step 6 produced 108,979 rows / 15,128 products (100% negative, 100% in band);
