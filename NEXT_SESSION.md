@@ -229,6 +229,42 @@ Frozen-facit blessad som referens: **108 979 rader / 15 128 keys / median −0.4
 
 ---
 
+## 5.6 SIDOSPÅR 2026-06-26 (kväll) — kunskapsbas-räddning + kompass + repo-städning (AVSLUTAT)
+
+> Fortsättning samma kväll som §5.5. Allt nedan KLART och pushat om ej annat anges.
+
+### Vad som gjordes och är KLART (pushat)
+- **LESSONS_BCG dubbelkodnings-räddning:** filen var dubbelkodad (1942 mojibake-sekvenser
+  `C3 83 C2 A4`, UTF-8→CP1252→UTF-8) — orsak: VS Code öppnade UTF-8-fil med fel kodning + auto-save.
+  Lagad byte-rent (läs UTF-8 → CP1252-bytes → WriteAllBytes). 90517→84961 bytes, ren. Committad SEPARAT
+  före lärdomar. **LB.86** fäst (editorn + PS-mätinstrument båda hot mot filintegritet).
+- **LB.82-86 fästa** i LESSONS_BCG (DW-namn, vävens fyra ventiler, Natrium Catalyst, valid>lager, kodning).
+- **KÄRNPRINCIPER P.6-P.13 + kompass** i masters (nu Master-Bibliotek): P.6 validator-feltålig,
+  P.7 grain, P.8 schema-on-write, P.9 atomära skrivningar (proportionerat), P.10 idempotens,
+  P.11 tests-vs-validation, P.12 property-based, P.13 cross-row-invarianter. + tio-signalers kompass överst.
+- **io_safe.py + idempotens_audit.py** committade i BCG. Audit mätte 164 skrivningar, ~3-4 relevanta
+  (run_step6, build_r12, fallback_blend) — resten BCG-kärna (rör ej) el kvitton (lågprio).
+- **docs/ sorterad:** rotfiler → sessions/ prompts/ knowledge/ (git mv, historik bevarad).
+  UBUNTU_AZURE_VM (identisk dubblett) + COMMIT_GUIDE + TILLAGG_governing_docs borttagna. Downloads rensat.
+- **Repo masters → Master-Bibliotek** omdöpt: GitHub-namn + lokal remote + lokal mapp, alla verifierade.
+
+### KVAR — parkerat medvetet (kräver pigg + filåtkomst, gör i Claude Code)
+- **KRITISK — MASTER_AZURE.md merge:** BCG-kopian (`docs/ops/`, 512 rader) är RIKARE än masters-kopian
+  (327 rader) med 386 unika rader (konton, Phase Z-resurser) MEN dubbelkodad. "masters trumfar" gällde
+  UBUNTU (identisk) men EJ denna (BCG rikare) — mät delta, lita ej på samma namn. Uppgift: (1) laga
+  BCG-kopians kodning först, (2) avgör universellt-vs-projektspecifikt rad-för-rad, (3) smält universellt
+  → Master-Bibliotek (ren mot ren — smält ALDRIG dubbelkodad text in i ren fil), behåll projektspecifikt
+  i BCG. (4) verifiera båda byte-rent.
+- **BRA — BCG\docs UTF-8-konvertering:** TECHNICAL_PREREQUISITES, KRAVSPEC_IT, README_VALIDERING m.fl. är
+  CP1252 (vissa dubbelkodade). Master-Bibliotek är ren UTF-8. Konvertera hela BCG-doc-sviten → UTF-8 så
+  CP1252-fällan försvinner (roten till kvällens korruptioner, LB.86).
+- **KRITISK — referenser efter repo-namnbyte:** masters→Master-Bibliotek på 3 tekniska nivåer, men
+  DOKUMENTATIONEN släpar (fjärde kartan). Sök/ersätt i ALLA filer: `C:\Projekt\masters` →
+  `C:\Projekt\Master-Bibliotek` OCH `Dennyakillen/masters` → `Dennyakillen/Master-Bibliotek`
+  (STATE.md, README:er, governing-docs, ev skript). Gör i Claude Code (söker hela trädet).
+
+---
+
 ## 6. Ej blockerande (ta vid tillfälle)
 
 - **Fäst dagens tekniska lärdomar i LESSONS_BCG** (gör TIDIGT nästa session, färskt):
@@ -243,8 +279,9 @@ Frozen-facit blessad som referens: **108 979 rader / 15 128 keys / median −0.4
   + periodmedvetna KPI:er (story_config "now" hårdkodad april/facit).
 - **LESSONS-delning + NEXT_SESSION-städning:** 7 NEXT_SESSION-filer finns (se §7) — rensa till EN.
 
-**Valideringslager (sidospår §5.5 — lägst risk först, ej brådskande):**
-- Fix conservation.py skarv 1: byt `ItemCode` → `ID_Item` i DuckDB-frågan (LB.82). En rad. Trivialt.
+**Valideringslager (sidospår §5.5/§5.6 — lägst risk först, ej brådskande):**
+- [KLART 2026-06-26: LB.82-86 fästa, KÄRN P.6-P.13 i Master-Bibliotek, io_safe+audit committade.]
+- Fix conservation.py skarv 1: byt `ItemCode` → `ID_Item` i DuckDB-frågan (LB.82). En rad. Trivialt. (KVAR)
 - Kalibrera valve_map V2/V4: print-satser finns i valve_map.py-huvudet → klistra i Fall_Back_Logic.py
   temporärt, kör väven, jämför, uppgradera APPROX→EXAKT. Öppen fråga: V4 99.6% sant eller approx-fel?
 - Koppla in i preflight (additivt): run_step6 (prefilter→contracts), run_after (window_coherence).
