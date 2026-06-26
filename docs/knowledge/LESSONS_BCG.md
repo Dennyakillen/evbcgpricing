@@ -1105,14 +1105,3 @@ inkoppling i run_step6/run_after preflight.
 > Bekräftat UTF-8 (byte-koll: 23 20 4B C3). Spara UTF-8 (VS Code standard).
 > BARA denna ENA princip. De andra föreslagna AVVISADES som instanser av P.1/P.3 (§6.6).
 > Sätt nästa lediga P-nummer. Lägg vid de andra P-principerna.
-
-### P.X — Validatorn måste vara minst lika feltålig som systemet den validerar
-En kontroll som kraschar på ett tillstånd som det validerade systemet redan hanterar är värre än
-ingen kontroll — den producerar falska larm och underminerar förtroendet för hela valideringslagret.
-Skilj alltid observation loss (kan inte se/nå) från failure (är trasigt). En grind som ropar NO-GO
-på en utgången token säger "vet inte", inte "fel" — den ska degradera mjukt, inte stoppa. Är systemet
-AZ.7-tolerant (tunnel-blink ≠ jobbfel) måste varje validator som rör samma kanal vara det med.
-*Detta är "pipelines that lie about success" (P.1-klassen) flyttad upp i valideringslagret: en
-validator som ljuger om GO/NO-GO är lika farlig som en pipeline som ljuger om success.*
-**Belägg:** window_coherence kraschade på utgången Azure-token 2026-06-26 medan azure_vm.py:s AZ.7
-sedan länge löst exakt den distinktionen. Validatorn var mindre mogen än systemet den vaktade.
