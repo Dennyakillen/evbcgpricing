@@ -1059,3 +1059,60 @@ Lokalt körs BARA steg A + B (DuckDB, ej Ray). Bundle korsar miljöer: A/B lokal
 **Förkroppsligas i:** `BUNDLE_KEDJAN_KARTLAGD.md` §3, `verify_tool/probes/bundle_chain_validator.py`
 (H1 FAIL-flaggar lokal körning av steg C).
 
+### LB.82 — Parquetens rådata bär DW-namn, inte nedströms-namn
+transaction_data.parquet använder DW:s kolumnnamn (`ID_Item`, `ID_Customer`, `ID_Patient`),
+INTE de nedströms-namn Constant.py/väven använder (`ItemCode`, `ProductKey`). Omdöpningen
+sker i nedströmskoden. Ett verktyg som frågar parqueten direkt (DuckDB) måste använda DW-namnen.
+**Belägg:** conservation.py skarv 1 föll på `Referenced column "ItemCode" not found. Candidate
+bindings: ID_Item, ID_Customer...` 2026-06-26. Instans av schema-drift (samma entitet, olika namn
+på olika ställen) — samma rot som `No of Sites` vs `No_of_Sites` (cluster-maj). **Gäller om:** du
+frågar parqueten direkt i ett verktyg.
+
+### LB.83 — Step 6-vävens fyra avsiktliga ventiler (signifikansprofilen)
+Fall_Back_Logic.py har fyra avsiktliga "tryckventiler" där rader lämnar röret med avsikt:
+- **V1** (~rad 102/630): `service == 'Fee'` — Fee-tjänster (ej priselastiska). Mätt: 5 rader.
+- **V2** (~rad 252): inner join på ProductKey — produkter utan service-match (Natrium Catalyst).
+- **V3** (~rad 377/408): `significant == 1` (RSQ≥.5 & PVALUE≤.20 & −10<elast<0) — HUVUDVENTILEN.
+  Mätt 2026-06-26: släpper **77.4%** av cluster-modellerna (PVALUE 2166/RSQ 1428/tecken 1100/
+  orimlig 10; överlappande skäl). ~77% är insignifikanta — avsiktligt, ej läcka. Skild från den
+  historiska 73% silent drop — denna är AVSIKTLIG signifikansfiltrering.
+- **V4** (~rad 658): `SigSites_Sum >= 10` — site-elasticitet kräver ≥10 signifikanta sites.
+Uppmätta i valve_map.py. V1/V3 EXAKT; V2/V4 APPROX (ej kalibrerade mot väven än). **Gäller om:**
+du felsöker varför en produkt saknar/har viss elasticitet, eller en ventils utflöde avviker från
+baslinjen. **Förkroppsligas i:** verify_tool/valve_map.py.
+
+### LB.84 — df_all_product (FD.14) bär icke-prissatta poster utan ItemCode
+Complete_Product_Data.xlsx innehåller "Na (Natrium) Catalyst" / "Internal" — labbreagens-kostnad,
+ej prissatt produkt, ~20 rader över ~20 kliniker, saknar ItemCode (130 109 kr). Faller ur väven
+KORREKT men TYST via inner join (V2). Rätt utfall, ömtålig mekanism: en verklig prissatt produkt
+som tappar sin nyckel skulle gömmas i samma hål. Instans av KÄRN P.3. **Åtgärd:** prefilter_unpriced.py
+gör bortfallet explicit + blockerar prissatt-produkt-utan-nyckel. **Gäller om:** du ändrar väv-input
+eller ser oväntat produktbortfall i Step 6.
+
+### LB.85 — Valideringslager runt orörd BCG-motor (verify_tool, 2026-06-26)
+Additivt lim runt den orörda motorn, byggt+kört+pushat 2026-06-26 (commits ad446e4 + 57b28ca):
+pipeline_contracts (boundary-kontrakt Step 6, blockerande), prefilter_unpriced (explicit ventil),
+window_coherence (tvärs-familje-grind, AZ.7-tolerant), dry_run_full_pipeline (skarvkoll, 24 OK/0 FAIL),
+run_smoke_facit (frozen-facit-referens, offline), conservation (population per skarv), valve_map
+(ventilflöde). Frozen-facit blessad: 108 979 rader / 15 128 keys / median −0.4968. BCG-kärnan orörd.
+**Gäller om:** ny period ska köras eller fogmassan ändras. **Förkroppsligas i:** verify_tool/ +
+REPLIKERING_OCH_VALIDERING.md. **Öppet:** V2/V4-kalibrering, conservation skarv 1 (ID_Item-fix),
+inkoppling i run_step6/run_after preflight.
+
+═══════════════════════════════════════════════════════════════════════════
+## DESTINATION 2 — KÄRNPRINCIPER.md (i C:\Projekt\masters)  ·  KODNING: UTF-8
+═══════════════════════════════════════════════════════════════════════════
+> Bekräftat UTF-8 (byte-koll: 23 20 4B C3). Spara UTF-8 (VS Code standard).
+> BARA denna ENA princip. De andra föreslagna AVVISADES som instanser av P.1/P.3 (§6.6).
+> Sätt nästa lediga P-nummer. Lägg vid de andra P-principerna.
+
+### P.X — Validatorn måste vara minst lika feltålig som systemet den validerar
+En kontroll som kraschar på ett tillstånd som det validerade systemet redan hanterar är värre än
+ingen kontroll — den producerar falska larm och underminerar förtroendet för hela valideringslagret.
+Skilj alltid observation loss (kan inte se/nå) från failure (är trasigt). En grind som ropar NO-GO
+på en utgången token säger "vet inte", inte "fel" — den ska degradera mjukt, inte stoppa. Är systemet
+AZ.7-tolerant (tunnel-blink ≠ jobbfel) måste varje validator som rör samma kanal vara det med.
+*Detta är "pipelines that lie about success" (P.1-klassen) flyttad upp i valideringslagret: en
+validator som ljuger om GO/NO-GO är lika farlig som en pipeline som ljuger om success.*
+**Belägg:** window_coherence kraschade på utgången Azure-token 2026-06-26 medan azure_vm.py:s AZ.7
+sedan länge löst exakt den distinktionen. Validatorn var mindre mogen än systemet den vaktade.

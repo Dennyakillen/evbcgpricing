@@ -1,6 +1,7 @@
 # NEXT_SESSION — Cluster-maj: rotorsak LÖST, fix kvarstår (vattentät)
 
-**Skapad:** 2026-06-23 (session-slut). **Ersätter:** NEXT_SESSION_cluster_maj_blockerad.md (föråldrad — skrevs före sond 3).
+**Skapad:** 2026-06-23 (session-slut). **Uppdaterad:** 2026-06-26 (valideringslager-sidospår invävt §5.5, lärdomar fästa).
+**Ersätter:** NEXT_SESSION_cluster_maj_blockerad.md (föråldrad — skrevs före sond 3).
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia). **Författare:** Claude-rådgivare.
 **Status:** Cluster-maj blockerad. ROTORSAK BEVISAD (sond 3). Fix kvarstår — kräver ett BESLUT (se §3).
 **Sidospår 2026-06-26:** valideringslager byggt + pushat (se §5.5) — påverkar INTE cluster-maj-blockeringen.
@@ -214,10 +215,17 @@ Frozen-facit blessad som referens: **108 979 rader / 15 128 keys / median −0.4
   systemet" gäller cluster-majs fix: en tolerant schema-hantering (väg A) är att HÄRLEDA kolumnnamn,
   inte deklarera dem på två ställen som glider isär. Återanvänd `PROMPT_hitta_validera_cementera.md`.
 
-### Lärdomar att fästa (EJ gjort än — kräver CP1252-editor)
-- **LESSONS_BCG.md** (C:\Projekt\BCG\...): LB.82-85. Råmaterial: `docs/TILLAGG_governing_docs.md`.
-- **KÄRNPRINCIPER.md** (C:\Projekt\masters — EGET repo, separat commit): kandidat "validatorn minst
-  lika feltålig som systemet". Övriga föreslagna AVVISADE som instanser av P.1/P.3 (§6.6-prövat).
+### Lärdomar att fästa (STATUS 2026-06-26)
+- **LESSONS_BCG.md** (BCG-repot): LB.82-85 inklistrade (CP1252). Råmaterial: docs/INKLISTRING_FINAL.md.
+- **KÄRNPRINCIPER.md** (C:\Projekt\masters — EGET repo): principen "validatorn minst lika feltålig
+  som systemet" inklistrad (UTF-8). Övriga föreslagna AVVISADE som instanser av P.1/P.3 (§6.6-prövat).
+- Om någon av ovan EJ är klar när du läser detta: docs/INKLISTRING_FINAL.md har exakt text + kodning.
+
+### Masters-städning kvar (lågprioriterat, ej blockerande)
+- `Personalrabatt_html.txt` (107 KB) i masters — troligen ej universell, avgör hemvist/arkivera.
+- `PROMPT_arkitektur_mognadsanalys.md` i masters — BCG-specifik + mojibake-skadad → laga kodning,
+  flytta till BCG\docs\. (Är projektspecifik, hör ej i masters per README-grinden.)
+- `MASTER_AZURE.md` + `MASTER_AZURE_COMPUTE.md` båda i masters — avgör om de ska slås ihop (versionsskew).
 
 ---
 
