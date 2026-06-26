@@ -3,10 +3,12 @@
 **Skapad:** 2026-06-23 (session-slut). **Ersätter:** NEXT_SESSION_cluster_maj_blockerad.md (föråldrad — skrevs före sond 3).
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia). **Författare:** Claude-rådgivare.
 **Status:** Cluster-maj blockerad. ROTORSAK BEVISAD (sond 3). Fix kvarstår — kräver ett BESLUT (se §3).
+**Sidospår 2026-06-26:** valideringslager byggt + pushat (se §5.5) — påverkar INTE cluster-maj-blockeringen.
 
 > ⚠️ Denna fil bär den FÄRDIGA diagnosen. Återupptäck den INTE. Tidigare prompter
 > (_blockerad.md) bar en delvis felaktig mellanversion (ProductGroupL4Name "saknas/ny" —
 > FEL, den finns i båda vägarna). Lita på DENNA fil.
+> **Primärt mål nästa session = cluster-maj (§2-§4).** §5.5 är avslutat sidospår (kontext, ej att göra).
 
 ---
 
@@ -162,6 +164,63 @@ gav rotorsaken. Sond 1/2/4 = VM. Kör hela: `py -3.11 run_cluster_maj_diagnosis.
 
 ---
 
+## 5.5 SIDOSPÅR 2026-06-26 — valideringslager runt motorn (AVSLUTAT, pushat)
+
+> Detta är KONTEXT, inte en att-göra-lista. Ett parallellt spår som byggdes klart och
+> pushades samma session. Påverkar INTE cluster-maj-blockeringen. Läs för att veta vad som
+> nu FINNS att använda — flera av dessa verktyg är direkt nyttiga för cluster-maj-arbetet (se "Hur det hjälper").
+
+### Vad vi gjorde
+Byggde, körde och pushade ett **additivt valideringslager** runt den orörda BCG-motorn — "limmet"
+som bevisar att hela röret (FÖRE→MOTOR→EFTER) håller på växande data utan tyst tapp tvärs familjer,
+och som synliggör vävens avsiktliga filter. BCG-kärnan orörd (additivt only). Pushat i två commits
+(`ad446e4` verktyg + `57b28ca` dok), 7da30b9..57b28ca.
+
+Sju verktyg i `verify_tool/`:
+- **pipeline_contracts.py** — boundary-kontrakt för Step 6:s inputs (form/volym/invariant, blockerande).
+- **prefilter_unpriced.py** — gör icke-prissatt bortfall (Natrium Catalyst) explicit före väven.
+- **window_coherence.py** — tvärs-familje-grind: alla MOTOR-familjer klara+färska mot samma fönster
+  före EFTER. Offline default, `--via-blob` striktare, AZ.7-tolerant (token-död degraderar mjukt).
+- **dry_run_full_pipeline.py** — strukturell dry-run tvärs hela röret (24 OK/0 FAIL).
+- **run_smoke_facit.py** — end-to-end rök-test mot frozen facit, HELT OFFLINE.
+- **conservation.py** — population per skarv (skarv 1 parquet-tillväxt; skarv 2-3 ramverk).
+- **valve_map.py** — ventilkarta: var vävens filter sitter, hur mycket de släpper, vad som rann ut.
+
+Frozen-facit blessad som referens: **108 979 rader / 15 128 keys / median −0.4968**
+(`verify_tool/frozen_facit_reference.json`, versionshanterad — drift mot den är spårbar).
+
+### Vad mätningen avslöjade (verkliga fynd)
+- **Step 6-vävens fyra avsiktliga ventiler uppmätta** (valve_map, LB.83): V1 Fee (släpper 5),
+  V2 service-join, V3 signifikans (släpper **77.4%** av cluster-modellerna — PVALUE 2166/RSQ 1428/
+  tecken 1100/orimlig 10, överlappande), V4 min-sites. V1/V3 EXAKT; V2/V4 APPROX (ej kalibrerade).
+- **Natrium Catalyst (LB.84):** df_all_product bär ~20 icke-prissatta poster utan ItemCode som
+  faller ur väven tyst via inner join (instans av KÄRN P.3). Nu explicit via prefilter_unpriced.
+- **Schema-drift (LB.82):** parqueten bär DW-namn (`ID_Item`), inte nedströms (`ItemCode`).
+  *Detta är samma klass som cluster-majs two-prep-väg-glapp (§1) — namn-drift mellan led.*
+
+### Vad vi INTE gjorde (öppet, ej brådskande — se §6)
+- V2/V4 i valve_map är APPROXIMATIONER, ej kalibrerade mot vävens faktiska tal.
+- conservation.py skarv 1 har samma schema-bugg som LB.82 (frågar `ItemCode`, ska vara `ID_Item`).
+- Verktygen är EJ inkopplade i run_step6/run_after preflight (additivt, gjort när tid finns).
+- window_coherence `--via-blob` oprövad mot live token.
+
+### Hur det hjälper framåt (även cluster-maj DIREKT)
+- **dry_run_full_pipeline.py + run_smoke_facit.py** = kör FÖRE varje varm cluster-maj-relaunch.
+  Fångar sökvägs-/fönster-/schema-glapp KALLT på sekunder i stället för i minut 50 av en VM-körning.
+- **valve_map.py V3** ger dig nu en BASLINJE för hur mycket väven normalt avlättar — den dag en
+  ventils utflöde avviker på oförändrad data vet du var röret börjat läcka (felsöknings-startpunkt).
+- **Mönstret (LB.85 / KÄRN-kandidat):** two-prep-väg-glappet (§1) och schema-drift (LB.82) är SAMMA
+  bug-klass. Principen "härled, deklarera inte två gånger" + "validatorn minst lika feltålig som
+  systemet" gäller cluster-majs fix: en tolerant schema-hantering (väg A) är att HÄRLEDA kolumnnamn,
+  inte deklarera dem på två ställen som glider isär. Återanvänd `PROMPT_hitta_validera_cementera.md`.
+
+### Lärdomar att fästa (EJ gjort än — kräver CP1252-editor)
+- **LESSONS_BCG.md** (C:\Projekt\BCG\...): LB.82-85. Råmaterial: `docs/TILLAGG_governing_docs.md`.
+- **KÄRNPRINCIPER.md** (C:\Projekt\masters — EGET repo, separat commit): kandidat "validatorn minst
+  lika feltålig som systemet". Övriga föreslagna AVVISADE som instanser av P.1/P.3 (§6.6-prövat).
+
+---
+
 ## 6. Ej blockerande (ta vid tillfälle)
 
 - **Fäst dagens tekniska lärdomar i LESSONS_BCG** (gör TIDIGT nästa session, färskt):
@@ -176,6 +235,14 @@ gav rotorsaken. Sond 1/2/4 = VM. Kör hela: `py -3.11 run_cluster_maj_diagnosis.
   + periodmedvetna KPI:er (story_config "now" hårdkodad april/facit).
 - **LESSONS-delning + NEXT_SESSION-städning:** 7 NEXT_SESSION-filer finns (se §7) — rensa till EN.
 
+**Valideringslager (sidospår §5.5 — lägst risk först, ej brådskande):**
+- Fix conservation.py skarv 1: byt `ItemCode` → `ID_Item` i DuckDB-frågan (LB.82). En rad. Trivialt.
+- Kalibrera valve_map V2/V4: print-satser finns i valve_map.py-huvudet → klistra i Fall_Back_Logic.py
+  temporärt, kör väven, jämför, uppgradera APPROX→EXAKT. Öppen fråga: V4 99.6% sant eller approx-fel?
+- Koppla in i preflight (additivt): run_step6 (prefilter→contracts), run_after (window_coherence).
+- Verifiera window_coherence `--via-blob` mot färsk token (mjuk degradering).
+- Fäst LB.82-85 (LESSONS_BCG) + KÄRN-kandidat (masters, eget repo). CP1252. Råmaterial: docs/TILLAGG_governing_docs.md.
+
 ---
 
 ## 7. STÄDA NEXT_SESSION-RÖRAN (gör detta nästa session)
@@ -186,3 +253,8 @@ gav rotorsaken. Sond 1/2/4 = VM. Kör hela: `py -3.11 run_cluster_maj_diagnosis.
 - Downloads: 4 till (dubbletter/gamla — rensa).
 PLAN: gör DENNA fil till `NEXT_SESSION.md` (skriv över den gamla), radera _blockerad.md
 och Downloads-dubbletterna. En NEXT_SESSION.md + en TEMPLATE = sanning.
+
+**Valideringslager-dokument (sidospår §5.5 — INTE NEXT_SESSION-filer, ska EJ raderas):**
+docs/ har nu SESSION_2026-06-26, README_VALIDERING, ARKITEKTUR_MOGNADSANALYS, PROMPT_hitta_validera_
+cementera, COMMIT_GUIDE, TILLAGG_governing_docs. De fyra första är varaktig dok (behåll). COMMIT_GUIDE
++ TILLAGG är arbetsmaterial — kan arkiveras/raderas NÄR lärdomarna är inklistrade (§5.5) och commit klar.
