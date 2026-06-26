@@ -1,0 +1,17 @@
+{
+  "source_file": "Final_Fallback_Data_20260622_125206.xlsx",
+  "rows": 108979,
+  "profiled_at": "2026-06-26T10:12:50Z",
+  "distinct_keys": 15128,
+  "elast_median": -0.4968,
+  "elast_neg_pct": 100.0,
+  "flevel_pct": {
+    "F6 service within cluster": 74.59,
+    "F3 cluster level": 9.77,
+    "F5 product across clusters": 9.54,
+    "F7 service across clusters": 3.86,
+    "F2 bundle level": 1.85,
+    "F4 bundle across clusters": 0.37,
+    "F1 site level": 0.01
+  }
+}
