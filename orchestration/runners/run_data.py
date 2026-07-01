@@ -223,7 +223,7 @@ def step_upload() -> "tuple[int, str | None]":
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Lokala bränsleledet: regen -> prep -> upload (FD.26 lager 1).")
-    ap.add_argument("--end", default="2026-04-30",
+    ap.add_argument("--end", default=None,
                     help="Växande fönster slutdatum (default 2026-04-30). Når regen som --out-fönster "
                          "och prep som env BCG_END_DATE.")
     ap.add_argument("--skip-regen", action="store_true",
@@ -238,6 +238,11 @@ def main() -> int:
     ap.add_argument("--no-status", action="store_true",
                     help="Kör utan statusrapportering (rent lager 1-beteende).")
     args = ap.parse_args()
+    if args.end is None:
+        from window import resolve_window_end
+        args.end = resolve_window_end()
+        print(f"[window] --end not given -> auto: {args.end} (latest closed month). "
+              f"Re-running an existing window? Pass its --end explicitly.")
     # Harled fonster-id om --run-id ej angavs. Start = "2022-07-01" (BCG:s frysta
     # startpunkt, = modell-runnrarnas default) sa extraction delar statusfil med
     # modellfamiljerna for samma period. run_data har bara --end. Markt (KARN).

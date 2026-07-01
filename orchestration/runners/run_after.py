@@ -160,13 +160,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Efter-kedjan: PULL fran Blob -> Step6 -> R12 -> PUSH (FD.37).")
     ap.add_argument("--run-id", default=None, help="Fonster-id for status (default: window_run_id ur --start/--end).")
     ap.add_argument("--start", default="2022-07-01", help="Fonstrets start.")
-    ap.add_argument("--end", default="2026-04-30", help="Fonstrets slut.")
+    ap.add_argument("--end", default=None, help="Fonstrets slut.")
     ap.add_argument("--date-folder", default=None, help="Blob-datummapp for LIVE-output att PULL:a (t.ex. 2026-06-17). KRAVS om ej --no-pull.")
     ap.add_argument("--no-pull", action="store_true", help="Hoppa PULL, anvand lokala filer (FELSOKNING pa motor-maskinen).")
     ap.add_argument("--tx", default=None, help="Transaktions-CSV for R12 (annars auto).")
     ap.add_argument("--no-push", action="store_true", help="Hoppa Blob-upload av resultatet.")
     ap.add_argument("--dry-run", action="store_true", help="Visa plan, kor inget.")
     args = ap.parse_args()
+    if args.end is None:
+        from window import resolve_window_end
+        args.end = resolve_window_end()
+        print(f"[window] --end not given -> auto: {args.end} (latest closed month). "
+              f"Re-running an existing window? Pass its --end explicitly.")
 
     if args.run_id is None:
         args.run_id = window_run_id(args.start, args.end)
