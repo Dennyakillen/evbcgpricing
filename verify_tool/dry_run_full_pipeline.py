@@ -56,7 +56,7 @@ FAMILY_RUNNERS = {
 
 # Skript som skarvarna refererar (fast sokvag i repot)
 REFERENCED = {
-    "regen (BA-venv)":   Path(r"C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked.py"),
+    "regen (BA-venv)":   Path(r"C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked_v2.py"),
     "BA-venv python":    Path(r"C:\Projekt\Business_Analytics\.venv\Scripts\python.exe"),
     "prep (DuckDB)":     REPO / "tools" / "replicate_dataprep.py",
     "run_step6":         REPO / "verify_tool" / "run" / "run_step6.py",

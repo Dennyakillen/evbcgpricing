@@ -4,7 +4,7 @@ run_data.py -- Lokala bränsleledet: ett kommando kör regen -> prep -> upload (
 Kedjar de tre lokala stegen som producerar och säkrar modellens bränsle, så att en körning
 (terminal ELLER "Kör" i VS Code) ersätter att klippa-och-klistra tre separata kommandon:
 
-  1. REGEN   regenerate_transaction_parquet_chunked.py  (DW -> transaction_data.parquet)
+  1. REGEN   regenerate_transaction_parquet_chunked_v2.py  (DW -> transaction_data.parquet)
   2. PREP    replicate_dataprep.py                       (parquet -> vecko-CSV:er via DuckDB)
   3. UPLOAD  upload_inputs (blob.py)                      (parquet -> Blob 'input'-container)
 
@@ -84,7 +84,7 @@ PHASE_KEY = "extraction"   # den fas run_data ansvarar för (run_status.default_
 
 # --- Verifierade sökvägar (ur sessionens källäsning 2026-06-15) ---
 BA_VENV_PYTHON = Path(r"C:\Projekt\Business_Analytics\.venv\Scripts\python.exe")  # regen kräver pyodbc
-REGEN_SCRIPT   = Path(r"C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked.py")
+REGEN_SCRIPT   = Path(r"C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked_v2.py")
 PREP_SCRIPT    = Path(r"C:\Projekt\BCG\tools\replicate_dataprep.py")
 PREP_BASE_DIR  = Path(r"C:\Projekt\BCG\Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL")
 PARQUET_OUT    = PREP_BASE_DIR / "parquet" / "transaction_data.parquet"   # dit 00_read.sql läser
