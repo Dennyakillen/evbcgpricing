@@ -1,7 +1,8 @@
-﻿# BLOB_MALSTRUKTUR — design för migrering (Leverans 2 + struktur-omläggning)
+# BLOB_MALSTRUKTUR — design för migrering (Leverans 2 + struktur-omläggning)
 
 *Utvecklare: Jens Palmö (Senior Business Analyst, Evidensia). Författare: Claude-rådgivare.*
 *Skapad 2026-06-23 under cluster-maj-körningen. Status: DESIGN — ej exekverad. Eget pass.*
+***Förenad med FD.28 2026-07-02 — detta dokument är nu den ENDA målstrukturen (se §Designförening).***
 
 ---
 
@@ -47,6 +48,52 @@ VARFÖR familj-yttre: familjen är FAST (alltid 3), fönstret VÄXER (nytt varje
 Fast ytterst + växande innerst = robust; containerstrukturen ändras aldrig, bara innehåll.
 Period-väljaren funkar lika bra (glob: */<window>/ i stället för <window>/*).
 
+## DESIGNFÖRENING med FD.28 (2026-07-02) — en målstruktur, inte två
+
+Två konkurrerande designer fanns: denna fil (familj-yttre, fönster-innerst) och
+`BLOB_STRUCTURE_DESIGN_FD28.md` (numrerade BCG-spegel-prefix: `02_cluster/`, `03_site/`,
+`05_step6/` ... utan fönsterdimension). Halvmigrerad Blob är värre än dagens — så EN
+design måste väljas FÖRE en enda blob flyttas. **Beslut: DENNA fil är kanonisk.
+FD.28:s numrerade prefix-paths UTGÅR som struktur.**
+
+**Skäl (i styrkeordning):**
+1. **Fönstret är kontraktet.** run_id = datafönster (statusmodellen 2026-06-22,
+   `window_run_id`). FD.28 saknar fönsterdimension helt och kan därför inte bära
+   period-väljaren, Leverans 2 (kvitton per fönster) eller facit-vs-växande-jämförelsen
+   per period — hela appens ärlighets-agenda.
+2. **Familj-yttre är den stabila axeln.** FD.28:s nummer (`02_`, `03_`, `05_`) kodar
+   BCG:s *lokala mappordning* in i molnstrukturen för alltid, utan funktionellt värde
+   för glob-mönster, appens läsvägar eller behörigheter.
+3. **En struktur.** Denna fils egen varning gäller designer lika mycket som data:
+   fyra kartor ska peka samma väg — och det förutsätter att kartan är EN.
+
+**Vad som ABSORBERAS från FD.28 (dess verkliga värden går inte förlorade):**
+- **Pedagogiken "strukturen som karta"** — levereras som mappningstabellen nedan
+  (+ valfritt: en liten `_STRUCTURE.md`-blob i containerroten). Dokumentation via
+  dokument, inte via path-namn.
+- **`validation/` per familj** — uppfylls STARKARE av `receipts/<family>/<window>/`
+  (fönster-medveten i stället för tidlös).
+- **Nollpunkten `pipeline/00_frozen_facit/`** — identisk i båda designerna, orörd.
+- **Nyckelläge-exekverbarhet utan Kent** + FD.29-gating (AAD = en env-var senare) —
+  gäller oförändrat för denna struktur.
+
+**Mappningstabell BCG-mapp ↔ målstruktur** (FD.28:s spegel, som dokumentation):
+
+| BCG-mapp (lokalt) | Blob-plats (mål) |
+|---|---|
+| Sweden_Elasticity_Data_Prep_SQL | `input/data_prep/<window>/` |
+| 2. Product Cluster Level Models | `output/cluster/<window>/` + `receipts/cluster/<window>/` |
+| 3. Product Site Level Models | `output/site/<window>/` + `receipts/site/<window>/` |
+| 4+5. Bundle Clinic (prep + models) | `output/bundle/<window>/` + `receipts/bundle/<window>/` |
+| 6. Fall Back Logic + R12/Excel_Outputs | `output/final/<window>/` |
+| (BCG:s frysta 2025-facit) | `pipeline/00_frozen_facit/<family>/` |
+| (körningsstatus) | `runstatus/<window>.json` |
+
+**Åtgärder ur föreningen:**
+- [ ] Märk `BLOB_STRUCTURE_DESIGN_FD28.md`-huvudet: `SUPERSEDED 2026-07-02 →
+      BLOB_MALSTRUKTUR.md` (additivt — dokumentet raderas ej, §4.7).
+- [ ] BB.11 (`MANIFEST.json` per körning) byggs mot DENNA struktur, efter migrering.
+
 ## Vad Azure kräver: INGENTING djupare
 
 Blob har inga riktiga mappar — "cluster/2026-05-31/fil.xlsx" är bara ett blobnamn med
@@ -84,7 +131,7 @@ validerade (mätbart: population i kvittot — 6624=april-site, 6604=maj-site).
 
 [ ] Skapa receipts-container (engångs)
 [ ] blob.py: nya path-byggare (output/<family>/<window>/, receipts/<family>/<window>/)
-[ ] blob.py: upload_receipts() (ny — laddar verify_tool/receipts/ -> Blob per fönster)
+[ ] blob.py: upload_receipts() (ny — laddar upp verify_tool/receipts/ -> Blob per fönster)
 [ ] Arkeologi: mappa varje befintligt kvitto -> rätt fönster (population-mätning)
 [ ] Migrera befintlig output + kvitton till nya facken
 [ ] 3 runners: peka om output-skrivning
@@ -95,4 +142,5 @@ validerade (mätbart: population i kvittot — 6624=april-site, 6604=maj-site).
 
 ---
 *Eget fokuserat pass. Bygg INTE under en leveranskväll. Designen växte fram parallellt
-med cluster-maj-körningen 2026-06-23 — exekvering när Jens har ett dedikerat pass.*
+med cluster-maj-körningen 2026-06-23 — exekvering när Jens har ett dedikerat pass.
+Designförening med FD.28 tillagd 2026-07-02 (denna fil kanonisk, FD.28 superseded).*
