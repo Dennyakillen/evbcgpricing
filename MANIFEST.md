@@ -26,7 +26,7 @@ seedas från verifierat läge (STATE.md), aldrig från tom mall (LK.2). Greenfie
 - `KÄRNPRINCIPER.md` — kanonisk tvärs alla projekt, trumfar vid konflikt. Ägs av biblioteket,
   redigeras aldrig lokalt. All uppflyttning av lärdom styrs av dess §7 (eskaleringsflagga) + §6.6.
 
-**Organisatoriska masters** (nya — bor i Master-Bibliotek, `C:\Projekt\masters`, refereras):
+**Organisatoriska masters** (nya — bor i Master-Bibliotek, `C:\Projekt\Master-Bibliotek`, refereras):
 - `MASTER_ORCHESTRATION.md` — SPINN / VAKTEN / fångstloop. Levande här: §2′/5′ (retroaktiv seed) + §3 (VAKTEN).
 - `MASTER_GIT.md` — nät-topologi (nav + ekrar), §3b leveransverifiering, §4 väv-validering.
 - `MASTER_VALIDATION.md` — "mät, gissa inte" som universell princip (teknikerna ägs i domänmasters).

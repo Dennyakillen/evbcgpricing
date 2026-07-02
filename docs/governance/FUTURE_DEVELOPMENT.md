@@ -3,7 +3,7 @@
 **Projekt:** `evbcgpricing` (BCG:s priselasticitetsflöde)
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
 **Skapad:** 2026-06-08
-**Senast uppdaterad:** 2026-06-11
+**Senast uppdaterad:** 2026-07-02
 
 ---
 
@@ -482,7 +482,7 @@ output, verifiera 43-reps-strukturen håller, placera outputen där Step 6 letar
 | FD.19 | Kollega-vänlig motor-dashboard (lager 2-3) | Skissad |
 | FD.20 | Blob-output per familj (namngivning) | Specad |
 | FD.21 | Frontend speglar BCG:s mappstruktur | Önskad |
-| FD.22 | Live-tickande körtid + summering i frontend | Önskad |
+| FD.22 | Live-tickande körtid + summering i frontend | **Byggd** (FAS 18, dashboard.html) — indexrad rättad 2026-07-02 |
 | FD.23 | Export per steg + fylligare svenska loggtexter | Önskad |
 | FD.24 | --launch-test ärver poll-loopens tunneltolerans | Specad |
 | FD.25 | Orchestrator frozen/growing-väljbar (replikerings-demo) | Idé |
@@ -685,6 +685,7 @@ Då: peka blob.py default dit (PRICINGMODEL_STORAGE + PRICINGMODEL_RG), flytta f
 | 2026-06-11 | FD.14-15 tillagda efter `verify_provenance`-suiten byggdes. Provenance-validering av Step 6-inputs avslöjade tre frusna lås: väv-vikter (FD.14, frusen Complete_Product_Data 2025), steg-5-blend/routning (FD.15, _Ivce-facit 2025-12, aldrig regenererad växande), och bundle-grenen (FD.11). Step 6 vilar på växande Cluster+Site-elasticiteter men frusen viktning/routning/bundle. Suiten ligger i `verify_tool/provenance/`. |
 | 2026-06-16 | FD.32 tillagd (facit→nu = rimlighet+liv, ej modellöverlägsenhet; signifikans-KPI borttaget; site-replikering flyttad till bit-för-bit; story-texter talfria). FD.33 tillagd (migrera Blob till BCG-speglande pipeline-struktur — önskat, A räcker nu; motor-output-arkitektur input/output/runstatus redan på plats). Fryst facit uppladdat till Blob `pipeline/00_frozen_facit/` (upload_frozen_facit.py, key-läge, test-konto). |
 | 2026-06-16 | FD.34 tillagd (bundle aktiverad som fullvärdig familj — runner, app-story+FUNNEL, fas i pipeline, PHASE_RECEIPT; copy-adapt från cluster, ärver bygg 1+2). FD.35 tillagd (konto-spretighet: status i prod, facit i test — MÅSTE redas ut till ett hem före end-to-end). Cluster/site/bundle-runners utrustade med auto-validering mot fryst facit (bygg 1) + alla VM-output-filer till Blob med familje-prefix (bygg 2). |
+| 2026-07-02 | FD-minipass: FD.38 Robusthetspass delad infra tillagd (uppflyttning BB.9 tar-fetch MOGEN + BB.10 selftest + P.9 io_safe-wiring; SPÄRR till efter cluster-maj-grön). FD.39 Sökvägs-centralisering tillagd (deps-mätning 2026-07-02: 336+66 absoluta sökvägar, levande delmängd mäts om efter brus-städ). FD.22-indexraden rättad (live-tick BYGGD FAS 18 — raden var stale). BB.9 i BACKLOG → FLYTTAD. MANIFEST väv-sökväg → Master-Bibliotek. |
 
 ## FD.37 — Efter-kedjans orkestrator (`run_after.py`)
 
@@ -719,3 +720,42 @@ familjs egen launcher, INTE ett led i Efter-kedjan — run_step6 placerar omdöp
 lager och behöver ingen lokal step 5. `fallback_blend.py` är validering (bevis-spåret), ej produktion.
 (Sond 6 klassificerade båda korrekt — bevarar mot att de vävs in av misstag.)
 
+---
+
+## FD.38 — Robusthetspass: delad infrastruktur (tar-fetch, selftest, io_safe-wiring)
+
+**Status:** Specificerad 2026-07-02 — uppflyttning av BACKLOG BB.9 (MOGEN, §5b) + BB.10 +
+P.9-resten. **SPÄRR:** byggs EFTER att cluster-maj-relaunchen är grön — en variabel i taget;
+relaunchen ska bevisa config-fixen, inte config + ny hämtningsväg samtidigt.
+
+**Vad (tre delar, ETT pass — horisontella metoden BB.13 i praktiken, delad väg träffar alla tre):**
+1. **tar-fetch (BB.9, BEVISAD FAS 21):** runnernas `fetch_all_outputs` scp:ar per fil
+   (4181 överföringar); tar-varianten hämtade 190 MB på 10 s där per-fil malde 11+ min och
+   föll på svenska filnamn (dubbel-UTF-8). Mätt 2026-07-02: bristen identisk i alla tre
+   runners (`run_cluster_model.py:385`-mönstret, 3 anropsplatser per runner). Fix: `tar czf`
+   på VM + EN `scp_from_vm` — i delad väg + tre runners samtidigt.
+2. **selftest realistisk sekvens (BB.10):** `ssh_launch_selftest` kör `sleep 90` i vakuum
+   (`azure_vm.py:241–257`) och gav PASS trots att skarp launch dog efter en serie täta
+   SSH-anrop. Skärp till preflight-liknande serie + launch så tunnel-blink-klassen fångas
+   FÖRE en 50-min-körning. (A2-fixen täcker redan skarpa vägen; TESTEN släpar.)
+3. **io_safe-wiring (P.9-resten):** `io_safe.py` + idempotens-audit är byggda och committade
+   (`cdd02d3`, triage 164 → ~3–4 relevanta skrivningar) — koppla `io_safe` i de utpekade
+   skrivpunkterna så de långa stegen får atomära skrivningar på riktigt.
+
+**Gäller om:** nästa gång en runner rörs, eller som eget dedikerat pass direkt efter maj-grönt.
+
+## FD.39 — Sökvägs-centralisering (env/config-lager för C:\Projekt-beroenden)
+
+**Status:** Fångad 2026-07-02 ur deps-mätningen (`map_cross_project_deps.ps1`, BA-städningen).
+
+**Uppmätt:** 336 absoluta sökvägar i 162 BCG-filer + 66 i 32 BA-filer. Mycket sitter i
+`_ATT_RADERA/`, `archives/`, `workspace/` och genererade loggar — den LEVANDE skulden är
+mindre och mäts om EFTER brus-städningen (BA-checklistan §4/§5).
+
+**Vad:** centralisera levande `C:\Projekt\...`-beroenden till env-vars/en gemensam
+config-modul, i survival-/klon-målets tjänst: en frisk klon på annan maskin ska köra utan
+sök-ersätt av sökvägar. Prioritera kod-beroenden (runners, verify_tool, orchestration) —
+docs/loggar är dokumentation, inte kontrakt.
+
+**Gate:** eget pass, kandidat efter FAS A grön. Togs INTE på köpet i filflytt-städningen
+(VAKTEN trigger 1 — frestelsen fanns, avvärjdes i BA-checklistan §4).

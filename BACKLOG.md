@@ -170,7 +170,7 @@ per-fil-loopen kvar (`run_cluster_model.py:385 for rf in remote_files:` → `scp
 4181-överföringsproblemet och per-fil-encodingexponeringen kvarstår. Hypotesen stängd: posten är öppen.
 **Skulle ersätta/stärka:** `azure_vm.py`/runnernas output-hämtning; LB-serien (output-arkitektur).
 **Källa:** FAS 21 (Claude-observation P.4, bevisad i skarpt läge)
-**Status:** MOGEN — flyttas till FD/robusthetspass vid nästa FD-redigering. **SPÄRR:** byggs INTE
+**Status:** FLYTTAD → FD.38 (2026-07-02, §5b MOGEN→ägare). **SPÄRR:** byggs INTE
 före cluster-maj-relaunchen är grön (en variabel i taget — relaunchen ska bevisa config-fixen,
 inte config + ny hämtningsväg samtidigt).
 
