@@ -109,21 +109,22 @@ def cmd_inspect(window, file) -> int:
     return 0
 
 
-def cmd_mark_extraction(window, file, when: str, note: str) -> int:
+def cmd_mark_extraction(window, file, when, note):
+    return cmd_mark(window, file, "extraction", when, note)
+
+
+def cmd_mark(window, file, phase: str, when: str, note: str) -> int:
     if not file:
         cmd_backup(window)  # KRITISKT: aldrig skriva utan backup
     rs, src = _load(window, file)
     from run_status import PhaseState
     hit = None
-    for p in rs.phases:
-        if p.key == "extraction":
-            hit = p
-            break
+    hit = next((p for p in rs.phases if p.key == phase), None)
     if hit is None:
-        print("[FAIL] no 'extraction' phase in this status file")
+        print(f"[FAIL] no phase {phase!r}. Valid: {[p.key for p in rs.phases]}")
         return 1
     if getattr(hit.state, "value", hit.state) == "succeeded":
-        print("[OK] extraction already SUCCEEDED -- idempotent no-op")
+        print(f"[OK] {phase} already SUCCEEDED -- idempotent no-op")
         return 0
     stamp = f"{when}T12:00:00Z"
     hit.state = PhaseState.SUCCEEDED
@@ -131,24 +132,28 @@ def cmd_mark_extraction(window, file, when: str, note: str) -> int:
     hit.finished_at = hit.finished_at or stamp
     hit.note = note
     new_state = rs.finalize()
-    print(f"[MARK] extraction -> SUCCEEDED ({when}) | run-level after finalize: "
+    print(f"[MARK] {phase} -> SUCCEEDED ({when}) | run-level after finalize: "
           f"{getattr(new_state,'value',new_state)}")
     _save(rs, window, file)
     # read-back verification (LB.60-class: don't trust the write line)
     rs2, _ = _load(window, file)
-    ok = any(p.key == "extraction" and getattr(p.state, "value", p.state) == "succeeded"
+    ok = any(p.key == phase and getattr(p.state, "value", p.state) == "succeeded"
              for p in rs2.phases)
-    print(f"[VERIFY] read-back extraction succeeded: {ok}")
+    print(f"[VERIFY] read-back {phase} succeeded: {ok}")
     return 0 if ok else 1
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Safe status-file operations (inspect/backup/mark-extraction).")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("inspect", "backup", "mark-extraction"):
+    for name in ("inspect", "backup", "mark", "mark-extraction"):
         s = sub.add_parser(name)
         s.add_argument("--window", default=None, help="run_id, e.g. 2022-07-01_2026-05-31")
         s.add_argument("--file", default=None, help="local status JSON (offline mode)")
+        if name == "mark":
+            s.add_argument("--phase", required=True)
+            s.add_argument("--when", required=True)
+            s.add_argument("--note", default="ran outside orchestrator; marked retroactively")
         if name == "mark-extraction":
             s.add_argument("--when", required=True, help="date the prep actually ran, YYYY-MM-DD")
             s.add_argument("--note", default="SQL-prep ran outside orchestrator; marked retroactively (BB.6a)")
@@ -160,6 +165,8 @@ def main() -> int:
     if a.cmd == "backup":
         cmd_backup(a.window)
         return 0
+    if a.cmd == "mark":
+        return cmd_mark(a.window, a.file, a.phase, a.when, a.note)
     return cmd_mark_extraction(a.window, a.file, a.when, a.note)
 
 

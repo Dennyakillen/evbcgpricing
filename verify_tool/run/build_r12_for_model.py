@@ -124,7 +124,7 @@ def build_r12(tx_path, end_month, fallback_path):
             end = last + pd.offsets.MonthEnd(0)
         print(f"[R12] slutmånad (auto = elasticitetens slutdatum): {end.date()}  (senaste i data: {last.date()})")
     start = (end - pd.DateOffset(months=12)).normalize() + pd.Timedelta(days=1)
-    print(f"[R12] fönster: {start.date()} → {end.date()}  (12 mån; samma längd som BCG, framflyttat)")
+    print(f"[R12] fönster: {start.date()} -> {end.date()}  (12 mån; samma längd som BCG, framflyttat)")
 
     win = tx[(tx[dt] >= start) & (tx[dt] <= end)].copy()
     print(f"  rader i fönstret: {len(win):,} av {len(tx):,}")
