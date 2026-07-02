@@ -110,19 +110,25 @@ def load_runner(name):
     spec.loader.exec_module(m)
     return m
 
-for name, fam, expkeys, remote in [
-    ("run_cluster_model", "cluster", 4180, "/home/azureuser/bcg/cluster"),
-    ("run_site_model",    "site",    6624, "/home/azureuser/bcg/site"),
-    ("run_bundle_model",  "bundle",  125,  "/home/azureuser/bcg/bundle"),
+# EXPECTED_KEYS ägs av RUNNERN och kan vara None = "rapportera utan mål" (Leverans 2,
+# all_chain_validator-fyndet 2026-06-25). dry_run HÄRLEDER och rapporterar värdet —
+# hävdar aldrig ett eget tal. Dubbel-deklarationen (runner vs dry_run) gav strukturell
+# FEL när run_cluster satte None medan denna fil krävde 4180 (LB.85-klassen, mätt 2026-07-01).
+for name, fam, remote in [
+    ("run_cluster_model", "cluster", "/home/azureuser/bcg/cluster"),
+    ("run_site_model",    "site",    "/home/azureuser/bcg/site"),
+    ("run_bundle_model",  "bundle",  "/home/azureuser/bcg/bundle"),
 ]:
     try:
         m = load_runner(name)
-        ok_keys = getattr(m, "EXPECTED_KEYS", None) == expkeys
+        has_keys = hasattr(m, "EXPECTED_KEYS")
+        keys_val = getattr(m, "EXPECTED_KEYS", "?")
+        keys_txt = "None (rapportera utan mål)" if keys_val is None else str(keys_val)
         ok_remote = remote in getattr(m, "REMOTE_CODE", "")
         ok_val = hasattr(m, "run_local_validation") and hasattr(m, "fetch_all_outputs")
-        check(f"{name}: import + EXPECTED_KEYS={expkeys} + bygg1+2",
-              ok_keys and ok_remote and ok_val,
-              f"keys={getattr(m,'EXPECTED_KEYS','?')}, bygg1+2={'ja' if ok_val else 'NEJ'}")
+        check(f"{name}: import + REMOTE_CODE + bygg1+2 (EXPECTED_KEYS härledd)",
+              has_keys and ok_remote and ok_val,
+              f"keys={keys_txt}, bygg1+2={'ja' if ok_val else 'NEJ'}")
     except Exception as e:
         check(f"{name}: import", False, str(e))
 
