@@ -3,6 +3,10 @@
 # ---------------------------------------------------------------------
 # Utvecklare: Jens Palmo (Senior Business Analyst, Evidensia Djursjukvard AB)
 # Skapad:     Phase Z, session 1 (AI-radgivare)
+# Utokad:     FD.33-passet 2026-07-03 -- ADDITIVT layout-lager (se sektion
+#             "FD.33 MALSTRUKTUR" nedan). Alla legacy-funktioner ovan den
+#             sektionen ar beteende-identiska med fore passet; cutover till
+#             nya vagar sker i Etapp B (runners + app flippar tillsammans).
 #
 # SYFTE
 #   Limmar ihop statuskontraktet (run_status.py) med Azure Blob Storage.
@@ -33,17 +37,22 @@
 #
 # DETTA BEROR PA DEN
 #   azure_vm.py (importerar write_status/read_status/upload_outputs)
-#   ev. framtida Flask-frontyta (laser status for visning)
+#   run_after.py / familje-runners (upload/download), webapp app.py (las),
+#   tools/blob_archaeology.py + tools/blob_migrate_fd33.py (FD.33)
 #
 # KONFIG
 #   Storage-konto och containernamn ar Z.0-fakta. ENDA stallet de
-#   definieras pa Python-sidan -- andra har om de byter.
+#   definieras pa Python-sidan -- andra har om de byter. FD.33-layouten
+#   nedan foljer samma regel: EN agare (LAYOUT-byggarna), alla andra
+#   harleder (LB.85: harled, deklarera inte tva ganger).
 # =====================================================================
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -285,6 +294,214 @@ def download_outputs(date_folder: str, repo_root: str) -> dict:
     return {"placed": placed, "missing": missing}
 
 
+# ==========================================================================
+# FD.33 MALSTRUKTUR (BLOB_MALSTRUKTUR.md) -- ADDITIVT LAYOUT-LAGER
+# --------------------------------------------------------------------------
+# Byggt 2026-07-03 (FD.33-passet). ENDA agaren av de NYA vagarna:
+#     output/    <family>/<window>/...      final/<window>/...
+#     receipts/  <suite>/<window>/...       (NY container)
+#     input/     parquet/...                data_prep/<window>/...
+# Allt annat (migrering, runners, app, dry_run) HARLEDER harifran (LB.85).
+#
+# CUTOVER-DISCIPLIN (fyra-kartor-varningen i BLOB_MALSTRUKTUR):
+#   Ingenting nedan anropas av befintliga callers. Legacy-funktionerna ovan
+#   ar oforandrade. Etapp B flippar runners + app + PULL till *_v2 i EN
+#   commit, bevisad av uppdaterad dry_run. Halvmigrerat ar varre an dagens.
+#
+# POST-PUSH-VERIFIERING: upload_final/upload_receipts VERIFIERAR att varje
+# blob landade med ratt storlek och KASTAR annars -- stanger 2026-07-03:s
+# tysta PUSH-dod (token dog, korningen sag klar ut, Blob var tom). LB.88.
+# ==========================================================================
+
+CONTAINER_RECEIPTS = os.environ.get("PRICINGMODEL_RECEIPTS_CONTAINER", "receipts")
+
+FAMILIES = ("cluster", "site", "bundle")
+
+
+def output_family_blob(family: str, window: str, relpath: str) -> str:
+    """output/<family>/<window>/<relpath> -- familj-yttre (fast), fonster-innerst (vaxer)."""
+    if family not in FAMILIES:
+        raise ValueError(f"okand familj: {family!r} (giltiga: {FAMILIES})")
+    return f"{family}/{window}/{relpath.replace(os.sep, '/').lstrip('/')}"
+
+
+def final_blob(window: str, name: str) -> str:
+    """output/final/<window>/<name> -- Step 6 Final_Fallback + R12 Model_Feed."""
+    return f"final/{window}/{name}"
+
+
+def receipt_blob(suite: str, window: str, name: str) -> str:
+    """receipts/<suite>/<window>/<name>. suite = extraction/rationality/provenance/
+    probes/proof_chain/misc -- matchar appens PHASE_RECEIPT-nycklar (Leverans 2)."""
+    return f"{suite}/{window}/{name}"
+
+
+def dataprep_blob(window: str, name: str) -> str:
+    """input/data_prep/<window>/<name> -- de sparbara prep-CSV:erna per fonster."""
+    return f"data_prep/{window}/{name}"
+
+
+def after_inputs_v2(window: str) -> list[dict]:
+    """PULL-registret i NYA layouten (ersatter _AFTER_INPUTS vid Etapp B-cutover).
+    Samma dest-kontrakt (run_step6:s KALLOR) -- bara blob-sidan byter hem.
+    tx-CSV flyttar fran fel-hyllan pipeline/00_frozen_facit/tx/ till sitt
+    ratta hem input/data_prep/<window>/ (den ar VAXANDE, inte facit)."""
+    return [
+        {"label": "cluster output_summary (LIVE)", "container": CONTAINER_OUTPUT,
+         "blob": output_family_blob("cluster", window, "model/output_summary.xlsx"),
+         "dest": _AFTER_INPUTS[0]["dest"]},
+        {"label": "site output_summary (LIVE)", "container": CONTAINER_OUTPUT,
+         "blob": output_family_blob("site", window, "output_summary.xlsx"),
+         "dest": _AFTER_INPUTS[1]["dest"]},
+        {"label": "cluster-steg5 (FROZEN FD.15)", "container": CONTAINER_PIPELINE,
+         "blob": _AFTER_INPUTS[2]["blob"], "dest": _AFTER_INPUTS[2]["dest"]},
+        {"label": "bundle (FROZEN FD.11)", "container": CONTAINER_PIPELINE,
+         "blob": _AFTER_INPUTS[3]["blob"], "dest": _AFTER_INPUTS[3]["dest"]},
+        {"label": "vav-vikter (FROZEN FD.14)", "container": CONTAINER_PIPELINE,
+         "blob": _AFTER_INPUTS[4]["blob"], "dest": _AFTER_INPUTS[4]["dest"]},
+        {"label": "tx-CSV (build_r12)", "container": CONTAINER_INPUT,
+         "blob": dataprep_blob(window, "Sweden_weekly_model_data_site_level.csv"),
+         "dest": _AFTER_INPUTS[5]["dest"]},
+    ]
+
+
+def download_outputs_v2(window: str, repo_root: str) -> dict:
+    """PULL i nya layouten: fonster ar adressen, ingen datum-mapp att gissa.
+    Kallas av run_after vid Etapp B-cutover (--window i stallet for --date-folder)."""
+    from pathlib import Path as _Path
+    root = _Path(repo_root)
+    placed, missing = [], []
+    svc = _client()
+    for item in after_inputs_v2(window):
+        bc = svc.get_container_client(item["container"]).get_blob_client(item["blob"])
+        dest = root / item["dest"]
+        try:
+            if not bc.exists():
+                log.warning("PULL %s: blob saknas (%s/%s).",
+                            item["label"], item["container"], item["blob"])
+                missing.append(item["label"]); continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "wb") as fh:
+                fh.write(bc.download_blob().readall())
+            log.info("PULL %s: %s/%s -> %s (%.2f MB)", item["label"], item["container"],
+                     item["blob"], dest.name, dest.stat().st_size / 1e6)
+            placed.append(str(dest))
+        except Exception as e:
+            log.warning("PULL %s: fel (%s).", item["label"], e)
+            missing.append(item["label"])
+    log.info("PULL(v2) klar: %d placerade, %d saknade.", len(placed), len(missing))
+    return {"placed": placed, "missing": missing}
+
+
+def _verify_pushed(container: str, expected: list[tuple[str, int]]) -> None:
+    """Post-PUSH-grind: varje utlovad blob FINNS med ratt storlek, annars kastas.
+    Symmetrisk med input_provenance_probe pa ingaende sidan. Stanger den tysta
+    PUSH-dodsklassen (2026-07-03: token dog, PUSH foll tyst, Blob var tom)."""
+    svc = _client()
+    fel = []
+    for name, size in expected:
+        try:
+            props = svc.get_container_client(container).get_blob_client(name).get_blob_properties()
+            if props.size != size:
+                fel.append(f"{name}: {props.size} B i Blob != {size} B lokalt")
+        except Exception as e:
+            fel.append(f"{name}: SAKNAS ({type(e).__name__})")
+    if fel:
+        raise RuntimeError("POST-PUSH-VERIFIERING FALLDE: " + "; ".join(fel))
+    log.info("Post-PUSH verifierad: %d blobbar, ratt storlek.", len(expected))
+
+
+def _append_manifest(container: str, prefix: str, new_entries: list[dict]) -> None:
+    """BB.11: MANIFEST.json vid <prefix>/ -- sjalvdokumenterande output.
+    Las-modifiera-skriv (last-write-wins, samma modell som statusfilen)."""
+    bc = _client().get_container_client(container).get_blob_client(f"{prefix}/MANIFEST.json")
+    files: list[dict] = []
+    try:
+        cur = _json.loads(bc.download_blob().readall().decode("utf-8"))
+        files = cur.get("files", [])
+    except Exception:
+        pass
+    names_new = {e["name"] for e in new_entries}
+    files = [f for f in files if f.get("name") not in names_new] + new_entries
+    manifest = {
+        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "developer": "Jens Palmo (Senior Business Analyst, Evidensia)",
+        "purpose": "BB.11 self-documenting output",
+        "prefix": f"{container}/{prefix}",
+        "files": sorted(files, key=lambda f: f.get("name", "")),
+    }
+    bc.upload_blob(_json.dumps(manifest, ensure_ascii=False, indent=1).encode("utf-8"),
+                   overwrite=True)
+
+
+def upload_final(window: str, local_paths: list[str]) -> list[str]:
+    """EFTER-kedjans PUSH i nya layouten: output/final/<window>/ + MANIFEST +
+    post-PUSH-verifiering (kastar vid tyst forlust). Ersatter upload_outputs
+    for run_after vid Etapp B-cutover."""
+    uploaded: list[str] = []
+    entries: list[dict] = []
+    expected: list[tuple[str, int]] = []
+    for p in local_paths:
+        path = Path(p)
+        if not path.exists():
+            log.warning("Hoppar over saknad fil: %s", p)
+            continue
+        name = final_blob(window, path.name)
+        bc = _client().get_blob_client(container=CONTAINER_OUTPUT, blob=name)
+        with path.open("rb") as fh:
+            bc.upload_blob(fh, overwrite=True)
+        size = path.stat().st_size
+        expected.append((name, size))
+        entries.append({"name": path.name, "blob": name, "bytes": size,
+                        "kind": "final"})
+        uploaded.append(f"{CONTAINER_OUTPUT}/{name}")
+        log.info("Final uppladdad: %s", name)
+    _verify_pushed(CONTAINER_OUTPUT, expected)
+    _append_manifest(CONTAINER_OUTPUT, f"final/{window}", entries)
+    return uploaded
+
+
+def upload_receipts(suite: str, window: str, local_paths: list[str]) -> list[str]:
+    """Leverans 2: kvitton till receipts/<suite>/<window>/ + MANIFEST + verifiering.
+    Kallas av validerings-korningar (run_after m.fl.) vid Etapp B-cutover sa
+    appen kan lasa DET fonstrets kvitton, inte 'senaste'."""
+    uploaded: list[str] = []
+    entries: list[dict] = []
+    expected: list[tuple[str, int]] = []
+    for p in local_paths:
+        path = Path(p)
+        if not path.exists():
+            log.warning("Hoppar over saknat kvitto: %s", p)
+            continue
+        name = receipt_blob(suite, window, path.name)
+        bc = _client().get_blob_client(container=CONTAINER_RECEIPTS, blob=name)
+        with path.open("rb") as fh:
+            bc.upload_blob(fh, overwrite=True)
+        size = path.stat().st_size
+        expected.append((name, size))
+        entries.append({"name": path.name, "blob": name, "bytes": size,
+                        "kind": "receipt", "suite": suite})
+        uploaded.append(f"{CONTAINER_RECEIPTS}/{name}")
+        log.info("Kvitto uppladdat: %s", name)
+    _verify_pushed(CONTAINER_RECEIPTS, expected)
+    _append_manifest(CONTAINER_RECEIPTS, f"{suite}/{window}", entries)
+    return uploaded
+
+
+def list_receipts(suite: str, window: str) -> list[dict]:
+    """Las-sidan for appen (Leverans 2): lista DET fonstrets kvitton.
+    Returnerar [{name, bytes, modified}] sorterat nyast forst."""
+    cc = _client().get_container_client(CONTAINER_RECEIPTS)
+    prefix = f"{suite}/{window}/"
+    rows = [{"name": b.name[len(prefix):], "bytes": int(b.size or 0),
+             "modified": str(getattr(b, "last_modified", ""))[:19]}
+            for b in cc.list_blobs(name_starts_with=prefix)
+            if not b.name.endswith("MANIFEST.json")]
+    return sorted(rows, key=lambda r: r["modified"], reverse=True)
+
+# ======================= SLUT FD.33-LAGER =================================
+
+
 def list_runs(prefix: str = "") -> list[str]:
     """Lista run_id:n som har en statusfil. For en framtida frontyta som
     vill visa korhistorik. Bekvamlighetsfunktion, ej kritisk."""
@@ -318,14 +535,21 @@ if __name__ == "__main__":
         print("  write_status OK")
         back = read_status(run_id)
         assert back.run_id == run_id
-        assert back.phases[1].note == "self-test"
-        print("  read_status OK -- round-trip konsekvent")
+        # Index-agnostiskt (LB.85: harled, deklarera inte): default_pipeline har
+        # vaxt sedan session 1 -- 'step1_dataprep' ar inte langre phases[1].
+        # Leta pa INNEHALL i stallet for position; overlever framtida fas-tillagg.
+        assert any(getattr(ph, "note", None) == "self-test" for ph in back.phases), \
+            "round-trip tappade self-test-noten"
+        print("  read_status OK -- round-trip konsekvent (innehall, ej index)")
 
-        # Stada upp testbloben.
-        _client().get_blob_client(
-            container=CONTAINER_STATUS, blob=_status_blob_name(run_id)
-        ).delete_blob()
-        print("  testblob raderad")
+        # FD.33-lagret: rena path-byggare (ingen Azure-kontakt -- billig sanity)
+        assert output_family_blob("cluster", "W", "model/x.xlsx") == "cluster/W/model/x.xlsx"
+        assert final_blob("W", "f.xlsx") == "final/W/f.xlsx"
+        assert receipt_blob("rationality", "W", "r.xlsx") == "rationality/W/r.xlsx"
+        assert dataprep_blob("W", "d.csv") == "data_prep/W/d.csv"
+        assert after_inputs_v2("W")[0]["blob"] == "cluster/W/model/output_summary.xlsx"
+        print("  FD.33 layout-byggare OK (path-kontrakt haller)")
+
         print("\nOK: blob.py fungerar mot riktig Blob. Datastig verifierad.")
     except Exception as e:
         msg = str(e)
@@ -339,3 +563,13 @@ if __name__ == "__main__":
         else:
             print("  Diagnos: ovrigt fel -- las meddelandet ovan.")
         raise
+    finally:
+        # Stadning KORS ALLTID (2026-07-03: krasch fore delete lamnade
+        # selftest-litter i runstatus som arkeologin sedan raknade).
+        try:
+            _client().get_blob_client(
+                container=CONTAINER_STATUS, blob=_status_blob_name(run_id)
+            ).delete_blob()
+            print("  testblob raderad (finally)")
+        except Exception:
+            pass
