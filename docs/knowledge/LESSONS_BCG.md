@@ -1099,6 +1099,59 @@ run_smoke_facit (frozen-facit-referens, offline), conservation (population per s
 REPLIKERING_OCH_VALIDERING.md. **Öppet:** V2/V4-kalibrering, conservation skarv 1 (ID_Item-fix),
 inkoppling i run_step6/run_after preflight.
 
+## LESSONS_BCG — additivt block 2026-07-03 (klistras FÖRE "DESTINATION 2"-raden)
+
+*Utvecklare: Jens Palmö. Prövade mot §6.6: varje post är antingen ny mekanism (→ här) eller
+instans av befintlig (→ noteras under sin klass, ingen ny rad). Veckans EFTER-körningar gav
+fem nya mekanismer värda att fästa.*
+
+### LB.86 — Levererad ≠ committad (utvidgning av §3b / L.43-klassen)
+En fil som skapats och "levererats" (nedladdad) är INTE i repot förrän `git`-mätning bekräftar
+det. Tre gånger denna vecka redovisades filer som stängda medan de låg i Downloads-limbo;
+`Select-String`/`git log` var enda sättet att skilja tillstånden. **Regel:** §3b:s slutpunkt är
+git, inte målmappen. Redovisa aldrig en skuld som stängd förrän `git log --oneline` visar
+committen. Punktfix: leverera små patchar som självständiga in-place-block, inte nedladdningar.
+
+### LB.87 — Otrackade kodberoenden är en KLASS, inte en fil (BB.13 över tid)
+Survival-buggens `_chunked.py` hade tre otrackade syskon i BA-roten (`_parquet`, `_duckdb`,
+o-chunkad). När EN otrackad fil som koden litar på hittas: sök hela familjen (`git status
+--short` + namnstam) FÖRE fix. Löstes med en kanonisk regen + `archives\` för övriga (E.8).
+Samma metod som BB.13 (horisontell validering), applicerad på tracking-axeln.
+
+### LB.88 — PIM-förhöjning är tidsboxad och kan löpa ut MITT i ett block (E.3-utvidgning)
+Kontrollplansfel (`AuthorizationFailed` på `listKeys`) HALVVÄGS genom ett block ≠ trasig kod ≠
+token-utgång (som ger 401). PIM-aktiveringar upphör efter sin timebox. **Två regler:** (a) ny
+`az login` efter VARJE PIM-aktivering (token utfärdad före aktiveringen bär inte rollen);
+(b) preflight-probe före långa block: `az storage account keys list ... --query [0].keyName`.
+Relaterat: `az ... --auth-mode key` gör subscription-BRED konto-lookup som kräver läsrätt
+utanför scopad PIM → "not found" trots att `listKeys` funkar med explicit `--resource-group`.
+Regel: hämta nyckeln själv (`keys list` + RG) → mata `--account-key` → verifiera skrivning med
+`contentLength`-gate i KOD.
+
+### LB.89 — Varje EFTER-input måste fönster-verifieras INDIVIDUELLT (P.3/P.6, tredje instansveckan)
+VM-fetchen 2026-06-22 var SELEKTIV: den tog hem site-`output_summary` (namngiven) men lämnade
+`model_summary`, `model_results`, cluster-summaryn m.fl. Resultatet blev tre separata
+stale/stub-kontamineringar i step6-väven (cluster-stub via ready-kanalen, site-stale summary,
+pre-maj model_summary) — var och en osynlig bakom en grön fas. **Regel:** en väv är bara så
+färsk som sin STALASTE input; verifiera varje live-input mot fönstret på tre axlar (finns lokalt,
+finns i Blob, mtime i fönstret) FÖRE körning. Grön statusfas bevisar inte färsk input.
+→ Konkret åtgärd fäst: grenpopulations-/färskhets-assert i väv-valideringen (FD.38).
+
+### LB.90 — VM-disken överlever `deallocate` och är sista räddningen för selektivt fetchade filer
+`deallocate` stoppar compute men BEVARAR OS-disken. Maj-`model_summary` (52 MB) och
+`model_results` (505 MB) fanns kvar orörda i `~/bcg/site/output/model/` långt efter körningen,
+byte-verifierbart mot lokal kopia (`output_summary` = 561503 B på båda platser). **Regel:** innan
+du deklarerar en selektivt fetchad fil "förlorad", kolla VM-disken (`az vm start` → `ssh ls` →
+`scp` → `deallocate` + LB.60-verifiering). Motsatt varning: en fil som BARA finns på VM-disken
+är EN VM-ombyggnad från att vara borta — hör i Blob efter körning (robusthetsmålet).
+
+### Instanser under befintliga klasser (ingen ny rad — §6.6):
+- **Mjuk gate ≠ throwing gate** (LB-klass sedan tidigare): kritiska gates som kommentar/utskrift i
+  stället för `throw` lät kontaminerade körningar fortsätta FYRA gånger denna vecka. Alla
+  operatörsgates flyttade till KOD (`throw`/`--require-file` i verktyget), inte till disciplin.
+- **U+2192 i konsol-print** (encoding-klassen/LB.86-familjen): `→` fällde build_r12 på cp1252-konsol;
+  `PYTHONIOENCODING=utf-8` som bälte + `->` i källan. Instans av "ASCII i exekverbar output".
+
 ═══════════════════════════════════════════════════════════════════════════
 ## DESTINATION 2 — KÄRNPRINCIPER.md (i C:\Projekt\masters)  ·  KODNING: UTF-8
 ═══════════════════════════════════════════════════════════════════════════

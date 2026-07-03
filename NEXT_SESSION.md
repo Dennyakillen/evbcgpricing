@@ -1,3 +1,86 @@
+# NEXT_SESSION — topp-block 2026-07-03 (klistras överst; äldre innehåll bevaras additivt)
+
+**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia)
+**Sessionens tema:** arkitektur-anslutning (MANIFEST/BACKLOG) + skuldstängning tvärs projektet
++ FÖRSTA skarpa EFTER-körningen (FD.37) hela vägen.
+
+---
+
+## DÄR VI STÅR (verifierat via status_ops inspect)
+
+Fönster `2022-07-01_2026-05-31`: **6 av 7 faser ärligt gröna**, `state=waiting`.
+Enda kvarvarande: **`site_step5`** — alla dess inputs är nu maj-bevisade och Blob-säkrade
+(se nedan). EFTER-kedjan (PULL→step6→r12→PUSH→finalize) är **mekaniskt bevisad end-to-end**.
+
+**FÖRSTA STEGET NÄSTA SESSION — ett enda rent körblock (kör piggt, inte trött):**
+Step 5 på maj. Blocket finns färdigt i sessionsloggen (precondition-gate + 4 input-gates +
+CWD=modellroten + xlwings-hygien + post-gate på mall-mtime + mark med filbevis). Alla gates
+släpper nu igenom. Kontrollpunkt: input-tabellen ska visa `model_summary` = **52 538 192 B**
+(maj > april, växande fönster ska växa). Vid xlwings-krasch på named range = LB.53-klassen.
+Efter grönt: `status_ops mark --phase site_step5 --when <kördatum>` → fönstret `SUCCEEDED`.
+
+---
+
+## EFTER-ARTEFAKTERNAS GILTIGHET (kritiskt — flera generationer i Blob)
+
+**Väv-mekaniken bevisad, men två kontamineringar korrigerades i natt (stub- resp. stale-klass):**
+
+- **FÖRSTA CLUSTER-ÄRLIGA väv:** `Final_Fallback_Data_20260703_001011.xlsx` (7,8 MB, ready=368KB).
+- **MEN site-stale** i den körningen → korrigerad; efter step 5 + ny run_after blir den slutligt
+  giltiga artefakten den där BÅDE cluster (325044) OCH site (561503) är maj-äkta.
+- **OGILTIGA — får ej konsumeras** (lokala kopior namnmärkta `.CONTAMINATED/.SITE-STALE`):
+  `Model_Feed_2026-06-22`, `Model_Feed_2026-07-02`, samt nattens site-stale `2026-07-03`-väv
+  före site-blob-reparationen. Blob-`Model_Feed` självläker vid nästa PUSH (samma namn).
+- **Fysisk Blob-städ av ogiltiga generationer** → FD.33-arkeologin (Blob-migreringspasset).
+
+---
+
+## ÖPPNA BESLUT (mätta i natt, väntar på beslut — ej buggar)
+
+1. **`model_results.csv` maj (505 MB) finns BARA på VM-disken** (`~/bcg/site/output/model/`,
+   06-22 14:47). Ej lokalt, ej i Blob. Step 5 behöver den inte (config: `model_result`→summary).
+   BESLUT (Blob-passet): ladda upp (505 MB engångs) ELLER dokumentera som regenererbar/ej bevarad.
+   Detta är EXAKT robusthetsmålet: nyckelfil med en enda kopia på en disk som överlever
+   deallocate men inte VM-ombyggnad.
+2. **automl-mappen på VM** (06-09-stämplad = trolig april-era) — samma bevara/regenerera-beslut.
+3. **cluster-noten bär gammal `rationality=REVIEW/FAIL` (06-24)** — om-validera mot den nya
+   cluster-ärliga väven eller avskriv som förlegad.
+4. **rationality-kvitton 2026-07-03** (7 REVIEW, 0 FAIL) — mänskliga ögon på REVIEW-listan
+   (`verify_tool\receipts\2026-07-03\rationality\`). "0.0% positive" kvarstod med äkta gren =
+   egenskap hos väven, inte tom-gren-symptom. Ekonomiskt: noll positiva elasticiteter är sunt.
+5. **`site_step5` p-värdesben** — nu löst via VM-räddad maj-`model_summary`; ingen frysning behövs.
+
+---
+
+## GIT-BRUS (tre otrackade = tre obeslutade beslut, E.8)
+
+- `Fall Back Logic/input_data/` — PULL-placerade frusna inputs. Kontrollera `.gitignore`
+  (bör ignoreras — körningsartefakter). Är den inte det → lägg till.
+- `docs/BCG-Pricing 2026.pptx` — tracka (leverabel-historik) eller gitignore (arbetsmaterial).
+- `map_cross_project_deps.ps1` — återanvändbart → tracka i `tools\`.
+
+---
+
+## KÖ EFTER STEP 5 (oförändrad ordning)
+
+1. **status_ops v1.2** — mark med `--require-file`-gate (halvlandade i natt; ladda upp
+   `tools\status_ops.py` → jag levererar ren hel fil). Gaten fångade ändå den falska stämpeln.
+2. **Blob-migreringspasset (FD.33)** — design förenad (`BLOB_MALSTRUKTUR.md`); låser upp
+   Leverans 2 (kvitton/period), KPI-texterna, BB.11. Inkl. arkeologi + stub/stale-generationsstäd.
+3. **Front-end KPI-passet** — ladda upp `story_config.py` + `dashboard.html` → single-touch-spec
+   (BB.6b + BB.12 hjälte-KPI + periodmedvetenhet). Story_config rörs EN gång.
+4. **Robusthetspasset (FD.38)** — BB.9 tar-fetch + BB.10 selftest + io_safe-wiring, horisontellt.
+5. **dry_run_e2e wiring** — nu när dry_run härleder EXPECTED_KEYS: koppla som blockerande preflight.
+6. **Placeringsvalidator (Jens vision)** — 3-axel-kontroll per nyckelfil (lokal/Blob/fönster-mtime).
+   Kravspec skriven av nattens arkeologi; byggstenar = BB.5 + BB.11. Väv dit när moget.
+
+---
+
+## STÅENDE (varje VM-session)
+`az account show` = ev-lz3-ai (SE) · `az login` efter PIM · `$env:PRICINGMODEL_AUTH="key"`
+tills Kents Blob-dataplansroll levererats · **`az vm deallocate` + get-instance-view-verifiering**
+efter VM-arbete (LB.60) · tee + Select-String, aldrig rådata.
+
 # NEXT_SESSION — Cluster-maj: rotorsak LÖST, fix kvarstår (vattentät)
 
 **Skapad:** 2026-06-23 (session-slut). **Uppdaterad:** 2026-06-26 (valideringslager-sidospår invävt §5.5, lärdomar fästa).
