@@ -106,6 +106,15 @@ def _read_account_key() -> str:
     hittas via PATH precis som i en terminal. shell=True ar harmlost har
     eftersom inga argument kommer fran ostrukturerad anvandarinput -- bara
     vara egna konstanter (storage-konto, RG, subscription)."""
+    # App Service/container-vagen (2026-07-03): az CLI finns inte i containern.
+    # Nyckeln kan darfor levereras som app setting PRICINGMODEL_KEY -- lases
+    # fore az-vagen. Samma skuldklass som key-laget sjalvt; ratta slutmalet ar
+    # Managed Identity + AAD-dataroll (Kent), da forsvinner bada vagarna utan
+    # kodandring (PRICINGMODEL_AUTH=aad).
+    env_key = os.environ.get("PRICINGMODEL_KEY", "").strip()
+    if env_key:
+        return env_key
+
     import subprocess
 
     def _run(cmd: str) -> subprocess.CompletedProcess:

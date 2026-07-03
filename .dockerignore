@@ -1,0 +1,8 @@
+# AZ.3: slapper ENDAST det containern behover. Pipeline/, workspace/, verify_tool/
+# m.m. ar gigabyte som aldrig ska in i en webbimage. Secrets aldrig.
+*
+!orchestration/
+!requirements.txt
+orchestration/**/__pycache__/
+orchestration/**/*.pyc
+orchestration/**/.env

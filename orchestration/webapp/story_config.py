@@ -207,7 +207,7 @@ STORY = {
     },
 }
 
-BAGE_SV = ("The arc: more data makes the model more certain, which sharpens the business signal "
+BAGE_SV = ("More data makes the model more certain, which sharpens the business signal "
            "that drives pricing. Facit (BCG, frozen jun 2025) is the zero point -- "
            "everything is measured as movement from there.")
 

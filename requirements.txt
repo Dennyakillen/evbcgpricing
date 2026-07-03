@@ -1,0 +1,6 @@
+# BCG pricing dashboard -- container-beroenden (App Service)
+flask
+gunicorn
+azure-storage-blob
+azure-identity
+openpyxl

@@ -278,8 +278,7 @@
   <footer>Read-only: this view cannot start, stop, or change anything.
     Source of truth: <span style="font-family:var(--mono);">runstatus/&lt;run-id&gt;.json</span> in
     <span style="font-family:var(--mono);">evbcgpricinginput</span>.
-    Facit reference and texts: <span style="font-family:var(--mono);">story_config.py</span> ("[fill in]" = number not yet verified). Receipts follow the selected run (window) — Blob first, local fallback.<br>
-    Developed by <b>Jens Palmö</b> — Senior Business Analyst, Evidensia Djursjukvård AB (with an AI advisor).</footer>
+    Facit reference and texts: <span style="font-family:var(--mono);">story_config.py</span> ("[fill in]" = number not yet verified). Receipts follow the selected run (window) — Blob first, local fallback.</footer>
 </div>
 
 <script>
@@ -444,9 +443,9 @@ function phaseCard(p, idx, liveNow){
   var note=p.note?'<div class="note">'+escapeHtml(p.note)+'</div>':'';
   var rows='<div class="kv">'+
     '<span>status <b>'+(STATE_BADGE[p.state]?STATE_BADGE[p.state][0]:p.state)+'</b></span>'+
-    '<span>start <b>'+fmtTs(p.started_at)+'</b></span>'+
-    '<span>slut <b>'+fmtTs(p.finished_at)+'</b></span>'+
-    '<span>tid <b>'+(p.duration_human||"—")+'</b></span></div>';
+    '<span>started <b>'+fmtTs(p.started_at)+'</b></span>'+
+    '<span>finished <b>'+fmtTs(p.finished_at)+'</b></span>'+
+    '<span>duration <b>'+(p.duration_human||"—")+'</b></span></div>';
 
   // HUR-rutan (FD.27) -- forklarar sommen lokalt<->moln
   var how = st.how_sv ? '<div class="how"><b>How it works.</b> '+escapeHtml(st.how_sv)+'</div>' : '';
@@ -786,7 +785,7 @@ function render(d){
   }
 
   var bage=document.getElementById("bage");
-  if(BAGE){bage.innerHTML="<b>The arc.</b> "+escapeHtml(BAGE).replace(/^The arc: /,"");bage.style.display="block";}
+  if(BAGE){bage.innerHTML="<b>The big picture.</b> "+escapeHtml(BAGE);bage.style.display="block";}
 
   app.appendChild(el("div",null,'<div class="sub" style="margin-top:10px;">run <span style="font-family:var(--mono);">'+escapeHtml(d.run_id)+
     '</span> · triggered by '+escapeHtml(d.triggered_by||"—")+' · contract v'+escapeHtml(d.contract_version)+

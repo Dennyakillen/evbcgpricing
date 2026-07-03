@@ -108,7 +108,7 @@ INFO = {
                 "Want more? 'Details, story & validations' opens the full narrative, the facit-to-now comparison, "
                 "the fresh/frozen map and every exportable receipt. Want the result? The green 'Model Feed' button "
                 "at the bottom is the deliverable. Everything else is evidence.\n\n"
-                "Built by Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB) with an AI advisor, on "
+                "Built by Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB) on "
                 "the principle 'measure, don't guess' — every number on these pages traces to a receipt or a "
                 "status file, never to an assumption."
             ),
