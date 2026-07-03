@@ -29,7 +29,7 @@ test-konto, 19/19 rör-kontroller gröna). Bundle aktiverad som fullvärdig fami
 validerad 2026-06-22 med tre statiska sonder; run_id ändrat till **datafönster** (`window_run_id`) så
 alla familjer för samma period delar EN statusfil, och `RunStatus.finalize()` byggd så run-nivån
 härleds ur faserna (heartbeat-spöket dött). Verifierat i dashboarden via syntetisk statusfil (alla
-ggröna i synk, vilande). Nästa: site_step5 på maj (stänger fönstret → SUCCEEDED, ett rent körblock), sedan Blob-migreringspasset (FD.33) som låser upp Leverans 2 + KPI-texterna.
+gröna i synk, vilande). Nästa: Blob-migreringspasset (FD.33) som låser upp Leverans 2 + KPI-texterna; därefter FÖRE-ledet skarpt på juni-fönstret. EFTER-kedjan bevisad e2e maj (alla 7 faser SUCCEEDED 2026-07-03).
 *(Senast verifierad: 2026-07-03)*
 
 
@@ -51,7 +51,7 @@ ggröna i synk, vilande). Nästa: site_step5 på maj (stänger fönstret → SUC
 | Aktivt repo | `evbcgpricing` (repo-URL i README, ej här) | 2026-06-12 |
 | Lokal sökväg | `C:\Projekt\BCG` | 2026-06-12 |
 | Branch | `main` (bekräftat 2026-06-22) | 2026-06-22 |
-| Senaste relevanta commit | `8aa4573` (r12 arrow-fix + status_ops v1.1); EFTER-kedjan bevisad e2e, site_step5 återstår | 2026-07-03 |
+| | Senaste relevanta commit | `06881e5` (docs + gitignore-hygien); fönster 2022-07-01_2026-05-31 SUCCEEDED alla 7 faser | 2026-07-03 |
 | Orkestrator-push-status | Allt pushat till `main` (orchestration/ är single source; webapp + tre runners + bundle live) | 2026-06-16 |
 | Parallellrepo (DW-extraktion) | `Business_Analytics`, `C:\Projekt\Business_Analytics` | 2026-06-12 |
 
