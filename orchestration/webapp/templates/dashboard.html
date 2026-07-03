@@ -197,6 +197,59 @@
   .bage{margin-top:14px;padding:13px 18px;background:var(--surface2);border-radius:14px;
         font-size:13px;line-height:1.6;color:var(--muted);}
   .bage b{color:var(--text);}
+  /* FD.33-B1: hero-KPI (BB.12) + measured-window honesty badge */
+  .kpi.hero{border-left:3px solid var(--ok);background:var(--surface2);}
+  .kpi.hero .lbl{font-weight:700;color:var(--text);}
+  .fn-row.hero{border-left:3px solid var(--ok);}
+  .mw-badge{font:600 10px var(--mono);color:var(--faint);background:var(--surface2);
+            padding:2px 8px;border-radius:99px;margin-left:8px;text-transform:none;letter-spacing:0;}
+  /* FD.33-B2: konsekvent rod trad -- pill + 3 KPI + Details; tabs; blob-hero */
+  .kpis3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:12px;}
+  @media (max-width:640px){.kpis3{grid-template-columns:1fr;}}
+  .proof-pill{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--ok);
+              border:1px solid rgba(29,158,117,.32);background:rgba(29,158,117,.06);
+              border-radius:99px;padding:6px 13px;margin:2px 0 12px;cursor:pointer;user-select:none;}
+  .more-toggle{font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;user-select:none;
+               display:flex;align-items:center;gap:7px;padding:8px 0 4px;border-top:1px solid var(--border);}
+  .more-body{padding-top:6px;}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;}
+  .tab{font-size:13px;font-weight:600;color:var(--muted);background:var(--surface);
+       border:1px solid var(--border);border-radius:99px;padding:6px 15px;cursor:pointer;user-select:none;}
+  .tab.on{color:var(--text);border-color:var(--faint);background:var(--surface2);}
+  .hero-dl{display:flex;align-items:center;gap:12px;border:1px solid rgba(29,158,117,.35);
+           background:rgba(29,158,117,.06);border-radius:12px;padding:12px 15px;margin:10px 0 8px;
+           text-decoration:none;}
+  .hero-dl .hd-t{font-size:13px;font-weight:700;color:var(--text);}
+  .hero-dl .hd-d{font-size:11px;color:var(--muted);line-height:1.45;}
+  .hero-dl .hd-a{margin-left:auto;font-size:12px;font-weight:700;color:var(--ok);flex:none;}
+  .att-item{display:flex;align-items:center;gap:10px;padding:7px 11px;background:var(--surface2);
+            border-radius:9px;margin-top:6px;text-decoration:none;}
+  .att-name{font:12px var(--mono);color:var(--text);}
+  .att-desc{font-size:11px;color:var(--muted);flex:1;}
+  .att-dl{font-size:11px;font-weight:600;color:var(--run);flex:none;}
+  .info-sec{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+            padding:15px 18px;margin-bottom:10px;}
+  .info-sec h3{margin:0 0 6px;font-size:14px;}
+  .info-sec p{margin:0 0 8px;font-size:13px;color:var(--muted);line-height:1.6;}
+  /* About: arkitekturkartan -- pedagogiska boxar med pilar (konsult-layout) */
+  .amap{display:flex;gap:0;align-items:stretch;flex-wrap:wrap;margin:6px 0 18px;}
+  .amap-stage{flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border);
+              border-radius:14px;padding:13px 14px;}
+  .amap-h{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+          color:var(--text);display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+  .amap-sub{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.4;}
+  .amap-box{background:var(--surface2);border-radius:9px;padding:8px 11px;margin-bottom:6px;}
+  .amap-box b{font-size:12px;color:var(--text);display:block;}
+  .amap-box span{font-size:11px;color:var(--muted);line-height:1.4;}
+  .amap-box.hero{border-left:3px solid var(--ok);}
+  .amap-down{text-align:center;color:var(--faint);font-size:12px;line-height:1;margin:1px 0 6px;}
+  .amap-link{display:flex;align-items:center;justify-content:center;flex:none;width:44px;
+             color:var(--faint);font-size:20px;}
+  .amap-link small{display:none;}
+  @media (max-width:720px){.amap{flex-direction:column;}.amap-link{width:auto;padding:4px 0;transform:rotate(90deg);}}
+  .amap-band{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+             padding:10px 14px;margin-bottom:8px;font-size:12px;color:var(--muted);line-height:1.5;}
+  .amap-band b{color:var(--text);}
   footer{margin-top:22px;font-size:12px;color:var(--faint);}
   .stamp{font:12px var(--mono);color:var(--faint);}
 </style>
@@ -215,20 +268,27 @@
     </div>
   </header>
 
+  <nav class="tabs"><span class="tab on" id="tabStatus">Status</span><span class="tab" id="tabAbout">About the model</span></nav>
+
+  <div id="about" style="display:none;"></div>
   <div id="app"><div class="sub">Loading… (the first call fetches the storage key, ~3–5 s)</div></div>
 
   <div class="bage" id="bage" style="display:none;"></div>
 
   <footer>Read-only: this view cannot start, stop, or change anything.
     Source of truth: <span style="font-family:var(--mono);">runstatus/&lt;run-id&gt;.json</span> in
-    <span style="font-family:var(--mono);">evipricingmodelstprod</span>.
-    Facit reference and texts: <span style="font-family:var(--mono);">story_config.py</span> ("[fill in]" = number not yet verified).</footer>
+    <span style="font-family:var(--mono);">evbcgpricinginput</span>.
+    Facit reference and texts: <span style="font-family:var(--mono);">story_config.py</span> ("[fill in]" = number not yet verified). Receipts follow the selected run (window) — Blob first, local fallback.<br>
+    Developed by <b>Jens Palmö</b> — Senior Business Analyst, Evidensia Djursjukvård AB (with an AI advisor).</footer>
 </div>
 
 <script>
 "use strict";
 var KR_PER_H = 9;
 var currentRun = null, timer = null, tick = null, openPhases = {};
+var lastRaw = null;                       // ororad status => ingen omritning (fix: paneler stangdes efter ~10s)
+var openD3 = {}, openFN = {}, openPP = {}, openMore = {}, d3cache = {};   // panel-minne over omritningar
+var PURPOSE = {}, INFO = null;
 var STORY = {}, GROUPS = {}, BAGE = "", VALIDATORS = {}, PROOF = null, FUNNEL = {}, DWIN = {};
 var lastData = null;            // the latest status file (for the live ticker)
 
@@ -256,7 +316,7 @@ var GROUP_ORDER=["before","engine","after"];
 function boot(){
   fetch("/api/story").then(function(r){return r.json();}).then(function(d){
     STORY=d.story||{}; GROUPS=d.groups||{}; BAGE=d.bage||"";
-    VALIDATORS=d.validators||{}; PROOF=d.proof_chain||null; FUNNEL=d.funnel||{}; DWIN=d.data_window||{};
+    VALIDATORS=d.validators||{}; PROOF=d.proof_chain||null; FUNNEL=d.funnel||{}; DWIN=d.data_window||{}; DWIN.now_static=DWIN.now; PURPOSE=d.output_purpose||{};
     loadRuns();
   }).catch(function(){ loadRuns(); });
 }
@@ -269,7 +329,7 @@ function loadRuns(){
     d.runs.forEach(function(id){var o=document.createElement("option");o.value=o.textContent=id;sel.appendChild(o);});
     if(!d.runs.length){document.getElementById("app").innerHTML='<div class="sub">No runs in Blob yet.</div>';return;}
     currentRun=d.runs[0]; sel.value=currentRun;
-    sel.onchange=function(){currentRun=sel.value;openPhases={};load();};
+    sel.onchange=function(){currentRun=sel.value;openPhases={};openD3={};openFN={};openPP={};openMore={};d3cache={};lastRaw=null;load();};
     load();
     if(timer)clearInterval(timer);
     timer=setInterval(load,10000);
@@ -278,22 +338,85 @@ function loadRuns(){
 
 function load(){
   if(!currentRun)return;
+  // FD.33-B1: fonstret AR run_id -- harled visnings-fonstret klientside (LB.85)
+  var wm=/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(currentRun);
+  DWIN.now = wm ? (wm[1]+" → "+wm[2]) : (DWIN.now_static||null);
   fetch("/api/status/"+encodeURIComponent(currentRun))
-    .then(function(r){return r.json();})
-    .then(function(d){lastData=d;render(d);})
+    .then(function(r){return r.text();})
+    .then(function(txt){
+      if(txt===lastRaw) return;          // ororad status -> behall DOM (oppna paneler overlever)
+      lastRaw=txt;
+      var d; try{d=JSON.parse(txt);}catch(e){d={error:String(e)};}
+      lastData=d;render(d);
+    })
     .catch(function(e){document.getElementById("app").innerHTML='<div class="alert a-bad">'+escapeHtml(String(e))+'</div>';});
 }
 
+// Arkitekturkartan (About): pedagogiska boxar med pilar -- input, nasta steg,
+// vad det anvands till. Speglar Before-Engine-After + Blob-bron + facit-ankaret.
+function renderArchMap(){
+  function box(t,s,hero){return '<div class="amap-box'+(hero?' hero':'')+'"><b>'+t+'</b><span>'+s+'</span></div>';}
+  var down='<div class="amap-down">↓</div>';
+  var link='<div class="amap-link">→</div>';
+  return '<div class="amap">'+
+    '<div class="amap-stage"><div class="amap-h"><span class="group-num">1</span>BEFORE — local</div>'+
+      '<div class="amap-sub">The fuel. Runs on Windows because the data warehouse is only reachable on the office network.</div>'+
+      box("Data warehouse (DW)","fresh transaction data, fetched over VPN")+down+
+      box("Extraction &amp; data prep","builds the weekly model dataset + parquet")+down+
+      box("Upload to Azure Blob","the fuel becomes cloud-readable")+
+    '</div>'+link+
+    '<div class="amap-stage"><div class="amap-h"><span class="group-num">2</span>ENGINE — Azure VM</div>'+
+      '<div class="amap-sub">The heavy math. Thousands of OLS elasticity models, parallelized on a memory-rich VM.</div>'+
+      box("Cluster model","elasticity per product × cluster")+down+
+      box("Site model","elasticity per product × clinic — finest level")+down+
+      box("Bundle model","elasticity per basket (2.2% of the weave)")+
+    '</div>'+link+
+    '<div class="amap-stage"><div class="amap-h"><span class="group-num">3</span>AFTER — local</div>'+
+      '<div class="amap-sub">Results become a business decision. Excel automation only exists on Windows.</div>'+
+      box("Step 5 — Excel post-processing","model output in the format the business reads")+down+
+      box("Step 6 — fallback weave","ONE elasticity per product via fallback hierarchy")+down+
+      box("Model Feed → pricing model","the deliverable: pasted into the pricing tabs",true)+
+    '</div>'+
+  '</div>'+
+  '<div class="amap-band"><b>Azure Blob Storage is the bridge:</b> input/ (fuel) · output/&lt;family&gt;/&lt;window&gt;/ (results per data window) · final/ (weave + feed) · receipts/ (evidence). The data window IS the address — every result traces to exactly the data it was computed on.</div>'+
+  '<div class="amap-band"><b>Trust runs underneath every arrow:</b> validation receipts at each step, and the frozen BCG facit as the zero point all movement is measured against.</div>';
+}
+
+function tabWire(){
+  var ts=document.getElementById("tabStatus"), ta=document.getElementById("tabAbout");
+  function show(status){
+    document.getElementById("app").style.display=status?"block":"none";
+    document.getElementById("bage").style.display=(status&&BAGE)?"block":"none";
+    document.getElementById("about").style.display=status?"none":"block";
+    ts.className="tab"+(status?" on":""); ta.className="tab"+(status?"":" on");
+    if(!status&&!INFO){
+      fetch("/api/info").then(function(r){return r.json();}).then(function(d){
+        INFO=d;
+        var el2=document.getElementById("about");
+        el2.innerHTML='<h1 style="margin-bottom:12px;">'+escapeHtml(d.title||"About")+'</h1>'+renderArchMap()+
+          (d.sections||[]).map(function(sc){
+            return '<div class="info-sec"><h3>'+escapeHtml(sc.h)+'</h3>'+
+              String(sc.body||"").split("\n\n").map(function(par){return '<p>'+escapeHtml(par)+'</p>';}).join("")+'</div>';
+          }).join("");
+      });
+    }
+  }
+  ts.onclick=function(){show(true);}; ta.onclick=function(){show(false);};
+}
+tabWire();
+
 function kpiCard(k){
+  // Ovisade varden renderas aldrig som [fill in] (byggplats-skylt, inte info):
+  // now saknas -> inget kort (FD-punkt); facit saknas -> visa bara korningens varde.
+  if(k.now==null) return "";
   var d=DIR[k.dir]||DIR.neut;
-  var facit = k.facit==null ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.facit);
-  var delta = k.delta==null ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.delta);
-  var now   = k.now==null   ? '<span class="fill">[fyll i]</span>' : escapeHtml(k.now);
-  return '<div class="kpi">'+
+  var vals = k.facit==null
+    ? '<span class="now">'+escapeHtml(k.now)+'</span>'
+    : '<span class="facit">'+escapeHtml(k.facit)+'</span><span class="arrow">→</span><span class="now">'+escapeHtml(k.now)+'</span>';
+  return '<div class="kpi'+(k.hero?' hero':'')+'">'+
     '<div class="lbl">'+escapeHtml(k.label)+'</div>'+
-    '<div class="vals"><span class="facit">'+facit+'</span>'+
-    '<span class="arrow">→</span><span class="now">'+now+'</span></div>'+
-    '<div class="delta" style="color:'+d[1]+';">'+d[0]+' '+delta+'</div></div>';
+    '<div class="vals">'+vals+'</div>'+
+    (k.delta!=null?'<div class="delta" style="color:'+d[1]+';">'+d[0]+' '+escapeHtml(k.delta)+'</div>':'')+'</div>';
 }
 
 // En fas-kort (anvands inuti gruppering). idx = stabilt index for open/chevron-state.
@@ -331,35 +454,36 @@ function phaseCard(p, idx, liveNow){
   // DATA-INFO: vad steget faktiskt producerar i konkreta tal (avlast, ingen ny berakning)
   var datainfo = st.data ? '<div class="datainfo"><span class="di-ico">▦</span> '+escapeHtml(st.data)+'</div>' : '';
 
-  var story="";
-  if(st.story||((st.kpis||[]).length)){
-    story='<div class="story-sec">'+
-      '<div class="story-head">VS FACIT (BCG)</div>'+
-      (st.story?'<div class="story-line">'+escapeHtml(st.story)+'</div>':'');
-    if((st.kpis||[]).length){
-      story+='<div class="kpis">'+st.kpis.map(kpiCard).join("")+'</div>';
-    }
-    story+='</div>';
-  }
+  // FD.33-B2: konsekvent rod trad per familj -- status, gron bock (pill, siffror
+  // pa klick), EXAKT tre KPI-kort sida vid sida, allt annat bakom "Details".
   var desc="";
   if(st.why) desc+='<div class="desc"><b>What &amp; why.</b> '+escapeHtml(st.why)+'</div>';
   if(st.use) desc+='<div class="desc"><b>How it is used.</b> '+escapeHtml(st.use)+'</div>';
   if(st.without) desc+='<div class="desc"><b>Without this step.</b> '+escapeHtml(st.without)+'</div>';
 
-  // FUNNEL (stage 4): build trust top-down. Top = bit-for-bit vs facit
-  // (green, broad). Middle = "BCG had X -> now Y" (the story, no verdict).
-  // Bottom = provenance nuance + export. Rendered directly from FUNNEL (static).
-  var funnel = renderFunnel(p.key);
+  var kall=(st.kpis||[]);
+  var mwb=st.measured_window?'<span class="mw-badge">measured on '+escapeHtml(st.measured_window)+'</span>':'';
+  var kpiRow=kall.length?('<div class="story-head" style="display:flex;align-items:center;">KEY NUMBERS'+mwb+'</div>'+
+             '<div class="kpis3">'+kall.slice(0,3).map(kpiCard).join("")+'</div>'):"";
+  var extraKpis=kall.length>3?('<div class="kpis">'+kall.slice(3).map(kpiCard).join("")+'</div>'):"";
+  var storyTxt=st.story?'<div class="story-line">'+escapeHtml(st.story)+'</div>':"";
+  var mo=!!openMore[p.key];
+  // What&why/How used/Without + HUR-rutan ar ASKADAR-ytan (synlig direkt);
+  // noten (t.ex. "SQL-prep ran outside orchestrator, BB.6a") ar DETALJ -> Details.
+  var more='<div class="more-toggle" data-more="'+escapeHtml(p.key)+'">Details, story &amp; validations '+
+           '<span class="fn-d3-chev" style="'+(mo?'transform:rotate(180deg);':'')+'">▼</span></div>'+
+           '<div class="more-body" data-morebody="'+escapeHtml(p.key)+'" style="display:'+(mo?'block':'none')+';">'+
+           note+datainfo+storyTxt+extraKpis+renderFunnelDetails(p.key)+'</div>';
 
-  body.innerHTML=how+datainfo+note+rows+story+desc+funnel;
+  body.innerHTML=rows+renderProofPill(p.key)+kpiRow+desc+how+more;
   head.onclick=function(){
     openPhases[idx]=!openPhases[idx];
     body.style.display=openPhases[idx]?"block":"none";
     var ch=document.getElementById("ch"+idx);
     if(ch)ch.style.transform=openPhases[idx]?"rotate(180deg)":"";
-    if(openPhases[idx]) wireDrill3(body);
+    if(openPhases[idx]) wireExtras(body);
   };
-  if(openPhases[idx]){body.style.display="block";wireDrill3(body);}
+  if(openPhases[idx]){body.style.display="block";wireExtras(body);}
   card.appendChild(head);card.appendChild(body);
   if(openPhases[idx]){var c2=head.querySelector("#ch"+idx);if(c2)c2.style.transform="rotate(180deg)";}
   return card;
@@ -371,44 +495,63 @@ function phaseCard(p, idx, liveNow){
 // then provenance nuance + export. All data from FUNNEL (story_config, static).
 // The full validator-by-validator detail is in the exported receipt.
 // =====================================================================
-function renderFunnel(phaseKey){
+function fnRow(r){
+  if(r.now==null) return "";   // omatt -> FD-punkt, aldrig [fill in]
+  var vals = r.facit==null
+    ? '<span class="fn-now">'+escapeHtml(r.now)+'</span>'
+    : '<span class="fn-facit">'+escapeHtml(r.facit)+'</span><span class="fn-arrow">→</span><span class="fn-now">'+escapeHtml(r.now)+'</span>';
+  return '<div class="fn-row'+(r.hero?' hero':'')+'">'+
+    '<div class="fn-metric">'+escapeHtml(r.metric)+'</div>'+
+    '<div class="fn-vals">'+vals+'</div>'+
+    (r.note?'<div class="fn-note">'+escapeHtml(r.note)+'</div>':'')+'</div>';
+}
+
+// Gron bock UTAN siffror (siffrorna en klickning bort). Konsekvent overst i varje familj.
+function renderProofPill(phaseKey){
+  var f=FUNNEL[phaseKey];
+  if(!f||!f.proof) return "";
+  var open=!!openPP[phaseKey];
+  return '<div class="proof-pill" data-pp="'+escapeHtml(phaseKey)+'"><span class="fn-check">✓</span> '+
+    escapeHtml(f.proof.label)+' — PASS'+
+    '<span class="fn-win-toggle">numbers <span class="fn-win-chev" style="'+(open?'transform:rotate(180deg);':'')+'">▼</span></span></div>'+
+    '<div class="fn-proof-kpi" data-ppbody="'+escapeHtml(phaseKey)+'" style="display:'+(open?'block':'none')+';margin:-6px 0 12px;">'+
+    escapeHtml(f.proof.kpi)+'</div>';
+}
+
+function renderFunnelDetails(phaseKey){
   var f = FUNNEL[phaseKey];
   if(!f) return "";
   var html = '<div class="funnel">';
-
-  // LAYER 1 (top): bit-for-bit vs facit -- broad trust
-  if(f.proof){
-    html += '<div class="fn-proof'+(f.proof.ok?' ok':'')+'">'+
-      '<div class="fn-proof-head"><span class="fn-check">✓</span> '+escapeHtml(f.proof.label)+'</div>'+
-      '<div class="fn-proof-kpi">'+escapeHtml(f.proof.kpi)+'</div></div>';
-  }
 
   // LAYER 2 (middle): BCG had -> now became. The WHOLE block (period + cards) sits in a
   // collapsible drop-down -- collapsed by default, clicking the heading expands all.
   if(f.facit_nu && f.facit_nu.length){
     var hasWin = DWIN.facit || DWIN.now;
+    var fnOpen = !!openFN[phaseKey];   // panel-minne: overlever omritning, stangs bara av klick
     html += '<div class="fn-sec-head fn-fn-toggle" data-fn="'+escapeHtml(phaseKey)+'">'+
-      'BCG FACIT &nbsp;→&nbsp; GROWING DATA NOW <span class="fn-win-toggle">show <span class="fn-win-chev">▼</span></span></div>';
-    html += '<div class="fn-fn-body" data-fnbody="'+escapeHtml(phaseKey)+'" style="display:none;">';
+      'BCG FACIT &nbsp;→&nbsp; GROWING DATA NOW <span class="fn-win-toggle">'+(fnOpen?'hide':'show')+
+      ' <span class="fn-win-chev" style="'+(fnOpen?'transform:rotate(180deg);':'')+'">▼</span></span></div>';
+    html += '<div class="fn-fn-body" data-fnbody="'+escapeHtml(phaseKey)+'" style="display:'+(fnOpen?'block':'none')+';">';
     if(hasWin){
       html += '<div class="fn-win-body">'+
         '<div class="fn-win-row"><span class="fn-win-lbl">Frozen BCG window</span>'+
           '<span class="fn-win-val">'+escapeHtml(DWIN.facit||"—")+'</span></div>'+
         '<div class="fn-win-row"><span class="fn-win-lbl">Growing window now</span>'+
           '<span class="fn-win-val">'+escapeHtml(DWIN.now||"—")+'</span></div>'+
+        (f.measured_window?'<div class="fn-win-row"><span class="fn-win-lbl">KPI values measured on</span>'+
+          '<span class="fn-win-val">'+escapeHtml(f.measured_window)+'</span></div>':'')+
         '</div>';
     }
     html += '<div class="fn-rows">';
-    f.facit_nu.forEach(function(r){
-      html += '<div class="fn-row">'+
-        '<div class="fn-metric">'+escapeHtml(r.metric)+'</div>'+
-        '<div class="fn-vals"><span class="fn-facit">'+escapeHtml(r.facit)+'</span>'+
-          '<span class="fn-arrow">→</span>'+
-          '<span class="fn-now">'+escapeHtml(r.now)+'</span></div>'+
-        (r.note?'<div class="fn-note">'+escapeHtml(r.note)+'</div>':'')+
-      '</div>';
-    });
+    f.facit_nu.forEach(function(r){ html += fnRow(r); });
     html += '</div></div>';
+  }
+
+  // COVERAGE & TRUST (extraction): hur mycket av verkligheten modellen prissatter pa.
+  if(f.coverage && f.coverage.length){
+    html += '<div class="fn-sec-head">DATA COVERAGE &amp; TRUST</div><div class="fn-rows">';
+    f.coverage.forEach(function(r){ html += fnRow(r); });
+    html += '</div>';
   }
 
   // LAYER 3 (bottom): provenance nuance (what is fresh vs frozen) -- honesty
@@ -417,6 +560,7 @@ function renderFunnel(phaseKey){
     html += '<div class="fn-prov-head">Fresh vs frozen in the weave &nbsp;'+
       '<span class="fn-prov-count">'+f.prov.fresh+'/'+f.prov.total+' fresh</span></div>';
     if(f.prov.headline) html += '<div class="fn-prov-lead">'+escapeHtml(f.prov.headline)+'</div>';
+    if(f.prov.frozen_explain) html += '<div class="fn-prov-lead" style="font-style:italic;">'+escapeHtml(f.prov.frozen_explain)+'</div>';
     f.prov.rows.forEach(function(pr){
       var fresh = pr.state.indexOf("FRESH")!==-1;
       html += '<div class="fn-prov-row">'+
@@ -431,9 +575,11 @@ function renderFunnel(phaseKey){
 
   // DRILL 3 (bottom): all individual validation receipts to export -- NO
   // PASS/REVIEW verdict, just name + fetch. Lazy-loaded when expanded.
+  var d3o=!!openD3[phaseKey];
   html += '<div class="fn-drill3" data-r3="'+escapeHtml(phaseKey)+'">'+
-    '<div class="fn-drill3-head">All reviews (export) <span class="fn-d3-chev">▼</span></div>'+
-    '<div class="fn-drill3-body" style="display:none;"><div class="val-loading">Loading…</div></div>'+
+    '<div class="fn-drill3-head">All reviews (export) <span class="fn-d3-chev" style="'+(d3o?'transform:rotate(180deg);':'')+'">▼</span></div>'+
+    '<div class="fn-drill3-body" style="display:'+(d3o?'block':'none')+';">'+
+    (d3cache[phaseKey]||'<div class="val-loading">Loading…</div>')+'</div>'+
     '</div>';
 
   // Export: hela master-kvittot (sammanfattningen)
@@ -445,20 +591,44 @@ function renderFunnel(phaseKey){
   return html;
 }
 
-// Drill 3: wire expand + lazy-load the receipt list (delegation).
-function wireDrill3(body){
-  // The facit->now block (period + cards) expands/collapses on heading click. Collapsed by default.
+// FD.33-B2: wire alla expanderbara paneler med PANEL-MINNE (openPP/openMore/
+// openFN/openD3) sa att oppet lage overlever omritningar -- roten till att
+// listor "stangde sig sjalva" var 10s-refreshens DOM-rivning.
+function wireExtras(body){
+  var pp=body.querySelector(".proof-pill[data-pp]");
+  if(pp && !pp.getAttribute("data-wired")){
+    pp.setAttribute("data-wired","1");
+    pp.onclick=function(){
+      var ph=pp.getAttribute("data-pp");
+      openPP[ph]=!openPP[ph];
+      var b=body.querySelector('[data-ppbody="'+ph+'"]');
+      if(b)b.style.display=openPP[ph]?"block":"none";
+      var ch=pp.querySelector(".fn-win-chev");
+      if(ch)ch.style.transform=openPP[ph]?"rotate(180deg)":"";
+    };
+  }
+  var mt=body.querySelector(".more-toggle[data-more]");
+  if(mt && !mt.getAttribute("data-wired")){
+    mt.setAttribute("data-wired","1");
+    mt.onclick=function(){
+      var ph=mt.getAttribute("data-more");
+      openMore[ph]=!openMore[ph];
+      var b=body.querySelector('[data-morebody="'+ph+'"]');
+      if(b)b.style.display=openMore[ph]?"block":"none";
+      var ch=mt.querySelector(".fn-d3-chev");
+      if(ch)ch.style.transform=openMore[ph]?"rotate(180deg)":"";
+    };
+  }
   var ft=body.querySelector(".fn-fn-toggle[data-fn]");
   if(ft && !ft.getAttribute("data-wired")){
     ft.setAttribute("data-wired","1");
     ft.onclick=function(){
       var ph=ft.getAttribute("data-fn");
+      openFN[ph]=!openFN[ph];
       var fb=body.querySelector('.fn-fn-body[data-fnbody="'+ph+'"]');
-      if(!fb)return;
-      var open=fb.style.display!=="none";
-      fb.style.display=open?"none":"block";
+      if(fb)fb.style.display=openFN[ph]?"block":"none";
       var ch=ft.querySelector(".fn-win-chev");
-      if(ch)ch.style.transform=open?"":"rotate(180deg)";
+      if(ch)ch.style.transform=openFN[ph]?"rotate(180deg)":"";
     };
   }
   var d3=body.querySelector(".fn-drill3[data-r3]");
@@ -467,21 +637,20 @@ function wireDrill3(body){
   var inner=d3.querySelector(".fn-drill3-body");
   var phase=d3.getAttribute("data-r3");
   head.onclick=function(){
-    var open=inner.style.display!=="none";
-    inner.style.display=open?"none":"block";
+    openD3[phase]=!openD3[phase];
+    inner.style.display=openD3[phase]?"block":"none";
     var ch=head.querySelector(".fn-d3-chev");
-    if(ch)ch.style.transform=open?"":"rotate(180deg)";
-    if(!open && !d3.getAttribute("data-loaded")){
-      d3.setAttribute("data-loaded","1");
-      fetch("/api/receipts_list/"+encodeURIComponent(phase))
+    if(ch)ch.style.transform=openD3[phase]?"rotate(180deg)":"";
+    if(openD3[phase] && !d3cache[phase]){
+      fetch("/api/receipts_list/"+encodeURIComponent(phase)+"?run="+encodeURIComponent(currentRun||""))
         .then(function(r){return r.json();})
         .then(function(d){
           var files=d.files||[];
-          if(!files.length){ inner.innerHTML='<div class="val-loading">No individual receipts found.</div>'; return; }
-          inner.innerHTML=files.map(function(fl){
+          d3cache[phase]=files.length?files.map(function(fl){
             return '<a class="d3-item" href="/api/receipt/'+encodeURIComponent(fl.file)+'" download>'+
                    '<span class="d3-name">'+escapeHtml(fl.name)+'</span><span class="d3-dl">⬇ Excel</span></a>';
-          }).join("");
+          }).join(""):'<div class="val-loading">No individual receipts found for this window.</div>';
+          inner.innerHTML=d3cache[phase];
         })
         .catch(function(){ inner.innerHTML='<div class="val-loading">Could not fetch the list.</div>'; });
     }
@@ -519,13 +688,9 @@ function render(d){
   var done=d.phases.filter(function(p){return p.state==="succeeded";}).length;
   strip.appendChild(el("span",null,'phases done <b>'+done+' / '+d.phases.length+'</b>'));
   strip.appendChild(el("span",null,'active time <b>'+(d.total_active_human||"—")+'</b>'));
-  if(d.wall_clock_human){
-    strip.appendChild(el("span",null,'wall clock <b>'+escapeHtml(d.wall_clock_human)+'</b> <span style="color:var(--faint)">(incl. pauses)</span>'));
-  }
-  var vmSec=d.phases.filter(function(p){return p.location==="vm"&&p.duration_seconds;})
-                    .reduce(function(a,p){return a+p.duration_seconds;},0);
-  strip.appendChild(el("span",null,'VM cost est. <b>'+(vmSec?(vmSec/3600*KR_PER_H).toFixed(0)+' kr':'—')+'</b> <span style="color:var(--faint)">(9 kr/h)</span>'));
-  strip.appendChild(el("span",null,'last heartbeat <b>'+(hb==null?"—":(hb<1?"just now":Math.round(hb)+" min ago"))+'</b>'));
+  // FD.33-B2: heartbeat/wall clock/VM cost borttagna ur stripen -- operatorstal
+  // (Jens vid korning), inte askadartal. Logiken bakom stale/old-varningarna
+  // anvander d.last_heartbeat internt precis som forut.
   app.appendChild(strip);
 
   if(stale){
@@ -577,18 +742,46 @@ function render(d){
 
   // Results in Blob -- now with download links (FD.23)
   if(d.output_blob_paths && d.output_blob_paths.length){
-    var out=el("div","outputs","<b style='font-size:13px;'>Results in Blob</b><br>");
-    var links=el("div",null,"");
-    links.style.marginTop="8px";
+    // FD.33-B2: Model Feed ar LEVERANSEN (stor, gron); resten ar bilagor med
+    // uttalade syften (OUTPUT_PURPOSE i story_config -- Jens rost, redigerbar).
+    function purposeFor(name){
+      for(var k in PURPOSE){ if(name.indexOf(k)===0) return PURPOSE[k]; }
+      return {hero:false,title:"Attachment",desc:""};
+    }
+    var out=el("div","outputs","<b style='font-size:13px;'>Results in Blob</b>");
+    // Dubblett-sanering: statusfilen ackumulerar vagar fran alla PUSH:ar --
+    // vi visar EN fil per typ, sista forekomsten (= senast korda) vinner, sa
+    // gamla/felaktiga generationer aldrig kan forvaxlas med leveransen.
+    var byType={};
     d.output_blob_paths.forEach(function(p){
       var name=String(p).split("/").pop();
-      var a=el("a","dl","⬇ "+escapeHtml(name));
-      a.href="/api/download/"+encodeURIComponent(p);
-      a.setAttribute("download","");
-      links.appendChild(a);
+      var typ=name.replace(/_\d{8}_\d{6}/,"").replace(/_\d{4}-\d{2}-\d{2}/,"");
+      byType[typ]={p:p,name:name,pu:purposeFor(name)};
     });
-    out.appendChild(links);
-    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);margin-top:6px;display:inline-block;">The files are fetched directly from Blob via the local view.</span>'));
+    var heroes=[],atts=[];
+    Object.keys(byType).sort().forEach(function(k2){
+      (byType[k2].pu.hero?heroes:atts).push(byType[k2]);
+    });
+    heroes.forEach(function(o){
+      var a=el("a","hero-dl",
+        '<div><div class="hd-t">⬇ '+escapeHtml(o.pu.title)+'</div>'+
+        '<div class="hd-d">'+escapeHtml(o.pu.desc)+'<br><span style="font-family:var(--mono);font-size:10px;color:var(--faint);">'+escapeHtml(o.name)+'</span></div></div>'+
+        '<span class="hd-a">Download</span>');
+      a.href="/api/download/"+encodeURIComponent(o.p); a.setAttribute("download","");
+      out.appendChild(a);
+    });
+    if(atts.length){
+      out.appendChild(el("div",null,'<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-top:8px;">ATTACHMENTS (traceability &amp; analysis)</div>'));
+      atts.forEach(function(o){
+        var a=el("a","att-item",
+          '<span class="att-name">'+escapeHtml(o.name)+'</span>'+
+          '<span class="att-desc">'+escapeHtml(o.pu.desc||o.pu.title)+'</span>'+
+          '<span class="att-dl">⬇</span>');
+        a.href="/api/download/"+encodeURIComponent(o.p); a.setAttribute("download","");
+        out.appendChild(a);
+      });
+    }
+    out.appendChild(el("div",null,'<span style="font-size:12px;color:var(--faint);margin-top:8px;display:inline-block;">The files are fetched directly from Blob via the local view.</span>'));
     app.appendChild(out);
   }
 
