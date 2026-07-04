@@ -55,16 +55,16 @@ requirements.txt  -> C:\Projekt\BCG\requirements.txt
 blob.py (uppdat.) -> C:\Projekt\BCG\orchestration\infrastructure\blob.py   (PRICINGMODEL_KEY-vägen)
 ```
 
-### B1. Återanvänd hemsida_automations infrastruktur (fråga till dig)
-Mastern säger "konkreta namn/URL:er står i STATE" — jag har inte STATE. **Klistra in tre värden
-ur hemsida_automation:** ACR-namnet, dess resource group, och App Service-planens namn.
-Finns de återanvänds registret + planen (delad månadskostnad). Saknas de: skapandeblock i B2.
+### B1. Namn (defaults valda — kör direkt, eller byt till hemsida_automations)
+Defaults nedan skapar allt fräscht i test-RG:n. Har hemsida_automation redan ACR/plan du vill
+återanvända (delad kostnad): byt bara `$ACR`/`$PLAN` till dess värden och hoppa skapanderaderna.
+ACR- och app-namn måste vara globalt unika — får du "already in use", ändra suffixet.
 
 ### B2. Engångsskapande (hoppa det som redan finns)
 ```powershell
 az login --scope https://management.core.windows.net//.default
 az account show --query name -o tsv                     # MÅSTE: ev-lz3-ai (SE)
-$RG="ev-openai-swce-rg-test"; $ACR="<acr-namn>"; $PLAN="<plan-namn>"; $APP="bcg-dashboard"
+$RG="ev-openai-swce-rg-test"; $ACR="evbcgpricingacr"; $PLAN="bcg-dashboard-plan"; $APP="evbcg-dashboard"
 
 az acr create --resource-group $RG --name $ACR --sku Basic                       # om nytt
 az appservice plan create --resource-group $RG --name $PLAN --sku B1 --is-linux  # om ny (AZ.2: inte F1!)

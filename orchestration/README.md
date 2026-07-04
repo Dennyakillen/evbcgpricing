@@ -1,8 +1,24 @@
 # orchestration — Phase Z: kör BCG-prismodellen via Azure
 
 **Projekt:** `evbcgpricing` / FAS A (produktionssättning)
-**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB), med AI-rådgivare
-**Status:** Site-modellsteget bevisat end-to-end 2026-06-12 (6624 KEY, korr 1.000000 mot facit).
+**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
+**Status 2026-07-03:** Alla tre familjer + EFTER-kedjan gröna på maj-fönstret
+(2022-07-01_2026-05-31); FD.33 Etapp A exekverad — Blob omlagd till familj/fönster-struktur
+med receipts-container + MANIFEST.json; dashboarden fönster-medveten med About-flik.
+
+## Azure-miljö (hitta rätt)
+
+| Vad | Värde |
+|---|---|
+| Subscription | `ev-lz3-ai (SE)` |
+| Resource group | `ev-openai-swce-rg-test` |
+| Storage account | `evbcgpricinginput` (TEST — aldrig prod) |
+| Containrar | `runstatus` · `input` · `output` (familj/fönster + `final/`) · `pipeline` (frozen facit) · `receipts` (svit/fönster) · `quarantine` |
+| Compute-VM | `bcg-poc-vm` (Standard_E16s_v5, privat IP 172.18.148.4 — VPN krävs, deallokera efter körning) |
+| Adressprincip | datafönstret ÄR adressen: `output/<familj>/2022-07-01_2026-05-31/...` |
+| Dashboard-publicering | se `DEPLOY_DASHBOARD.md` (Schemaläggaren lokalt / App Service i molnet) |
+
+Kodrepot versionshanteras i Git — åtkomst via Jens Palmö (repo-URL hålls utanför denna dokumentation).
 
 ---
 
@@ -71,6 +87,14 @@ upp, trigga körningar eller röra VM:en. Binder `127.0.0.1`.
 
 **Köra:** `py -3.11 orchestration\webapp\app.py` (Ctrl+Shift+R i browsern vid kodändring;
 döda gamla python-processer först — LB.69). Vidareutveckling i lager, se FD.18/19/33.
+
+**Dashboard v2 (FD.33-B, 2026-07-03):** run-väljaren är fönster-medveten — kvitton läses ur
+Blob `receipts/<svit>/<fönster>/` (lokal fallback), fönstret härleds ur run_id. Konsekvent
+familjelayout: grön bevis-pill (siffror på klick) → tre KPI-kort → What&why/How/Without →
+"Details" (story, facit→nu, coverage, fresh/frozen-karta, exporterbara kvitton). Model Feed
+renderas som leverans-hjälte, övriga filer som bilagor med syfte (`OUTPUT_PURPOSE`).
+About-flik med arkitekturkarta + femminutersutbildning (`info_config.py`). Omritning sker
+bara när status ändrats; öppna paneler överlever. Publicering: `DEPLOY_DASHBOARD.md`.
 
 ## Köra (global Python 3.11, från repo-roten `C:\Projekt\BCG`)
 

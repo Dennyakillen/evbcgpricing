@@ -96,7 +96,11 @@ INFO = {
                 "The data window IS the address — for example 2022-07-01_2026-05-31 — so any result can be traced "
                 "to exactly the data it was computed on. Code lives in Git. Together this means a successor could "
                 "clone the repository, read Blob, and continue — the original design goal: survive any single "
-                "person leaving."
+                "person leaving.\n\n"
+                "Finding the environment (Azure): subscription 'ev-lz3-ai (SE)', resource group "
+                "'ev-openai-swce-rg-test', storage account 'evbcgpricinginput' (containers: runstatus, "
+                "input, output, pipeline, receipts, quarantine), compute VM 'bcg-poc-vm'. "
+                "Code is version-controlled in Git (access via Jens Palmö)."
             ),
         },
         {
