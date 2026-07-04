@@ -106,7 +106,41 @@ Invoke-WebRequest -Uri "https://$APP.azurewebsites.net" -UseBasicParsing        
 Felsökning: `az webapp log tail --resource-group $RG --name $APP` (container startar inte →
 port/WEBSITES_PORT, image-bygge eller settings — masterns §9-regel).
 
-### B5. Redeploy-loopen (varje framtida ändring, ~3 min)
+### B-ALT. Kod-deploy utan ACR (VALD VÄG 2026-07-04 — PIM når inte provider-registrering)
+`Microsoft.ContainerRegistry`-registrering kräver subscription-scope; RG-scopad PIM stoppas
+(AuthorizationFailed, mätt 2026-07-04). Zip-deploy till Linux Python-runtime kringgår hela
+registret — Oryx pip-installerar requirements.txt vid deploy. Dockerfile vilar tills IT
+registrerar providern (enrads-ask), då är B2-vägen öppen igen.
+
+```powershell
+$RG="ev-openai-swce-rg-test"; $PLAN="bcg-dashboard-plan"; $APP="evbcg-dashboard"
+az webapp delete -g $RG -n $APP                       # container-appen kan inte flippas -> aterskapa som kod-app
+az webapp create -g $RG -p $PLAN -n $APP --runtime "PYTHON:3.11"
+az webapp update -g $RG -n $APP --set tags.owner="Jens Palmö"
+$key = az storage account keys list --account-name evbcgpricinginput --resource-group $RG --query "[0].value" -o tsv
+az webapp config appsettings set -g $RG -n $APP --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true `
+  PRICINGMODEL_AUTH=key PRICINGMODEL_KEY=$key PRICINGMODEL_STORAGE=evbcgpricinginput PRICINGMODEL_RG=$RG
+az webapp config set -g $RG -n $APP --always-on true `
+  --startup-file "gunicorn --bind=0.0.0.0:8000 --chdir orchestration/webapp --timeout 120 app:app"
+# >>> AUTH NU (Portalen -> evbcg-dashboard -> Authentication -> Add identity provider ->
+# >>> Microsoft -> Create new app registration -> Require authentication) — FORE deployen.
+cd C:\Projekt\BCG
+Add-Content .gitignore "deploy.zip"                    # zipen ska ALDRIG committas
+Compress-Archive -Path orchestration, requirements.txt -DestinationPath deploy.zip -Force
+az webapp deploy -g $RG -n $APP --src-path deploy.zip --type zip     # Oryx bygger (~2-4 min)
+Start-Sleep 40; Invoke-WebRequest "https://$APP.azurewebsites.net" -UseBasicParsing
+```
+Felsökning: `az webapp log tail -g $RG -n $APP`. Runtime-strangen kraver ibland "PYTHON|3.11"
+pa aldre CLI. WEBSITES_PORT behovs INTE for kod-appar (container-specifik).
+
+**Redeploy-loopen (kod-vägen, ~2 min):**
+```powershell
+cd C:\Projekt\BCG
+Compress-Archive -Path orchestration, requirements.txt -DestinationPath deploy.zip -Force
+az webapp deploy -g $RG -n $APP --src-path deploy.zip --type zip
+```
+
+### B5. Redeploy-loopen (ACR-vägen — vilande tills providern registrerats)
 ```powershell
 cd C:\Projekt\BCG
 az acr build --registry $ACR --image bcg-dashboard:v1 .

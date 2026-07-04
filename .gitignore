@@ -148,3 +148,4 @@ verify_tool/conservation_snapshot.json
 # arbetsmaterial + korningsartefakter (2026-07-03)
 docs/*.pptx
 Pipeline/02. Elasticity/6. Fall Back Logic/input_data/
+deploy.zip
