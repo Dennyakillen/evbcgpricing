@@ -1,6 +1,10 @@
-# BCG pricing dashboard -- container-beroenden (App Service)
+# BCG pricing dashboard -- container/App Service-beroenden
+# gunicorn PINNAD: >=22 lagger inte langre cwd pa sys.path (medveten andring)
+# -> 'app:app' hittar inte app.py bredvid sig -> ModuleNotFoundError: 'app'
+# (D.22, uppmatt 2026-07-04 med gunicorn 26.0.0). Vid framtida uppgradering:
+# anvand '--pythonpath .' i startup-kommandot i stallet for att avpinna blint.
 flask
-gunicorn
+gunicorn==20.1.0
 azure-storage-blob
 azure-identity
 openpyxl
