@@ -2,9 +2,17 @@
 # gunicorn PINNAD: >=22 lagger inte langre cwd pa sys.path (medveten andring)
 # -> 'app:app' hittar inte app.py bredvid sig -> ModuleNotFoundError: 'app'
 # (D.22, uppmatt 2026-07-04 med gunicorn 26.0.0). Vid framtida uppgradering:
-# anvand '--pythonpath .' i startup-kommandot i stallet for att avpinna blint.
+# anvand 'python -m gunicorn' i startup.sh (tvingar antenv-versionen).
+#
+# duckdb TILLAGD 2026-07-07: webapp_deploy_probe (AST-closure) matte att
+# duckdb ingar i appens importkedja (via blob.py/run_status-kedjan) men
+# saknades har -> garanterad ModuleNotFound i molnet trots att allt funkar
+# lokalt (globala Python har paketet). Langsiktigt hor beroendet INTE hemma
+# i webappens payload -- backlog: bryt ut blob.py:s las-sida till en ren
+# data_access-modul (plattformsprincipen "en modul = ett ansvar").
 flask
 gunicorn==20.1.0
 azure-storage-blob
 azure-identity
 openpyxl
+duckdb

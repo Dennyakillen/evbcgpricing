@@ -1,0 +1,67 @@
+# azure-pipelines.yml -- BCG dashboard: permanent publishing path (Azure DevOps)
+# =============================================================================
+# Developer: Jens Palmo (Senior Business Analyst, Evidensia Djursjukvard AB)
+# Status:    INERT until IT finishes the Azure DevOps setup. Committing this
+#            file costs nothing and prepares maximally (platform-compatible).
+#
+# Why this kills the ghost catalog by design (not by fix):
+#   D.15 (backslash zip)   -> zip built by Python on a Linux agent
+#   D.16 (stale artifacts) -> every run is a fresh agent, fresh artifact
+#   D.20 (nested Oryx tar) -> stage_webapp.py flattens to zip root
+#   D.23 (CRLF startup.sh) -> written with LF on Linux, CR-gate still runs
+#   D.22 (gunicorn shadow) -> startup.sh uses 'python -m gunicorn' + pin
+#
+# Platform note: this is the reusable CI/CD pattern for the analytics platform
+# (Pipeline B-G inherit it: swap the staging module + app name, keep the shape).
+# The pattern, not the vendor, goes into MASTER_AZURE_DEPLOY -- GitHub Actions
+# is the same three steps with different task names.
+#
+# TO ACTIVATE when IT lands (three one-time steps, all in DevOps portal):
+#   1. IT creates the DevOps project + connects this repo (import or mirror).
+#   2. IT (or Jens, if permitted) creates an Azure Resource Manager
+#      SERVICE CONNECTION scoped to RG ev-openai-swce-rg-test, using
+#      Workload Identity Federation (no stored secrets -- IT-compliant).
+#      Paste its name into SERVICE_CONNECTION below.
+#   3. Pipelines -> New pipeline -> Existing YAML -> this file. First run
+#      requires a one-click permission grant on the service connection.
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - orchestration/webapp/**
+      - orchestration/infrastructure/blob.py
+      - requirements.txt
+      - tools/stage_webapp.py
+      - azure-pipelines.yml
+
+variables:
+  SERVICE_CONNECTION: 'REPLACE_WHEN_IT_LANDS'   # ARM service connection name
+  APP_NAME: 'evbcg-dashboard'
+
+pool:
+  vmImage: 'ubuntu-latest'    # clean Linux build env: LF native, no cache
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.11'
+    displayName: 'Python 3.11 (matches App Service runtime)'
+
+  - script: python tools/webapp_deploy_probe.py
+    displayName: 'Probe: measured import closure + requirements coverage'
+
+  - script: python tools/stage_webapp.py
+    displayName: 'Stage webapp per measured manifest (same modules as local)'
+
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: '$(SERVICE_CONNECTION)'
+      appType: 'webAppLinux'
+      appName: '$(APP_NAME)'
+      package: 'deploy.zip'
+      startUpCommand: 'startup.sh'
+    displayName: 'Deploy to App Service (fresh artifact, no Oryx zip ghosts)'
