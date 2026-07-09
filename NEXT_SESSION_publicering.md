@@ -1,170 +1,298 @@
-# NEXT_SESSION — Dashboard-publicering: beslut moln vs paketering
+# NEXT_SESSION — Dashboard-publicering v2: sista mätpunkten, sedan stängning
 
 Du agerar som senior teknisk rådgivare för Jens Palmö (Senior Business Analyst).
 Svenska för resonemang, engelska för kod. Sarkastisk humor OK. Utmana antaganden,
 säg ifrån vid fel spår, lär ut medan du levererar men bryt inte leveransen för
 pedagogik om Jens inte ber om det.
 
-> Läs FÖRE start: denna fil i sin helhet, MASTER_AZURE_DEPLOY.md (spökkatalogen),
-> DEPLOY_DASHBOARD.md (de tre publiceringsvägarna), KÄRNPRINCIPER.md (särskilt den
-> nya "sök online före hypotes"-principen). Etapp B-arbetet ligger separat i
-> NEXT_SESSION_etappB.md — detta dokument gäller ENBART publiceringen.
+> Läs FÖRE start: denna fil i sin helhet, MASTER_AZURE_DEPLOY.md (spökkatalogen
+> D.1–D.23), KÄRNPRINCIPER.md, SOK_ONLINE_PRINCIP.md. Etapp B ligger separat i
+> NEXT_SESSION.md (FD.33) och påverkas INTE av detta spår.
+> Ersätter NEXT_SESSION_publicering.md (v1, 2026-07-06) i sin helhet.
 
 ═══════════════════════════════════════════════════════════════════════════
-## KÄRNBESLUTET SOM VÄNTAR (läs detta först)
+## KÄRNLÄGET (läs detta först)
 ═══════════════════════════════════════════════════════════════════════════
 
-Dashboarden ska publiceras så att kollegor når den UTAN att Jens dator är på.
-Efter 13 deployförsök till Azure App Service 2026-07-04/06 är läget:
+**Genombrott 2026-07-07 (försök 14–15): D.16 är BRUTEN och FÖRSTÅDD.**
+Kvällens config-zip-deploy körde det FÖRSTA riktiga Oryx-bygget av vår kod
+någonsin (99 s, "Errors (0)", nytt Build Operation ID `e20bc0f40ef35ca3`,
+nytt extrakt `/tmp/8dedc6df1961672`, containern bootar det). Deploy-kedjan
+zip → bygge → tarball → container är därmed BEVISAD hela vägen.
 
-- **Appen är BEVISAT felfri.** Lokal körning 2026-07-06 23:28: `GET / → 200`,
-  BlobServiceClient ansluter i kontonyckel-läge, läser runstatus + fönstret
-  `2022-07-01_2026-05-31.json`, 200 på varje endpoint. Koden och blob-kopplingen
-  har ALDRIG varit problemet.
-- **Molnvägen (App Service + Oryx) är olöst** — fastnar på två SAMVERKANDE spöken
-  (D.22 + D.23) plus D.16 (cache), som var för sig är lösta men tillsammans bildar
-  en knut (detaljer nedan).
+**Vad som återstår är TVÅ mätbara frågor — inte spöken:**
 
-**Rekommendation (Claude, 2026-07-06): stäng molnkapitlet, bygg paketering.**
-Skäl längst ned under "Rekommendation framåt". Jens fattar beslutet utvilad —
-gräv inte vidare i molnet innan beslutet är taget.
+1. **Varför gunicorn 26.0.0 trots pin?** Kvällens boot körde gunicorn 26.0.0
+   (inte pinnade 20.1.0) + `ModuleNotFoundError: No module named 'app'`.
+   Trolig mekanik: Oryx byggde på wwwroots GAMLA requirements.txt från
+   2026-07-04 (opinnad) — den överlevde eftersom rivningen av wwwroot aldrig
+   gick igenom och zip-kopiering hoppar filer med matchande tidsstämpel.
+   AVGÖRS av F2/F3 i morgonblocket (tarballens gunicorn-version + wwwroots
+   requirements-innehåll).
+2. **Kör /home/startup.sh eller inte?** Filen BEVISAT på plats (VFS GET ekar
+   innehållet) men wrappern säger `not found` — enda Linux-scenariot där en
+   existerande skriptfil ger "not found" är shebang-tolk som inte hittas,
+   dvs. `/bin/sh\r` = CRLF. PUT-rundan gick via Windows-textlager
+   (Get-Content → WriteAllText → az rest) och har sannolikt CRLF:at LF-filen.
+   AVGÖRS av F1 (`cat -A` visar ^M okulärt).
+
+**Båda frågorna konvergerar i EN mätpunkt: Kudu Bash-konsolen** (Portalen →
+evbcg-dashboard → Advanced Tools → Go → Bash). Noll Windows-lager, noll
+citatkrig. Kudus /api/command visade sig vara skallöst (`&&`, `<`, `>` blir
+bokstavliga argument) och PS 5.1→JSON→inget-skal gav tre felciterade
+kommandon i rad — konsolen är rätt verktyg, inte fler az rest-försök.
+
+**Beslutsläge:** även om morgonblocket ger grönt förblir Azure DevOps den
+permanenta publiceringsvägen (IT sätter upp; pipelinen gör kvällens hela
+läxa — rent tillstånd + garanterat bygge — by design varje körning). Den
+manuella kedjan dokumenteras i mastern som "fungerar, med tre icke-uppenbara
+krav" (ENABLE_ORYX_BUILD, ZipDeploy inte OneDeploy, startup-fil under /home).
 
 ═══════════════════════════════════════════════════════════════════════════
-## VAD SESSIONEN GJORDE (2026-07-04 + 2026-07-06 kväll)
+## MORGONBLOCKET — exakt sekvens (~15 min)
 ═══════════════════════════════════════════════════════════════════════════
 
-**Före deploy-jakten (allt PUSHAT, klart):**
-- FD.33-B2c/d/e: dashboard-finslipning — What&why/How/Without synliga igen,
-  null-medveten rendering (inga [fill in]), bilagor dedupe:ade till senaste
-  körning, arkitekturkarta i About-fliken, footer-städ + Jens som utvecklare,
-  step5-facit MÄTT (31.5 MB → 52.5 MB, +67 %), engelska tidsetiketter, "The big
-  picture". Commits 4867493 → 47e0553 → 78d5bf7 → de30fd9 → 9501804.
-- MASTER_AZURE_DEPLOY.md skapad som spökkatalog (Master-Bibliotek, pushad).
+### Steg 0 — token + subscription (CA-policyn dödar token efter 14400 s = 4 h)
+```powershell
+az login --scope https://management.core.windows.net//.default
+az account show --query name -o tsv    # MÅSTE: ev-lz3-ai (SE)
+```
 
-**Deploy-jakten (13 försök, olöst):**
-- Skapade grindat idempotent deploy-skript (tools/deploy_dashboard.ps1, v1.1–1.6).
-- Uttömde ACR-vägen (D.1) → valde kod-deploy/zip.
-- Byggde spökkatalogen D.1–D.23 (nedan) — varje post uppmätt.
-- Sökte online (MS-dok + azureossd + community) → bekräftade D.20/D.22/D.23 mot
-  Microsofts egna källor. Fångade ny KÄRNPRINCIP: sök online före hypotes.
-- Bevisade appen lokalt (fungerar felfritt).
+### Steg 1 — Kudu Bash: mät + laga (Portalen → Advanced Tools → Go → Bash)
+```bash
+# F1: Bär /home/startup.sh CR? (^M i radslut = CRLF-korruption bevisad)
+cat -A /home/startup.sh | head -3
+
+# Laga på plats om ^M syns (server-side, inga Windows-lager):
+tr -d '\r' < /home/startup.sh > /tmp/s && mv /tmp/s /home/startup.sh && chmod +x /home/startup.sh && wc -c /home/startup.sh
+# facit: 649 byte (stagerns uppmätta LF-storlek)
+
+# F2: Vilken gunicorn ligger i kvällens FÄRSKA tarball? (26.0.0-gåtans dom)
+tar -tzf /home/site/wwwroot/output.tar.gz | grep -i "gunicorn-2" | head -3
+
+# F3: Vilken requirements byggde Oryx på?
+cat /home/site/wwwroot/requirements.txt
+```
+
+**Tolkning:**
+- F1 med `^M` → CRLF via Windows-rundresan bevisad; tr-fixen löser. (Ny
+  master-regel: LF-filer lagas/skrivs server-side, aldrig via
+  Windows-textlager. VFS GET kan INTE avslöja \r — cat -A kan.)
+- F2 visar `gunicorn-26.x` och/eller F3 visar requirements UTAN
+  `gunicorn==20.1.0`/`duckdb` → Oryx byggde på 04-juli-resterna. Åtgärd i
+  samma konsol + omdeploy (steg 2).
+- F2 visar `gunicorn-20.1.0` → miljön är redan rätt; endast F1-fixen +
+  restart behövs (hoppa steg 2).
+
+### Steg 2 — ENDAST om F2/F3 visade gammalt bygg-underlag
+```bash
+# I Kudu Bash: riv gamla generationens rester (ny deploy återskapar allt)
+rm -f /home/site/wwwroot/output.tar.zst /home/site/wwwroot/requirements.txt /home/site/wwwroot/hostingstart.html
+ls -la /home/site/wwwroot
+```
+```powershell
+# Lokalt: omdeploy på den bevisade vägen (ZipDeploy + Oryx-flaggorna står redan)
+cd C:\Projekt\BCG
+py -3.11 tools\webapp_deploy_probe.py            # ska vara CLEAN
+py -3.11 tools\stage_webapp.py                   # färsk deploy.zip
+az webapp deployment source config-zip -g ev-openai-swce-rg-test -n evbcg-dashboard --src C:\Projekt\BCG\deploy.zip
+# Förväntat: "Building the app..." i ~90-120 s (duckdb-wheelen), INTE "0(s)"
+```
+
+### Steg 3 — restart + avläsning (OBS: loggen är UTC, du är UTC+2)
+```powershell
+$RG="ev-openai-swce-rg-test"; $APP="evbcg-dashboard"
+az webapp config show -g $RG -n $APP --query appCommandLine -o tsv   # ska vara /home/startup.sh
+az webapp restart -g $RG -n $APP
+Start-Sleep 100
+try { $c=(Invoke-WebRequest "https://$APP.azurewebsites.net" -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0).StatusCode } catch { $c=[int]$_.Exception.Response.StatusCode }; "ping: HTTP $c"
+$zip="$env:TEMP\evbcg_logs.zip"; Remove-Item $zip -Force -EA SilentlyContinue
+az webapp log download -g $RG -n $APP --log-file $zip
+py -3.11 C:\Projekt\BCG\tools\read_app_logs.py --zip $zip --since 2026-07-08T0   # justera UTC-timmen!
+```
+
+**Läskedja (i denna ordning):**
+1. `Checking of /home/startup.sh is a file` → `App command line is a file on disk`
+2. `App command line is a shell script, will execute this script as startup
+   script` — KVITTORADEN (aldrig sedd under 15 försök; källbelagd ur MS Q&A)
+3. `[startup.sh] running from /tmp/8ded...` — vår egen echo = VÅRT skript kör
+4. `Starting gunicorn 20.1.0` — pinnen regerar (26.0.0 = fel underlag kvar)
+5. `Booting worker` → antingen `Listening`-läge eller Traceback
+
+**Ping 401/302 = MÅLET** (appen står bakom EasyAuth-dörren) → öppna i
+webbläsare, logga in med Entra, verifiera att dashboarden läser
+maj-fönstret från Blob. En Traceback efter Booting worker är appens FÖRSTA
+egna ord i molnet — vanlig Python-felsökning på utpekad rad, inte spökjakt.
+
+### Steg 4 — vid GRÖNT: efter-succé-checklista
+- [ ] Webbläsartest: Entra-login → dashboard → välj fönster 2022-07-01_2026-05-31
+      → status + kvitton renderar
+- [ ] Kända begränsningar gäller (DEPLOY_DASHBOARD.md §skulder): statiska
+      facit-kvittolänkar 404:ar i molnet (backlog, ej blockerare);
+      kontonyckel som app setting tills Kents dataroll (FD.29)
+- [ ] `/home/startup.sh` är PERSISTENT infra (överlever deployer, /home är
+      beständig) — skapad en gång, DevOps-pipelinen behöver aldrig röra den
+- [ ] Dokumentera segersekvensen → mastern (se DOKUMENTATION nedan)
+- [ ] RÖR INGET MER — låt den stå, städning är eget pass
+
+### Vid RÖTT efter steg 3 (t.ex. kvittoraden syns men appen kraschar oväntat):
+kapitlet stängs ändå — mekaniken är nu FÖRSTÅDD, DevOps-pipelinen bygger på
+exakt samma bevisade sekvens i ren miljö. Ingen mer manuell iteration.
 
 ═══════════════════════════════════════════════════════════════════════════
-## SPÖKKATALOGEN — vad vi testat och lärde (D.1–D.23)
+## VAD 2026-07-07-SESSIONEN GJORDE (för STATE/LESSONS-klistring)
 ═══════════════════════════════════════════════════════════════════════════
-Full text med belägg i MASTER_AZURE_DEPLOY.md. Kortform:
 
-| # | Spöke | Status |
+**Byggt (mät → paketera → transportera-kedjan, plattforms-kompatibel):**
+- `tools/webapp_deploy_probe.py` — P.5-sond: AST-baserad transitiv
+  import-closure från app.py, requirements-täckning, verktygskoll
+  (az --clean-stöd), Azure-state (settings-NAMN, aldrig värden). Skriver
+  staging-manifest + Excel-kvitto (validation_receipts).
+- `tools/stage_webapp.py` v1.1.1 — manifest-DRIVEN staging (sonden äger
+  closuren, stagern konsumerar). LF-verifierad startup.sh, cachebust,
+  zip-grindar. (v1.0:s regex-grind pensionerad: 3 falska positiva + blind
+  för transitiva beroenden.)
+- `tools/deploy_dashboard_final.ps1` v1.8 — grindad kedja sond→stage→deploy.
+- `tools/read_app_logs.py` — läser Kudu-logg-zippen I MINNET (zippen är
+  känt icke-standard sedan 2017; Expand-Archive/PS 5.1 kraschar på
+  kolon-namn i trace-poster).
+- `azure-pipelines.yml` (repo-rot, INERT) — DevOps-pipelinen, kör samma
+  sond+stage-moduler; aktiveras när IT landat (aktiveringssteg i filhuvudet).
+- `requirements.txt` — duckdb tillagd (sonden fann lazy import
+  run_status.py:94 — osynlig vid boot, live vid runtime).
+
+**Sondens fynd:** closuren är FEM moduler (app, blob, info_config,
+run_status, story_config) + templates/. `info_config` och `run_status`
+saknades i ALLA 13 tidigare deployer — två tysta bootkrascher låg bakom
+startup-spöket. duckdb saknades i requirements (guaranteed ModuleNotFound
+i molnet, funkar lokalt).
+
+**Mekaniken som förklarade alla 14 försök (lagerkakan):**
+wwwroot under Oryx är ett ARKIV, inte en filyta: bygget lämnar bara
+`output.tar.gz` + `oryx-manifest.toml`; containern extraherar tarballen
+till /tmp och kör DEN — råa filer bredvid ignoreras. Bevisfoto (VFS-listning)
+visade två generationer sida vid sida: output.tar.zst + requirements.txt
+från 07-04 bredvid 07-07:s tarball+manifest. `az webapp deploy` (OneDeploy)
+triggade ALDRIG Oryx (ENABLE_ORYX_BUILD saknades; "Build 0(s)" =
+signaturen); `az webapp deployment source config-zip` (ZipDeploy) +
+ENABLE_ORYX_BUILD=true + SCM_DO_BUILD=true gav första riktiga bygget.
+Källor: MS deploy-zip-dok (timestamp-skip, build-automation-flaggan),
+MS Q&A "Oryx not being triggered" (exakt vårt fall), azureossd (venv-krav,
+OneDeploy vs Oryx), Blimped-bloggen (ENABLE_ORYX_BUILD-fixen),
+MS Q&A "Startup.sh not found" (startup-fil under /home + kvittoradens
+exakta lydelse).
+
+**Kvällens egna fel (ärligt, för lärdomskatalogen):** relativ startup-file
+skrev över uppmätt absolutväg (A.9b-brott); f-string med backslash (3.12-
+syntax mot 3.11); JSON-escape → riktig CR i serverkommandot (två varv);
+UTC-filter mot lokal klocka. Mönster: tre felciterade kommandon i rad =
+BYT VERKTYG (→ Kudu Bash), iterera inte citatlager.
+
+═══════════════════════════════════════════════════════════════════════════
+## SPÖKKATALOG-TILLÄGG → MASTER_AZURE_DEPLOY (verifiera nr mot mastern, additivt)
+═══════════════════════════════════════════════════════════════════════════
+
+| # (prel.) | Spöke | Regel |
 |---|---|---|
-| D.1 | ContainerRegistry-provider ej registrerad (subscription-scope, RG-PIM räcker ej) | ACR-väg övergiven |
-| D.2 | RBAC-nekad läsning maskeras som NotFound | Regel: mät rollen |
-| D.3 | PIM-aktivering dör mitt i pass (tidsboxad) | Regel: re-mät per block |
-| D.4 | PowerShell stoppar ej på az-fel → kaskad | Löst: grindat skript |
-| D.5 | Container-app ↔ kod-app kan ej flippas | Löst: recreate |
-| D.6 | Dörren låses före nyckeln (EasyAuth före secrets) | Regel + hälsokoll-larm |
-| D.7 | Kod-deploy: SCM_DO_BUILD + startup + ingen WEBSITES_PORT | Löst |
-| D.8 | --deployment-container-image-name deprecated | Undvik |
-| D.9 | az-login promptar subscription interaktivt | Grind: account show |
-| D.10 | 503 på container utan image = normalläge | Kontext |
-| D.11 | Polling på tillstånd man ej rår över = evig loop | Max-varv |
-| D.12 | EAP=Stop + 2>$null dödar förväntade sond-fel (PS 5.1) | Löst: EAP Continue |
-| D.13 | az webapp delete raderar tom plan by default | --keep-empty-plan |
-| D.14 | cmd-parsern dödar JMESPath-parenteser i --query | Parentesfri query |
-| D.15 | Compress-Archive skriver backslash → Linux ser inga kataloger | py -m zipfile |
-| D.16 | Överhoppat bygge → GAMLA artefakter spökar ("Build 0s"/samma OperationID) | config-zip; **ÅTERKOM** |
-| D.17 | Klient-timeout = observationsförlust, ej byggdöd | Mät server-side |
-| D.18 | Krasch-loop stjäl byggets CPU (B1, 1 kärna) | webapp stop före deploy |
-| D.19 | Stop-före-deploy låser deploy-pollern (Starting evigt) | Kort timeout + D.17 |
-| D.20 | Nested träd via Oryx tar-extrakt opålitligt | FLATTEN till zip-rot |
-| D.21 | az-subkommandon driftar mellan CLI-versioner | Håll till kärnkommandon |
-| D.22 | Opinnad gunicorn ≥22 ej cwd på sys.path; imagens gunicorn skuggar pinnad | startup.sh; **DELVIS** |
-| D.23 | startup.sh skapad på Windows med CRLF → Linux läser /bin/sh\r → "not found" | LF-fix; **DELVIS** |
-
-**Den olösta knuten (D.22 + D.23 + D.16 tillsammans):**
-1. startup.sh med explicit chdir/PYTHONPATH löser D.22 (gunicorn hittar app).
-2. MEN filen skapad på Windows = CRLF → D.23 → "not found" innan den ens kör.
-3. Skrev om filen med garanterat LF (hexdump: 0 CR-bytes, verifierat i BÅDE
-   container-loggen och på Jens maskin via ReadAllBytes).
-4. MEN sista deployen konsumerades ALDRIG — `Build Operation ID: a885ccb64c1a662f`
-   och extraktkatalog `/tmp/8dedba02144619c` var IDENTISKA med föregående deploy
-   → D.16: Oryx serverade den gamla CRLF-artefakten trots ny zip.
-
-Nästa tekniska steg OM molnvägen återupptas (EJ rekommenderat): bryt artefakt-cachen
-(töm wwwroot via Kudu, eller WEBSITE_RUN_FROM_PACKAGE-växling, eller ändra en byte i
-en deployad fil så hash skiljer) SÅ att den LF-rena zip:en faktiskt extraheras.
-Verifiera sedan att loggen visar `App command line is a shell script, will execute
-this script as startup script` — den raden har ALDRIG synts än, och är själva kvittot
-på att startup.sh körs. Utan den raden vet vi inget.
+| D.24 | wwwroot under Oryx = arkiv (tarball+manifest), inte filyta. Startup-filvägar under wwwroot kan ALDRIG hittas — de sväljs av tarballen | Startup-fil bor under /home (persistent, utanför wwwroot) eller ges som kommandosträng |
+| D.25 | OneDeploy (`az webapp deploy`) triggar inte Oryx pålitligt; "Build 0(s)" = inget bygge skedde | Python-koddeployer: `config-zip` (ZipDeploy) + BÅDA flaggorna `SCM_DO_BUILD_DURING_DEPLOYMENT=true` OCH `ENABLE_ORYX_BUILD=true` |
+| D.26 | Zip-kopiering hoppar filer med matchande tidsstämpel → gamla wwwroot-filer (t.ex. requirements.txt) överlever och blir BYGG-underlag | Vid generationsskifte: riv gamla filer i Kudu Bash före deploy |
+| D.27 | LF-fil som rundreser Windows-textlager (Get-Content/WriteAllText/az rest-body) CRLF:as tyst; VFS GET kan inte visa \r | LF-filer lagas/verifieras server-side: `cat -A` (visar ^M), `tr -d '\r'`. Fil-existens + "not found" = shebang-tolken `/bin/sh\r` |
+| D.28 | Kudu `/api/command` kör UTAN skal — `&&`, `;`, `<`, `>` blir bokstavliga argument | Skalkedjor körs i Kudu Bash-konsolen, inte via az rest |
+| D.29 | `az webapp log download`-zippen är icke-standard (kolon-namn i trace-poster) → Expand-Archive/PS 5.1 kraschar | Läs docker-loggar I MINNET (tools/read_app_logs.py); extrahera aldrig |
+| — | AADSTS70043 med "maximum allowed lifetime 14400" = CA-policyn själv bekräftar 4h-token (LB.88 nu KÄLLBELAGD) | az login före varje block; pollning över timgräns dör i observation, inte i bygge |
+| — | Deploy-pollern ljuger tre sätt: "Build 0(s)" (hoppat bygge), sena landningar (gårdagens deploy dyker upp med nytt ID timmar senare), klient-timeout ≠ byggdöd (D.17) | Domen står ALLTID i serverloggen + Build Operation ID, aldrig i pollern |
+| — | All App Service-logg är UTC; lokal klocka UTC+2 | --since-filter i UTC, alltid |
 
 ═══════════════════════════════════════════════════════════════════════════
-## REKOMMENDATION FRAMÅT (Claude) — och varför
+## DEVOPS-SPÅRET (permanent väg — löper parallellt, blockerar inget)
 ═══════════════════════════════════════════════════════════════════════════
 
-**Rekommendation: bygg PAKETERING (hemsida_automation-mönstret) som permanent
-lösning. Stäng molnet som "löst i teorin, dokumenterat, parkerat".**
-
-**Varför — omdefiniera "robust":** robust = få rörliga delar, inga dolda
-beroenden, reproducerbar. Mätt så är App Service/Oryx den MINST robusta vägen för
-detta fall: beror på Oryx tar-extrakt till flyktig /tmp, Windows-radslut, artefakt-
-cache, kontonyckel i molnet, PIM som dör. 23 uppmätta spöken ÄR beviset på skörheten.
-En "robust lösning" på den grunden är en självmotsägelse.
-
-**De två faktiskt robusta vägarna (båda med appen som bevisat fungerar):**
-
-1. **Paketering** (REKOMMENDERAD permanent lösning, ~30 min):
-   `build_dashboard_dist.ps1` (redan skriven, i outputs — ej nedladdad än).
-   Embeddable Python + pip-target + start.bat, exakt hemsida_automation-mönstret
-   Jens redan förvaltar. Kollegan får en mapp, dubbelklickar, dashboarden öppnas.
-   Noll Azure, noll spöken.
-   KRITISKT: (a) start.bat måste ha LF-radslut? NEJ — start.bat körs av Windows
-   cmd.exe, där CRLF är korrekt; det är bara Linux-startup.sh som krävde LF. (b)
-   Nyckeln bör sättas som miljövariabel på mottagarens dator, INTE klartext i delad
-   mapp. (c) Verifiera build_dashboard_dist.ps1 mot faktisk repo-struktur; app.py
-   är körbar direkt (rad 562: __main__ + app.run, bekräftat).
-
-2. **Schemaläggaren** (fallback för Jens egen åtkomst, 5 min):
-   DEPLOY_DASHBOARD.md alt. A. pythonw startar appen vid inloggning på 127.0.0.1.
-   Robust för Jens men bunden till hans maskin. Redan kört och fungerar 2026-07-06.
-
-**Varför INTE fortsätta molnet nu:** om nästa molnfix lyckas har Jens en dashboard
-på den sköraste vägen → tillbaka i spökjakt vid nästa uppdatering. Om den misslyckas
-= spöke 24. Ingen utgång tjänar Jens. Paketering tjänar Jens.
-
-**OM Jens ändå vill ha molnet** (fullt legitimt — publik URL + Entra-inloggning är
-det ursprungliga FD.32-syftet): då är rätt väg troligen INTE mer Oryx-brottning utan
-GitHub Actions-deploy (build i ren Ubuntu-miljö, LF bevaras, ingen artefakt-cache,
-ingen lokal zip). Det kringgår D.15/D.16/D.20/D.23 på en gång. Kräver dock att
-repo-URL exponeras för en workflow — väg mot Jens önskan att hålla repot utanför
-dokumentationen. Diskutera FÖRE bygge.
+- **IT-asken (skicka om ej gjort):** (1) status på Azure DevOps-uppsättningen,
+  (2) enrads-registrering av `Microsoft.ContainerRegistry`-providern
+  (subscription-scope) — öppnar container-vägen för framtiden, kostar IT
+  två minuter.
+- `azure-pipelines.yml` ligger inert i repo-roten. Aktivering när IT landat:
+  service connection (Workload Identity Federation, inga secrets) → klistra
+  namnet i SERVICE_CONNECTION → Pipelines → Existing YAML. Pipelinen kör
+  sond + stage på ubuntu-agent (LF nativt, färsk artefakt varje gång) —
+  D.15/16/20/23/26/27 döda by design.
+- `/home/startup.sh` är engångs-infra som överlever pipelinens deployer.
+- Microsofts egen OSS-supportblogg avråder zip-utan-Oryx för Python och
+  pekar på DevOps/Actions som vägarna som korrekt bygger+aktiverar miljön —
+  referensen in i CI/CD-kapitlet.
 
 ═══════════════════════════════════════════════════════════════════════════
-## OGITAT — samla ihop när beslutet är taget (git i BÅDA repona)
+## OGITAT — committa när morgonblocket är avläst (git i BÅDA repona)
 ═══════════════════════════════════════════════════════════════════════════
-Inget nedan är committat. Alla filer i /mnt/user-data/outputs (ladda ner):
 
 **BCG-repot (evbcgpricing):**
-- `startup.sh` (LF-ren, D.23-fix) → repo-rot, OM molnvägen behålls som referens
-- `tools/deploy_dashboard.ps1` (v1.6, grindat/idempotent, D.1–D.21-fixar)
-- `requirements.txt` (gunicorn==20.1.0 pinnad, kommentar om D.22)
-- `build_dashboard_dist.ps1` → tools/ (paketering — permanent lösning)
-- BB.14-rad → BACKLOG.md (.bak-skräp i deploy.zip, löstes av flatten-layout)
+- `tools/webapp_deploy_probe.py`, `tools/stage_webapp.py` (v1.1.1),
+  `tools/deploy_dashboard_final.ps1` (v1.8), `tools/read_app_logs.py`
+- `requirements.txt` (duckdb + gunicorn-pin, kommenterad)
+- `azure-pipelines.yml` (inert)
+- `.gitignore`: + `workspace/deploy_staging/`, `workspace/deploy_staging_manifest.json`
+  (genererade; deploy.zip redan ignorerad)
+- BACKLOG.md: **BB.15** — bryt ut blob.py:s läs-sida till ren
+  `data_access`-modul så webapp-payloaden slipper släpa pipeline-beroenden
+  (duckdb kom in via run_status; "en modul = ett ansvar", plattformsvisionen)
+- Äldre ogitat från v1 kvarstår: `SOK_ONLINE_PRINCIP.md`-klistring,
+  DOC_UPPDATERINGAR_2026-07-03 om ej gjorda
 
 **Master-Bibliotek:**
-- `MASTER_AZURE_DEPLOY.md` — D.1–D.23 + Microsoft-källor. Verifiera att D.23 (CRLF)
-  är formellt inskriven + notera D.16-återkomsten (cache-knuten) som varning.
-- `SOK_ONLINE_PRINCIP.md` → klistras in i KÄRNPRINCIPER.md.
-
-**Dokument-klistringar (om ej redan gjorda):**
-- DOC_UPPDATERINGAR_2026-07-03.md → FUTURE_DEV/LESSONS/BACKLOG/STATE.
+- MASTER_AZURE_DEPLOY.md: spöktilläggen ovan (verifiera numrering, additivt)
+  + kapitel "Lagerkakan — wwwroot under Oryx" + kvittoradens exakta lydelse
+  + segersekvensen (eller stängningssekvensen) från morgonblocket
 
 ═══════════════════════════════════════════════════════════════════════════
-## SESSIONENS METALÄRDOM
+## DOKUMENTATION VÄNTAR (görs SIST, samlat pass — ligger även i Claude-minnet)
 ═══════════════════════════════════════════════════════════════════════════
-D.23 (CRLF) är SAMMA klass som er befintliga regel "PowerShell .ps1 måste vara ren
-ASCII" — Windows-radslut/kodning som bryter i en icke-Windows-tolk. Borde kopplats
-internt efter FÖRSTA "not found", inte efter tolfte försöket. Dubbel lärdom:
-(1) sök det RÅA felet direkt (nu i KÄRNPRINCIPER), (2) korskoppla nya spöken mot
-BEFINTLIGA lessons innan de behandlas som nya. Kopplingen fanns redan i era filer.
 
-**Kvar i projektet i övrigt:** FD.33 Etapp B-cutover (7 filer, se
-NEXT_SESSION_etappB.md), FD.40 revenue-coverage, facit-fönstret i run-väljaren.
+1. Ny KÄRNPRINCIP: **"Plattforms-kompatibelt, inte plattforms-komplett"** —
+   varje projektbeslut valideras mot plattformsvisionen (Azure AI Platform
+   Vision.md) som RIKTNING, inte byggorder; bygg det minsta som skalar.
+2. SOK_ONLINE_PRINCIP.md → in i konsoliderade KÄRNPRINCIPER (bevisad i
+   skarpt läge 07-07: varje genombrott kom från rå-fel-sökning + systematisk
+   loggläsning, inte härledning).
+3. MASTER_AZURE_DEPLOY: CI/CD-kapitel som dokumenterar MÖNSTRET (bygge i
+   ren Linux-miljö → artefakt → deploy) med Azure DevOps och GitHub Actions
+   som utbytbara implementationer + formell stängning av manuella
+   Oryx-zip-vägen med utfall och krav.
+4. Lärdomsflytt per §6.6: kvällens fel-mönster ("tre felciterade = byt
+   verktyg", UTC-disciplin, LF-server-side-regeln) → rätt masterfil.
+
+═══════════════════════════════════════════════════════════════════════════
+## SNUBBELTRÅDAR DENNA SESSION
+═══════════════════════════════════════════════════════════════════════════
+- Token 4h (LB.88, nu CA-källbelagd): `az login` FÖRE morgonblocket och före
+  varje nytt tungt block. PIM kan behöva re-aktiveras.
+- Kudu Bash för allt server-side (mät/laga/riv) — az rest /api/command är
+  skallöst, PS 5.1-JSON-citat är ett träsk. Tre felciterade i rad = stopp.
+- UTC i alla --since-filter (lokal tid −2 h).
+- Rör INTE Etapp B-filerna i detta pass — fyra-kartors-regeln kräver egen
+  fokuserad commit (NEXT_SESSION.md).
+- Ingen VM inblandad i detta spår — men om VM startas av annat skäl:
+  deallocate efteråt (LB.68).
+- Vid grönt: fira kort, committa OGITAT, dokumentera. Vid rött: stäng
+  kapitlet med belägg, DevOps-spåret står redo. INGEN utgång motiverar
+  fler manuella iterationer efter morgonblocket.
+
+---
+*v2 skriven 2026-07-08 00:3x efter genombrottspasset. Ersätter v1 (2026-07-06).
+Utvecklare: Jens Palmö. Sessionens facit: D.16 bruten och förstådd på försök
+14–15; två mätbara frågor kvar; alla trådar konvergerar i Kudu Bash-konsolen.*
+
+> **STÄNGT GRÖNT 2026-07-09/10 (morgonblocket kört sent):** F2 friade bygget
+> (färska tarballen bär gunicorn-20.1.0). F1:s rot var ADRESS, inte CRLF: VFS-API:t
+> rotar på /home → PUT skapade /home/home/startup.sh, GET ekade från samma
+> feladress = falskt bevis. Fix: tar -xzf ur färska tarballen → /home/startup.sh
+> (649 B, LF). Bov 2: runtime-extraktorn tar output.tar.zst FÖRE .gz →
+> 07-04-generationen bootades varje gång; riven (zst/requirements/hostingstart).
+> Därefter FULL kvittokedja: file on disk → gz-extrakt → egen echo →
+> gunicorn 20.1.0 → Listening → HTTP 200. MEN EasyAuth saknades (D.5: dog med
+> appen 07-04; appregistrering = tenant-rättighet, utanför RBAC/PIM) → appen
+> STOPPAD (verifierat Stopped + 403). REGEL: startas EJ förrän auth sitter.
+> IT-ask 3 rader: DevOps-status · ContainerRegistry-provider · appregistrering
+> bcg-dashboard-auth + Require authentication på evbcg-dashboard.
+> /home/home rivet. Toolchain committad f776b16. Kvar: dokumentationspasset
+> (skördelistan hos AI-rådgivaren) + IT-asken.
