@@ -51,7 +51,7 @@ gröna i synk, vilande). Nästa: Blob-migreringspasset (FD.33) som låser upp Le
 | Aktivt repo | `evbcgpricing` (repo-URL i README, ej här) | 2026-06-12 |
 | Lokal sökväg | `C:\Projekt\BCG` | 2026-06-12 |
 | Branch | `main` (bekräftat 2026-06-22) | 2026-06-22 |
-| | Senaste relevanta commit | `06881e5` (docs + gitignore-hygien); fönster 2022-07-01_2026-05-31 SUCCEEDED alla 7 faser | 2026-07-03 |
+| | Senaste relevanta commit | `35daf09` (main, pushad) -- publicerings-toolchain (sond/stage/read_logs/deploy-skript), gunicorn-pin + duckdb, inert azure-pipelines.yml, sessionsstängning | 2026-07-10 |
 | Orkestrator-push-status | Allt pushat till `main` (orchestration/ är single source; webapp + tre runners + bundle live) | 2026-06-16 |
 | Parallellrepo (DW-extraktion) | `Business_Analytics`, `C:\Projekt\Business_Analytics` | 2026-06-12 |
 
@@ -77,6 +77,10 @@ gröna i synk, vilande). Nästa: Blob-migreringspasset (FD.33) som låser upp Le
 | Blob-containrar (test-konto) | `input` (vaxande parquet 27,4M rader), `output`, `runstatus`, `pipeline` (00_frozen_facit/ cluster+site+bundle) | 2026-06-16 |
 | Blob-auth | **kontonyckel-läge** (`PRICINGMODEL_AUTH=key`) — AAD-roll ABAC-blockerad; `--auth-mode login` ger TYST tomt utan dataroll (LB.67) | 2026-06-15 |
 | Managed Identity (mål) | `evi-pricingmodel-mi-prod` (väntar Blob-dataroll, se §6) | 2026-06-12 |
+| Webapp `evbcg-dashboard` | **STOPPAD** (verifierat `state: Stopped` + HTTP 403). STÅENDE REGEL: startas EJ förrän EasyAuth på plats (IT-ask, se §6) | 2026-07-10 |
+| Webapp wwwroot | EN generation: oryx-manifest.toml + output.tar.gz (07-07, OpID e20bc0f40ef35ca3); 07-04-rester rivna | 2026-07-10 |
+| Webapp /home | `/home/startup.sh` persistent boot-infra (649 B, LF, överlever deployer); lockbetet `/home/home/` rivet | 2026-07-10 |
+| Deploy-kedjan (webapp) | BEVISAD e2e 2026-07-09: config-zip + Oryx-flaggor -> bygge -> gz-extrakt -> gunicorn 20.1.0 -> Listening. Permanent väg: Azure DevOps (yml inert). Manuell väg formellt stängd som rutin | 2026-07-10 |
 
 > **Subscription-fälla (LB.46):** `az` cachar aktiv subscription mellan sessioner. Kör ALLTID
 > `az account show` före VM-kommandon; sätt rätt med `az account set --subscription "ev-lz3-ai (SE)"`.
@@ -136,6 +140,9 @@ gröna i synk, vilande). Nästa: Blob-migreringspasset (FD.33) som låser upp Le
 | Blob-dataroll (Storage Blob Data Contributor) till MI | kontonyckel-läge i stället för AAD; upload_inputs Jens-access-beroende (FD.29) | Owner (Kent) — ABAC-blockerad | 2026-06-15 |
 | Pinnad/reproducerbar venv på VM | miljö ej deterministisk | eget arbete, ej IT | 2026-06-12 |
 | Konto-spretighet (FD.35): status i prod-konto, facit i test-konto | förvirrat var sanningen bor; bygg 2-output kan hamna fel | eget beslut — lös FÖRE end-to-end-körningen | 2026-06-16 |
+| Entra-appregistrering `bcg-dashboard-auth` + Require auth på evbcg-dashboard | appen kan ej startas (D.6); tenant-rättighet utanför RBAC/PIM | IT (mejl skickat 2026-07-10) | 2026-07-10 |
+| `Microsoft.ContainerRegistry`-provider (subscription-scope) | container-vägen stängd (ej brådskande) | IT (samma mejl) | 2026-07-10 |
+| Azure DevOps + service connection (WIF, RG-scopad) | permanenta publiceringsvägen inaktiv | IT (samma mejl) | 2026-07-10 |
 
 > När Blob-rollen ges: sätt `PRICINGMODEL_AUTH=aad`, ta bort nyckel-läget (skuld i `blob.py`-headern).
 > Då slutar upload_inputs vara Jens-access-beroende och börjar köra på MI:n (FD.29) — envariabel-ändring.

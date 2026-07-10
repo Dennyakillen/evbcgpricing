@@ -160,3 +160,35 @@ az webapp restart --resource-group $RG --name $APP
    valideringar per fönster fungerar fullt ut i molnet.
 4. **Rollback:** `az webapp config container set` till föregående tagg, eller stäng av
    webappen — lokala A-alternativet är alltid intakt parallellt.
+
+---
+
+## STATUS 2026-07-10 — B-ALT (kod-deploy) BEVISAD e2e, appen STOPPAD i väntan på auth
+
+Deploy-kedjan är bevisad hela vägen (config-zip + Oryx-flaggor → äkta bygge →
+gz-extrakt → `/home/startup.sh` kör → gunicorn 20.1.0 → Listening → HTTP 200).
+Fyra icke-uppenbara krav visade sig under 15 försök (07-04→07-09):
+
+1. **ZipDeploy, inte OneDeploy.** `az webapp deployment source config-zip`, INTE
+   `az webapp deploy` — den senare gav "Build 0(s)" (inget Oryx-bygge).
+2. **Båda Oryx-flaggorna:** `SCM_DO_BUILD_DURING_DEPLOYMENT=true` OCH
+   `ENABLE_ORYX_BUILD=true`.
+3. **startup.sh under /home, skapad server-side.** Kudu VFS-API:t rotar på /home
+   → PUT skapade `/home/home/startup.sh` (falskt "finns"-bevis). Fix: extrahera ur
+   byggets tarball i Kudu Bash: `cd /home && tar -xzf site/wwwroot/output.tar.gz ./startup.sh`.
+   Startup-kommandot är `/home/startup.sh` (absolut), INTE relativ `--chdir`.
+4. **EN generation i wwwroot.** Runtime-extraktorn tar `output.tar.zst` FÖRE `.gz`
+   → gamla 07-04-generationen bootades varje gång. Riv gamla komprimat/rester i
+   Kudu Bash före omstart: `rm -f /home/site/wwwroot/output.tar.zst
+   /home/site/wwwroot/requirements.txt /home/site/wwwroot/hostingstart.html`.
+
+**BLOCKERARE (enda kvarvarande):** EasyAuth saknas — appregistrering är
+tenant-rättighet utanför RG-scopad PIM (nekad 2026-07-09/10). IT-ask skickad.
+**Appen hålls STOPPAD tills auth är på plats** (D.6: 200 utan login = larm;
+`state: Stopped` + HTTP 403 verifierat). Startas EJ förrän Entra-registreringen
+landat. När den gör det: verifiera i portalen → `az webapp start` → ping 302/401.
+
+**Permanent väg framåt:** Azure DevOps-pipelinen (`azure-pipelines.yml` inert i
+repo-roten) bygger i ren Linux-miljö och gör alla fyra kraven ovan by design.
+Den manuella B-ALT-vägen fungerar men är formellt stängd som rutin — reserverad
+för engångs-/nödläge. Full spökkatalog: MASTER_AZURE_DEPLOY (kandidat D.24–D.32).

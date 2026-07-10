@@ -299,3 +299,22 @@ vid väv-sessionen står kvar som gate.
 > ej läsbar). BB.9 → MOGEN med bygg-spärr till efter cluster-maj-relaunch. EJ-listan: en post STÄNGD
 > (`6cda4da`), en KORRIGERAD (P.9/`cdd02d3`), en delmätt (frontend-språk), två beroenden tillagda
 > (dry_run EXPECTED-fix före wiring; FD.33-designförening före BB.11), en ny E.8-beslutspunkt (regen v1/v2).
+
+### BB.14 -- Bryt ut blob.py:s läs-sida till ren data_access-modul (webapp)
+Webapp-payloaden släpar pipeline-beroenden: duckdb kom in via run_status (lazy
+import ~rad 94, funnen av deploy-sonden 2026-07-07). Bryt ut läs-sidan
+(status/kvitton/output-listning) till egen modul med frusen signatur så
+dashboarden konsumerar utan modellkedjans beroenden. "En modul = ett ansvar."
+**Status:** ÖPPEN (identifierad 2026-07-07).
+
+### BB.15 -- read_app_logs: minutupplöst --since + matchningsräknare
+Se LB.91. Parsern ska tåla full ISO-tid och alltid rapportera "X av N rader
+matchade" i stället för tyst tomt. Litet, eget pass -- verktyg felsöks aldrig
+mitt i en avläsning. **Status:** ÖPPEN (2026-07-10).
+
+### BB.16 -- Auth-hårdning efter IT:s appregistrering (dashboarden)
+(1) Enterprise Application -> "Assignment required" + namngivna kollegor (default
+släpper in HELA tenanten). (2) Beslut om Access Restrictions (IP-lista
+kontorsnät/VPN) som komplement -- interimsalternativ inom egen PIM. (3)
+Långsiktigt: private endpoint-utvärdering vid mätt behov.
+**Status:** ÖPPEN, gated på IT-asken (2026-07-10).

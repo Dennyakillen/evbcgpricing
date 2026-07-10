@@ -1152,6 +1152,19 @@ du deklarerar en selektivt fetchad fil "förlorad", kolla VM-disken (`az vm star
 - **U+2192 i konsol-print** (encoding-klassen/LB.86-familjen): `→` fällde build_r12 på cp1252-konsol;
   `PYTHONIOENCODING=utf-8` som bälte + `->` i källan. Instans av "ASCII i exekverbar output".
 
+### LB.91 -- Tidsfilter som tyst tömmer: read_app_logs --since minutformat
+**Symptom:** `--since "yyyy-MM-ddTHH:mm"` gav "(no matching lines)" i alla filer
+medan loggfilerna bevisligen växte (+7 903 B per boot-intervall). Prefixformatet
+"2026-07-09T0" matchade.
+**Rotorsak:** filterjämförelsen hanterar inte minutupplöst ISO-prefix; mismatch
+ger tyst tomt i stället för varning.
+**Regel:** tidsfilter i egna verktyg ska (a) normalisera formatet, (b) rapportera
+"X av N rader matchade" -- aldrig bara tomt block. Tyst tomt != inget hänt
+(LB.67-klassen, nu i tidsdomänen). Mätaren minst lika pålitlig som det den mäter (P.6).
+**Fix:** BB.15. **Interim:** vid tomt filter, läs källan direkt i Kudu Bash
+(`tail` nyaste `*_default_docker.log`) innan slutsats dras.
+**Bevis:** 2026-07-10 -- tre "tomma" avläsningar medan containern bootade och skrev logg.
+
 ═══════════════════════════════════════════════════════════════════════════
 ## DESTINATION 2 — KÄRNPRINCIPER.md (i C:\Projekt\masters)  ·  KODNING: UTF-8
 ═══════════════════════════════════════════════════════════════════════════

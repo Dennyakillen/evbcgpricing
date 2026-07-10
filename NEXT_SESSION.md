@@ -19,8 +19,11 @@ familj/fönster-strukturen = FD.33 formellt STÄNGD.
 `run_bundle_model.py`, `dry_run_pipeline.py`, `run_status.py`, `status_ops.py` (7 filer).
 
 ## Kö (efter primärt mål)
-1. **Molnpublicering exekveras** — DEPLOY_DASHBOARD.md B2–B5 (defaults klara; EasyAuth FÖRE
-   nyckel-setting). Risk: storage-brandvägg mot App Service → log tail avslöjar.
+1. **Molnpublicering: TEKNISKT KLAR, gated på IT** — kedjan bevisad e2e 2026-07-09
+   (stängning i NEXT_SESSION_publicering.md). Appen STOPPAD tills IT levererat
+   Entra-registreringen. När IT landar: verifiera auth i portalen → `az webapp start`
+   → ping ska ge 302/401 (200 = LARM, D.6) → webbläsartest mot fönster
+   2022-07-01_2026-05-31 → därefter BB.16 (Assignment required).
 2. **FD.40** — revenue-coverage-talet mäts ur extraction coverage-kvittot → story_config
    FUNNEL extraction["coverage"]. Ovisade värden renderas aldrig.
 3. **Facit-fönstret i run-väljaren** — saknas facit-runstatus i Blob: skapa via status_ops
