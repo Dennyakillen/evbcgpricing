@@ -1,1 +1,8 @@
-*.sh text eol=lf
+# .gitattributes -- LF-enforcement for Linux-konsumerade filtyper
+# Utvecklare: Jens Palmö (Senior Business Analyst). Tillagd 2026-07-10 efter
+# publiceringspasset (D.27-klassen: CRLF i skalskript mot Linux).
+# Medvetet minimal: .ps1 utelämnad (Windows-PowerShell), .py utelämnad
+# (radslutsagnostiskt + skulle renormalisera BCG-originalkod = additiv-brott).
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf

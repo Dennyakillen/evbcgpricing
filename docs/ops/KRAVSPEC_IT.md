@@ -103,7 +103,7 @@ Behöver IT-input för:
 
 | Behov | Status |
 |---|---|
-| Git som "source of truth" för all kod | ✅ Två repon på Dennyakillen-orgens GitHub (privata) |
+| Git som "source of truth" för all kod | ✅ 
 | Säkerhetskopia av modelloutput | ⏳ Inte adresserat — behövs blob-versionering eller liknande |
 | Audit log på vem som kör modellen | ⏳ Inte adresserat |
 | GDPR — innehåller modellen personuppgifter? | ✅ Nej (KEY = Cluster × ItemCode, inga patient-/kundnamn) |

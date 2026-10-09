@@ -2,7 +2,7 @@
 
 **Syfte:** Ge nästa session allt den behöver för att köra F.9 Bundle UTAN att utreda om från noll.
 Sammanställd 2026-06-10 efter kartläggning + djupinventering. Läs denna FÖRE VM-start.
-**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB), assisterad av Claude.
+**Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB).
 
 > **Princip:** §6.4 — inventera en gång, dokumentera, återanvänd. Denna fil ersätter att gräva i
 > Bundle-strukturen varje session. Tre fält märkta `[VERIFIERA]` återstår att bekräfta med billiga
@@ -36,6 +36,7 @@ Bundle steg 5 lokalt (xlwings, som Site — LB.44-45)
 ```
 
 **Statiska inputs (BCG-original, återanvänds som de är):**
+
 - `sweden_bundle_analysis.csv` (18,67 MB) — varukorgsdefinition (`sweden_bundles`)
 - `Sweden_Clinic_Cluster_Mapping.csv` — cluster-mappning
 - `Sweden_Interpolated_Productivity_time.csv` — FTE (tak 2025-06)
@@ -206,18 +207,18 @@ Select-String -Path "Pipeline\02. Elasticity\4. Bundle Clinic Data Prep\1.Data_P
 
 ## 6. REVIDERAD TIDSUPPSKATTNING (premiär hela kedjan)
 
-| Steg | Tid | Risk |
-|---|---|---|
-| Backup + read-only på frusen masterdata (Blockare 1) | 1 min | Låg |
+| Steg                                                                                 | Tid       | Risk                      |
+| ------------------------------------------------------------------------------------ | --------- | ------------------------- |
+| Backup + read-only på frusen masterdata (Blockare 1)                                | 1 min     | Låg                      |
 | Regenerera Sweden_masterdata.csv växande (replicate_dataprep.py, bevisad G7-runner) | 30-60 min | Låg (etablerat mönster) |
-| Konvertera CSV → parquet (convert_masterdata_to_parquet.py, dry-run + skarp) | 5 min | Låg |
-| ~~Patcha 01_process.sql YearFlag~~ — UTGÅR, G7-injektorn täcker det | — | — |
-| Patcha feature_selection.py ray_spill (VM) | 5 min | Låg (= Cluster) |
-| Hårdpatcha bundle_utils.py object_store_memory till 8 GB | 5 min | Låg (beslutat) |
-| Bundle SQL-dataprep-körning (Python-wrapper, ej run.ps1/duckdb.exe — LB.2) | 30-60 min | Medel (premiär lokalt) |
-| Ray-varukorgsbygge | 30-60 min | Medel (premiär) |
-| Bundle-modell VM (steg 1-4) | 60-90 min | Medel (Site tog ~70 min) |
-| Bundle steg 5 lokalt (xlwings) | 30-45 min | Låg (beprövat) |
+| Konvertera CSV → parquet (convert_masterdata_to_parquet.py, dry-run + skarp)        | 5 min     | Låg                      |
+| ~~Patcha 01_process.sql YearFlag~~ — UTGÅR, G7-injektorn täcker det              | —        | —                        |
+| Patcha feature_selection.py ray_spill (VM)                                           | 5 min     | Låg (= Cluster)          |
+| Hårdpatcha bundle_utils.py object_store_memory till 8 GB                            | 5 min     | Låg (beslutat)           |
+| Bundle SQL-dataprep-körning (Python-wrapper, ej run.ps1/duckdb.exe — LB.2)         | 30-60 min | Medel (premiär lokalt)   |
+| Ray-varukorgsbygge                                                                   | 30-60 min | Medel (premiär)          |
+| Bundle-modell VM (steg 1-4)                                                          | 60-90 min | Medel (Site tog ~70 min)  |
+| Bundle steg 5 lokalt (xlwings)                                                       | 30-45 min | Låg (beprövat)          |
 
 **Realistiskt: 3-4.5h för clean körning.** Premiär över hela kedjan → räkna med felsökning ovanpå.
 (Nedreviderad efter kartläggning 2026-06-10: SQL-G7-patchen utgick — `replicate_dataprep.py`:s

@@ -162,8 +162,8 @@ Excel-COM (xlwings) som inte finns i molnet.
 
 | | Innehåll | Var |
 |---|---|---|
-| **GitHub** | Metoden — all kod + dokumentation (ingen affärsdata) | Repo |
+| **Git** | Metoden — all kod + dokumentation (ingen affärsdata) | Repo |
 | **Azure Blob** | Datan — parquet, motorns output, slutresultat, gamla valideringar | Blob |
 | **Appen** | Nedladdningsbar yta som visar alla steg, körtid, förtroende | Lokalt/webb |
 
-*GitHub (hur) + Blob (vad) = systemet kan återskapas oberoende av en enskild dator.*
+*Git (hur) + Blob (vad) = systemet kan återskapas oberoende av en enskild dator.*

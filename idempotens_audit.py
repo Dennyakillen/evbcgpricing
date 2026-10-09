@@ -2,7 +2,6 @@
 idempotens_audit.py  --  kartlagger atomara vs sarbara skrivningar i kodbasen
 =============================================================================
 Utvecklare: Jens Palmo (Senior Business Analyst, Evidensia Djursjukvard AB).
-Forfattare: Claude advisor.
 
 SYFTE (mat, gissa inte -- tillampad pa din egen kod)
 ----------------------------------------------------
