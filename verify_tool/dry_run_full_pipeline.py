@@ -42,7 +42,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(r"C:\Projekt\BCG")
+REPO = Path(__file__).resolve().parents[1]   # verify_tool/ -> repo-roten (2026-10-20; var hardkodat C:\Projekt\BCG)
 ORCH = REPO / "orchestration"
 RUNNERS = ORCH / "runners"
 
@@ -56,8 +56,9 @@ FAMILY_RUNNERS = {
 
 # Skript som skarvarna refererar (fast sokvag i repot)
 REFERENCED = {
-    "regen (BA-venv)":   Path(r"C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked_v2.py"),
-    "BA-venv python":    Path(r"C:\Projekt\Business_Analytics\.venv\Scripts\python.exe"),
+    "regen (tools/dw)":  REPO / "tools" / "dw" / "regenerate_transaction_parquet_chunked_v2.py",   # 2026-10-20: kopia i repot
+    "data_access (tools/dw)": REPO / "tools" / "dw" / "data_access.py",
+    "BA-venv python (reserv)": Path(r"C:\Projekt\Business_Analytics\.venv\Scripts\python.exe"),
     "prep (DuckDB)":     REPO / "tools" / "replicate_dataprep.py",
     "run_step6":         REPO / "verify_tool" / "run" / "run_step6.py",
     "build_r12":         REPO / "verify_tool" / "run" / "build_r12_for_model.py",
@@ -93,8 +94,8 @@ def check_paths():
             str(p) if not _exists(p) else f"{p.stat().st_size:,} B")
     for label, p in REFERENCED.items():
         ok = _exists(p)
-        # BA-venv + regen + VM-interpreter kan saknas lokalt utan att vara fel HAR
-        sev = "OK" if ok else ("WARN" if "BA-venv" in label or "regen" in label else "FAIL")
+        # Reserv-tolken (BA-venv) kan saknas utan att vara fel HAR; kopiorna i tools/dw SKA finnas (2026-10-20)
+        sev = "OK" if ok else ("WARN" if "reserv" in label else "FAIL")
         rec(sev, f"skript: {label}", str(p) if not ok else "finns")
 
 

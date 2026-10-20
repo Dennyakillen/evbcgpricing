@@ -62,7 +62,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Sokvagar (Z.0-fakta -- enda stallet de bor). Spegel av bundle_chain_validator.
 # ---------------------------------------------------------------------------
-REPO = Path(r"C:\Projekt\BCG")
+REPO = Path(__file__).resolve().parents[2]   # verify_tool/probes -> repo-roten (2026-10-20; var hardkodat C:\Projekt\BCG)
 ORCH = REPO / "orchestration"
 RUNNERS = ORCH / "runners"
 SHARED = ORCH / "shared"
@@ -117,11 +117,11 @@ FLOW_DETAIL: dict[str, dict] = {
     "extraction": {
         "script": [
             r"orchestration\runners\run_data.py  (orkestrerare: REGEN->PREP->UPLOAD)",
-            r"  REGEN : C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked.py  (BA-venv, pyodbc)",
+            r"  REGEN : tools\dw\regenerate_transaction_parquet_chunked_v2.py  (tolk med pyodbc: repots .venv, BA-venv som reserv)",
             r"  PREP  : tools\replicate_dataprep.py  (DuckDB, py-3.11)",
             r"  UPLOAD: blob.upload_inputs()  -> Blob 'input'",
         ],
-        "env_python": "REGEN: BA-venv (pyodbc) | PREP/UPLOAD: global py-3.11",
+        "env_python": "REGEN: tolk med pyodbc (.venv; BA-venv som reserv) | PREP/UPLOAD: py-3.11 / .venv",
         "inputs": ["DW (via VPN, port 40615)", "ELLER befintlig transaction_data.parquet"],
         "outputs": [
             r"transaction_data.parquet  (Pipeline\...\Sweden_Elasticity_Data_Prep_SQL\parquet\)",

@@ -4,7 +4,7 @@ run_data.py -- Lokala bränsleledet: ett kommando kör regen -> prep -> upload (
 Kedjar de tre lokala stegen som producerar och säkrar modellens bränsle, så att en körning
 (terminal ELLER "Kör" i VS Code) ersätter att klippa-och-klistra tre separata kommandon:
 
-  1. REGEN   regenerate_transaction_parquet_chunked_v2.py  (DW -> transaction_data.parquet)
+  1. REGEN   tools/dw/regenerate_transaction_parquet_chunked_v2.py  (DW -> transaction_data.parquet)
   2. PREP    replicate_dataprep.py                       (parquet -> vecko-CSV:er via DuckDB)
   3. UPLOAD  upload_inputs (blob.py)                      (parquet -> Blob 'input'-container)
 
@@ -82,15 +82,30 @@ except Exception as _e:                                # azure-libs saknas / imp
 
 PHASE_KEY = "extraction"   # den fas run_data ansvarar för (run_status.default_pipeline)
 
-# --- Verifierade sökvägar (ur sessionens källäsning 2026-06-15) ---
-BA_VENV_PYTHON = Path(r"C:\Projekt\Business_Analytics\.venv\Scripts\python.exe")  # regen kräver pyodbc
-REGEN_SCRIPT   = Path(r"C:\Projekt\Business_Analytics\regenerate_transaction_parquet_chunked_v2.py")
-PREP_SCRIPT    = Path(r"C:\Projekt\BCG\tools\replicate_dataprep.py")
-PREP_BASE_DIR  = Path(r"C:\Projekt\BCG\Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL")
+# --- Sökvägar: repo-relativa (2026-10-20, DevOps-överlämning; var hårdkodade C:\Projekt\...) ---
+REPO = ORCH.parent
+DW_DIR = REPO / "tools" / "dw"   # kopior av regen + data_access, kanoniska för BCG (tools/dw/README.md)
+REGEN_SCRIPT   = Path(os.environ.get("BCG_REGEN_SCRIPT") or (DW_DIR / "regenerate_transaction_parquet_chunked_v2.py"))
+PREP_SCRIPT    = REPO / "tools" / "replicate_dataprep.py"
+PREP_BASE_DIR  = REPO / "Pipeline" / "02. Elasticity" / "Sweden_Elasticity_Data_Prep_SQL"
 PARQUET_OUT    = PREP_BASE_DIR / "parquet" / "transaction_data.parquet"   # dit 00_read.sql läser
+# Lokalt arv: Business_Analytics-venven har pyodbc. Används bara som reserv (se _dw_python).
+BA_VENV_PYTHON = Path(r"C:\Projekt\Business_Analytics\.venv\Scripts\python.exe")
 
-# Global Python 3.11 för prep (DuckDB) -- 'py -3.11'. För regen används BA-venvens egen python.exe.
-PY311 = ["py", "-3.11"]
+
+def _dw_python() -> "Path | None":
+    """Tolk för REGEN (kräver pyodbc + pyarrow), i ordning: BCG_DW_PYTHON -> tolken som kör run_data
+    om den har paketen -> Business_Analytics-venven om den finns (lokalt arv) -> None (= tydligt fel)."""
+    env = os.environ.get("BCG_DW_PYTHON")
+    if env:
+        return Path(env)
+    try:
+        import pyodbc  # noqa: F401
+        import pyarrow  # noqa: F401
+        return Path(sys.executable)
+    except Exception:
+        pass
+    return BA_VENV_PYTHON if BA_VENV_PYTHON.exists() else None
 
 
 def _run(cmd: list[str], env: dict | None = None, cwd: str | None = None) -> int:
@@ -165,18 +180,20 @@ def _status_finish(rs: "RunStatus | None", ok: bool, note: str,
 
 
 def step_regen(end: str) -> int:
-    """Steg 1: regenerera parqueten ur DW. BA-venvens python (pyodbc). --out + --overwrite
+    """Steg 1: regenerera parqueten ur DW. Tolk med pyodbc väljs av _dw_python(). --out + --overwrite
     styr filen direkt till transaction_data.parquet (LB.62-skarven). VPN måste vara uppe."""
-    if not BA_VENV_PYTHON.exists():
-        log.error("Saknar BA-venv python: %s", BA_VENV_PYTHON)
+    py = _dw_python()
+    if py is None or not py.exists():
+        log.error("Ingen tolk med pyodbc+pyarrow hittad. Installera dem i repots .venv (requirements-local.txt) "
+                  "eller sätt BCG_DW_PYTHON=<sökväg till python.exe som har dem>.")
         return 2
     if not REGEN_SCRIPT.exists():
         log.error("Saknar regen-skript: %s", REGEN_SCRIPT)
         return 2
     PARQUET_OUT.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [str(BA_VENV_PYTHON), str(REGEN_SCRIPT),
+    cmd = [str(py), str(REGEN_SCRIPT),
            "--end", end, "--out", str(PARQUET_OUT), "--overwrite"]
-    log.info("REGEN: DW -> %s (kräver VPN till DW; ~chunkad per år)", PARQUET_OUT.name)
+    log.info("REGEN: DW -> %s (tolk %s; kräver VPN till DW; ~chunkad per år)", PARQUET_OUT.name, py)
     return _run(cmd)
 
 
@@ -191,7 +208,7 @@ def step_prep(end: str) -> int:
         return 2
     env = dict(os.environ)
     env["BCG_END_DATE"] = end          # G7-injektion (LB.22) -- prep läser detta, inte en flagga
-    cmd = PY311 + [str(PREP_SCRIPT), "--base-dir", str(PREP_BASE_DIR)]
+    cmd = [sys.executable, str(PREP_SCRIPT), "--base-dir", str(PREP_BASE_DIR)]   # samma tolk som run_data (2026-10-20; var py -3.11)
     log.info("PREP: parquet -> vecko-CSV:er (BCG_END_DATE=%s, replicate-only)", end)
     return _run(cmd, env=env)
 
