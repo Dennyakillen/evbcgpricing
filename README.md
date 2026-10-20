@@ -207,9 +207,4 @@ External standards governing this project:
 
 ## Contact and ownership
 
-**Project owner:** Jens Palmö (jepa02 / adm.jens.palmo@evidensia.se)
-**Repo location:** https://github.com/Dennyakillen/evbcgpricing
-**Companion repo:** https://github.com/Dennyakillen/Business_Analytics
-
-This is an internal Evidensia analytics project. The code is owned by Evidensia; BCG's original
-delivery is referenced but not redistributed.
+**Project owner:** Jens Palmö 

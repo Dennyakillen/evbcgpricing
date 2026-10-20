@@ -1,7 +1,6 @@
 # ROADMAP — evbcgpricing: från replikering till produktion
 
 **Utvecklare:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB)
-**Repo:** https://github.com/Dennyakillen/evbcgpricing.git
 **Senast uppdaterad:** 2026-06-16 (FAS A pågår — webapp-dashboard byggd, tre familje-runners med auto-validering + Blob-upload, bundle aktiverad FD.34)
 
 Detta dokument visar **var projektet står** och **vart det bär** — för Jens som genomförare och för
