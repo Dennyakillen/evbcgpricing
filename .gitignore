@@ -100,7 +100,12 @@ gitignore_inventory.txt
 # Session 8: step 6 working folder (copied BCG input + generated Excel output)
 _step6_run/
 
-verify_tool/receipts/
+# DO.1 (2026-10-20): kvittona fran 2026-06-08 ar sparade bevis -- mapp/* + !mapp/fil sa att de
+# inte doljs i en frisk klon. Nya datummappar under receipts/ forblir ignorerade.
+verify_tool/receipts/*
+!verify_tool/receipts/2026-06-08/
+verify_tool/receipts/2026-06-08/*
+!verify_tool/receipts/2026-06-08/*.xlsx
 
 # Local-only directories (added 2026-06-02)
 Pipeline/02. Elasticity/2. Product Cluster Level Models/_archive_growing_2026-04-27/
