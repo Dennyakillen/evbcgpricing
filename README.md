@@ -32,6 +32,9 @@ with current data:
 - `validate_dw_codelevel.py` — confirms source equivalence per ItemCode (B.4a).
 - `b4b_dw_weekly_elasticity.sql` — design document for a DW-native view (B.4b, not yet promoted).
 
+> **2026-10-20:** DW-steget ligger nu i detta repo (`tools/dw/`, kopior av Business_Analytics-originalen) och BCG-facit ur
+> `bcg_inputs` i `verify_tool/facit/` — Business_Analytics behövs inte för att köra BCG. Listan ovan är historik (PoC-2).
+
 ---
 
 ## Current state (2026-06-25)
@@ -56,7 +59,62 @@ full pipeline (FAS F done).
 
 ---
 
+## Ny dator — en gång (2026-10)
+
+**Förutsättningar** (beställs av IT, se `docs/ops/OFFBOARDING_KRITISKT.md`): Windows 10/11 · Python 3.11 med `py`-startaren ·
+Git · Azure CLI · Excel (steg 5/6 via xlwings) · ODBC Driver 17 for SQL Server (bara REGEN) · en roll på lagringskontot
+`evbcgpricinginput` som får läsa kontonyckeln (PIM) · för REGEN: DW-läsning (AAD) + VPN · för MOTOR: åtkomst till VM:en.
+
+```powershell
+# 1. Klona till C:\Projekt\BCG (URL: Clone-knappen i Azure DevOps-repot)
+git clone <URL> C:\Projekt\BCG
+cd C:\Projekt\BCG
+# 2. Miljön: .venv, pinnade beroenden (requirements-local.txt), .pth, körmappar, tools\dw\.env ur mallen
+py -3.11 install.py
+# 3. Datan: facit + handgjord indata ur Azure Blob (~2 GB, sha256-verifierat). Torrkörning först, sedan --kor.
+az login --scope https://management.core.windows.net//.default
+.\.venv\Scripts\python.exe tools\spegel\spegel_fran_blob.py
+.\.venv\Scripts\python.exe tools\spegel\spegel_fran_blob.py --kor
+# 4. Kontroll: ska ge 0 [FEL]
+.\.venv\Scripts\python.exe verify_setup.py
+```
+
+*AVSIKT:* klona till `C:\Projekt\BCG` — flera verktyg och runners har repo-roten hårdkodad (känd skuld, FD.39). REGEN (DW → parquet)
+kräver dessutom `tools\dw\.env` ifylld med värden från DW-förvaltaren; utan den körs kedjan från PREP på bränslet i Blob.
+Daglig drift: `DRIFT.md`.
+
+## Var datan ligger
+
+Git bär metoden; Azure Blob (`evbcgpricinginput`) bär datan, i tre lager:
+**kanoniskt** (`input/`, `output/<familj>/<fönster>/`, `pipeline/00_frozen_facit/`, `receipts/`, `runstatus/` — det kedjan kör på,
+se `BLOB_MALSTRUKTUR.md`), **facit ur BCG-originalet** (`pipeline/00_frozen_facit/bcg_original/`, byte-exakt) och **spegeln**
+(`spegel/bcg_2026-10-20/` — ögonblicksbild av utvecklarens dator 2026-10-20, inklusive den handgjorda indata som inget skript skapar).
+
+- Vad varje fil används till och var i kedjan den sitter: **`docs/ops/DATA_PLACERING.md`**
+- Vilka filer ur BCG-originalet validatorerna jämför mot: **`docs/BCG_ORIGINAL_REFERENSER.md`**
+- Medvetet utanför git och Blob: `tools/dw/.env` (värden från IT) och BCG-originalet i övrigt
+
+## Vad valideringen visar i dag (2026-10-21)
+
+Validatorerna läser facit ur `BCG_FACIT_DIR` (standard `verify_tool\facit`, fylls av steg 3 ovan). Kedjans utdata kommer från det
+**växande** fönstret, så `verify_tool\proof_chain\run_all.py` mäter **drift mot BCG 2025** — inte replikering:
+
+| FR | Steg | 2026-10-21 |
+|---|---|---|
+| FR-1 | Dataprep | REVIEW (växande modell-CSV mot BCG:s fönster) |
+| FR-4 / 5 / 6 | Kluster / site / bundle | rank-korr 0,69 / 0,65 / 0,89 |
+| FR-3 | Steg 5 (43 representanter) | 31/43 lika |
+| FR-7 | Steg 6 (F1–F7) | korr 0,92, 90,7 % samma fallback-nivå |
+
+Replikeringsbeviset bit-för-bit (FAS V: kluster 3812/3812, korr 1,0) är kvittot `verify_tool/receipts/verify_receipt_2026-05-28.xlsx`
+(länkas från dashboarden). Att upprepa det kräver en körning på det frysta fönstret.
+
+---
+
 ## Quick start
+
+> **Historik (2026-10-21):** avsnitten nedan beskriver utvecklarmiljön till och med 2026-07 (Business_Analytics-venv,
+> `export_b4b_for_model.py`, tre venv). För en ny dator gäller *Ny dator — en gång* ovan och `DRIFT.md`. Behålls som spår.
 
 ### Prerequisites
 
@@ -77,6 +135,9 @@ py -3.11 run_all.py             # full chain: data prep -> model -> blend -> fal
 
 `run_all.py` runs the five validators in milestone order and prints a consolidated table.
 `run_all.py --excel` writes a dated receipt to `receipts\`.
+
+> **2026-10-21:** skripten ligger i `verify_tool\proof_chain\` — kör `py -3.11 verify_tool\proof_chain\run_all.py` från repo-roten.
+> Vad de visar på dagens data: *Vad valideringen visar i dag* ovan.
 
 ### Run a fresh-data extraction (growing window to latest closed month)
 
@@ -173,6 +234,10 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 | `UBUNTU_AZURE_VM.md` | Linux/bash specifics for Azure VM operations |
 | `verify_tool/README.md` | Verification suite documentation |
 | `LOCKED_ASSUMPTIONS.md` | Låsta förutsättningar (LF.N) — proaktiva designbeslut som inte revideras impulsivt, för stabil affärs-referensram |
+| `docs/ops/DATA_PLACERING.md` | **Var datan ligger** (git/Blob), roll i kedjan, återställning |
+| `docs/ops/OFFBOARDING_KRITISKT.md` | Det som inte följer med utvecklarens dator och konton, och vad som ersätter det |
+| `docs/BCG_ORIGINAL_REFERENSER.md` | Filerna ur BCG-originalet som validatorerna jämför mot (namn, användning, sha256) |
+| `install.py` · `verify_setup.py` · `tools/spegel/spegel_fran_blob.py` | Ny dator: miljö, kontroll, data ur Blob |
 
 External standards governing this project:
 - `KÄRNPRINCIPER.md` — universal principles (search-before-build, documentation-as-search-surface)
@@ -186,6 +251,8 @@ External standards governing this project:
 1. **Validate against frozen original, never working copy** (LB.24). The OneDrive
    `BCG_orginal_V2_New` is the source of truth for facit; the `Pipeline\...\data` copies are
    overwritten by export runs and are not facit.
+   *(2026-10-21: originalets nio facit-filer finns byte-exakt i Blob `pipeline/00_frozen_facit/bcg_original/` och
+   återställs till `verify_tool/facit/` — se `docs/BCG_ORIGINAL_REFERENSER.md`.)*
 
 2. **Distrust corr 1.0 until source independence is confirmed** (LB.25). Our DW extraction reads
    raw transactions and aggregates independently — corr 1.0 against BCG is a genuine match. But
