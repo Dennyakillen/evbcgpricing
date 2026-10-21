@@ -37,7 +37,7 @@ den byggs växande av `convert_masterdata_to_parquet.py` (repo-roten) från
 cd "C:\Projekt\BCG"
 $bundleInput = "Pipeline\02. Elasticity\4. Bundle Clinic Data Prep\Sweden_Bundling_Data_Prep\input"
 $elasticityInput = "Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL\input"
-$oneDriveBundleInput = "C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG\BCG_orginal_V2_New\02. Elasticity\4. Bundle Clinic Data Prep\Sweden_Bundling_Data_Prep\input"
+$oneDriveBundleInput = "$env:USERPROFILE\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG\BCG_orginal_V2_New\02. Elasticity\4. Bundle Clinic Data Prep\Sweden_Bundling_Data_Prep\input"
 
 Copy-Item "$oneDriveBundleInput\sweden_bundle_analysis.csv" "$bundleInput\sweden_bundle_analysis.csv" -Force
 Copy-Item "$elasticityInput\Sweden_Interpolated_Productivity_time.csv" "$bundleInput\Sweden_Interpolated_Productivity_time.csv" -Force

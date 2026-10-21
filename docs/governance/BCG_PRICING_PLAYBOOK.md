@@ -128,7 +128,7 @@ Tre olika Python-miljöer med olika paket. Använd rätt för rätt jobb (LB.26/
 
 | Miljö | Sökväg | Har | Används till |
 |---|---|---|---|
-| Global 3.11 | `C:\Users\jepa02\AppData\Local\Programs\Python\Python311\` | duckdb, pandas, openpyxl, numpy, pyyaml | verify_tool, dataprep-validering |
+| Global 3.11 | `%LOCALAPPDATA%\Programs\Python\Python311\` | duckdb, pandas, openpyxl, numpy, pyyaml | verify_tool, dataprep-validering |
 | Business_Analytics | `C:\Projekt\Business_Analytics\.venv` | pyodbc, pandas | DW-extraktion (export_b4b_for_model.py, compare_to_0828_facit.py) |
 | Pipeline | `C:\Projekt\BCG\Pipeline\02. Elasticity\.venv` | duckdb, Ray, statsmodels | Pipelinens beräkningar (feature_selection, model) |
 
