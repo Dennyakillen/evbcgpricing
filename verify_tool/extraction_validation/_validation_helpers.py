@@ -21,6 +21,7 @@ Used by all validate_*.py scripts in C:\Projekt\BCG\verify_tool\extraction_valid
 """
 import hashlib
 import io
+import os
 import sys
 from contextlib import contextmanager
 from datetime import datetime
@@ -39,9 +40,24 @@ CLUSTER_MODEL_ROOT = BCG_ROOT / "Pipeline" / "02. Elasticity" / "2. Product Clus
 OUR_CSV = CLUSTER_MODEL_ROOT / "data" / "0828_Sweden_weekly_model_data_P_C.csv"
 
 # BCG facit paths
-BCG_FACIT_CSV = BUSINESS_ROOT / "bcg_inputs" / "0828_Sweden_weekly_model_data_P_C.csv"
-BCG_CLUSTER_SEED_XLSX = BUSINESS_ROOT / "bcg_inputs" / "0808_Sweden_Clinic_Cluster_Mapping.xlsx"
-BCG_FTE_XLSX = BUSINESS_ROOT / "bcg_inputs" / "Sweden__Interpolated_Productivity_time_date_june25.xlsx"
+# FACIT-TRÅD-2 2026-10-21 (Jens Palmö): BCG-leveranserna läses ur BCG_FACIT_DIR/bcg_inputs -- default
+# <repo>/verify_tool/facit/bcg_inputs, som tools/spegel/spegel_fran_blob.py fyller ur Blob (spegeln
+# _extern/bcg_inputs/, sha256 per fil). Tidigare Business_Analytics\bcg_inputs: en tråd till ett annat repo
+# som inte följer med DevOps-exporten. AVSIKT: finns filen inte under facit men i Business_Analytics\bcg_inputs
+# (utvecklarens dator) används den -- den lokala körningen bryts inte. 0828-filen är byte-identisk med
+# BCG-originalets data/0828_Sweden_weekly_model_data_P_C.csv (sha256 mätt 2026-10-21).
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+
+
+def _facit_file(name):
+    p = _FACIT_ROOT / "bcg_inputs" / name
+    reserv = BUSINESS_ROOT / "bcg_inputs" / name
+    return p if (p.exists() or not reserv.exists()) else reserv
+
+
+BCG_FACIT_CSV = _facit_file("0828_Sweden_weekly_model_data_P_C.csv")
+BCG_CLUSTER_SEED_XLSX = _facit_file("0808_Sweden_Clinic_Cluster_Mapping.xlsx")
+BCG_FTE_XLSX = _facit_file("Sweden__Interpolated_Productivity_time_date_june25.xlsx")
 
 # Receipt directory under verify_tool/receipts/
 RECEIPT_ROOT = BCG_ROOT / "verify_tool" / "receipts"

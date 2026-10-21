@@ -59,7 +59,7 @@ def main() -> int:
          REPO/"Pipeline/02. Elasticity/6. Fall Back Logic/input_data/final_model_cluster_granularity_Ivce.xlsx",
          CONTAINER_PIPELINE, "00_frozen_facit/cluster_step5/final_model_cluster_granularity_Ivce.xlsx"),
         ("A inputs", "bundle (FROZEN FD.11)",
-         Path(r"C:/Users/jepa02/OneDrive - Evidensia Djursjukvård AB/Datastrategi/BCG/BCG_orginal_V2_New/02. Elasticity/6. Fall Back Logic/input_data/output_summary_bundle.xlsx"),
+         REPO/"Pipeline/02. Elasticity/6. Fall Back Logic/input_data/output_summary_bundle.xlsx",  # 2026-10-21: var OneDrive-originalet; nu repots kopia som steg 6 laser (= Blob-bundle, sha256 matt lika)
          CONTAINER_PIPELINE, "00_frozen_facit/bundle/output_summary.xlsx"),
         ("A inputs", "vav-vikter (FROZEN FD.14)",
          REPO/"Pipeline/02. Elasticity/6. Fall Back Logic/input_data/Complete_Product_Data.xlsx",

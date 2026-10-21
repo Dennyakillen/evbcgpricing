@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import warnings
 import re
 import shutil
 import subprocess
@@ -69,7 +70,9 @@ finally:
 CODE_DIRS = ["orchestration", "orchestration/shared", "orchestration/infrastructure", "orchestration/runners",
              "orchestration/webapp", "verify_tool", "verify_tool/probes", "verify_tool/proof_chain",
              "verify_tool/extraction_validation", "verify_tool/output_rationality", "verify_tool/provenance",
-             "verify_tool/run", "tools", "tools/dw", "docs", "Pipeline", "Pipeline/02. Elasticity"]
+             "verify_tool/run", "tools", "tools/dw", "tools/spegel", "docs", "Pipeline", "Pipeline/02. Elasticity"]
+# FACIT-TRÅD-2 2026-10-21: tools/spegel (återställaren) tillagd; tools/blob_inventory.py bort ur SOURCE_FILES
+# (inventeringsverktyget är utvecklarens metodik och följer inte med DevOps-exporten, beslut 2026-10-21).
 
 # Beskrivningarna bygger på lästa filer (run_data, blob, run_status, app, all_chain_validator, stage_webapp,
 # webapp_deploy_probe, dry_run_full_pipeline, Dockerfile, startup.sh, DRIFT, REPLIKERING) och på DRIFT.md:s
@@ -97,11 +100,11 @@ SOURCE_FILES = {
     "tools/replicate_dataprep.py":                    "PREP: parquet -> vecko-CSV:er via DuckDB (BCG_END_DATE)",
     "tools/stage_webapp.py":                          "manifestdriven staging av webappen (kräver deploy-probens manifest)",
     "tools/webapp_deploy_probe.py":                   "AST-importhölje + requirements-täckning för webappen (Excel-kvitto)",
-    "tools/blob_inventory.py":                        "read-only inventering av Blob-kontot (docs/ops/BLOB_INVENTORY_*)",
     "tools/dw/regenerate_transaction_parquet_chunked_v2.py": "REGEN: DW -> transaction_data.parquet, chunkat per år (kopia av BA-originalet)",
     "tools/dw/data_access.py":                        "DW-anslutning via AAD-token + pyodbc; .env via BCG_DW_ENV (kopia av BA-originalet)",
     "tools/dw/.env.example":                          "mall för tools/dw/.env (platshållare; .env committas aldrig)",
     "tools/dw/README.md":                             "härkomst, förutsättningar och miljövariabler för DW-steget",
+    "tools/spegel/spegel_fran_blob.py":              "steg 2 efter install.py: facit + indata ur Blob (sha256-verifierat)",
     "verify_tool/probes/all_chain_validator.py":      "struktur-/runner-/kontraktsvalidering av hela kedjan (statisk utan --vm)",
     "verify_tool/dry_run_full_pipeline.py":           "preflight: sökvägar, fönsterkonsistens, runner-dry-runs (+ --vm)",
     "verify_tool/dry_run_e2e.py":                     "strukturell e2e-dry-run (BA_ROOT-miljövariabel)",
@@ -121,8 +124,9 @@ DOC_FILES = {
     "STATE.md":                                       "resurs-ID:n, lägen, hårda värden",
     "orchestration/README.md":                        "importkedjan och hur runners/app startas",
     "docs/governance/ROADMAP.md":                     "faser och vad som återstår",
-    "docs/ops/BLOB_INVENTORY_evbcgpricinginput_2026-10-20.md": "var data ligger i Blob (per container/mapp/filtyp, lokal korsning)",
-    "docs/ops/blob_inventory_evbcgpricinginput_2026-10-20.csv": "rådata till inventeringen (en rad per blob)",
+    "docs/ops/DATA_PLACERING.md":                    "var datan ligger (git/Blob), roll i kedjan, hur den återställs",
+    "docs/ops/OFFBOARDING_KRITISKT.md":              "det som inte följer med utvecklarens dator, och vad som ersätter det",
+    "docs/BCG_ORIGINAL_REFERENSER.md":               "vilka filer ur BCG-originalet validatorerna jämför mot",
 }
 
 # (modul, attribut som ska finnas, bara win32?) — egna platta moduler via .pth
@@ -141,7 +145,15 @@ IMPORT_TESTS_3P = [("pandas", False), ("numpy", False), ("pyarrow", False), ("op
 PROFILE_VARS = ["PRICINGMODEL_STORAGE", "PRICINGMODEL_AUTH", "PRICINGMODEL_KEY", "PRICINGMODEL_RG",
                 "PRICINGMODEL_SUBSCRIPTION", "PRICINGMODEL_STATUS_CONTAINER", "PRICINGMODEL_OUTPUT_CONTAINER",
                 "PRICINGMODEL_INPUT_CONTAINER", "PRICINGMODEL_PIPELINE_CONTAINER", "PRICINGMODEL_RECEIPTS_CONTAINER",
-                "BCG_START_DATE", "BCG_END_DATE", "BCG_DW_ENV", "BCG_DW_PYTHON", "BCG_REGEN_SCRIPT", "BA_ROOT"]
+                "BCG_START_DATE", "BCG_END_DATE", "BCG_DW_ENV", "BCG_DW_PYTHON", "BCG_REGEN_SCRIPT", "BA_ROOT",
+                "BCG_FACIT_DIR"]
+FACIT_DIR_REL = "verify_tool/facit/BCG_orginal_V2_New/02. Elasticity"
+FACIT_EXPECTED = 9   # filer i Blob pipeline/00_frozen_facit/bcg_original/ (uppladdade 2026-10-21)
+DASHBOARD_RECEIPTS = [  # kvitton som orchestration/webapp/story_config.py pekar på (spårade, DO.1 2026-10-21)
+    "verify_tool/receipts/verify_receipt_2026-05-28.xlsx",
+    "verify_tool/receipts/2026-06-08/rationality/00_rationality_master_2026-06-08_130847.xlsx",
+    "verify_tool/receipts/2026-06-11/provenance/00_provenance_master_2026-06-11_181714.xlsx",
+]
 SECRET_VARS = {"PRICINGMODEL_KEY"}
 RECEIPTS_2026_06_08 = "verify_tool/receipts/2026-06-08"
 RECEIPTS_EXPECTED = 9   # spårade kvitton (DO.1-fix 2026-10-20: 8 + 08_baseline_replication)
@@ -349,7 +361,9 @@ def check_imports() -> None:
             continue
         try:
             mod = importlib.import_module(mod_name)
-            ver = getattr(mod, "__version__", None) or getattr(getattr(mod, "version", None), "__str__", lambda: "")()
+            with warnings.catch_warnings():   # Flask 3.1: __version__ ger DeprecationWarning -- brus i en grind
+                warnings.simplefilter("ignore")
+                ver = getattr(mod, "__version__", None) or getattr(getattr(mod, "version", None), "__str__", lambda: "")()
             _ok(f"{mod_name:<22} {ver or 'importerbar'}")
         except Exception as e:
             _fail(f"{mod_name:<22} import-fel: {type(e).__name__}: {e}")
@@ -412,16 +426,25 @@ def diagnostics() -> None:
         _ok(f"{RECEIPTS_2026_06_08}/: {n} kvitton (DO.1 — spårade filer syns trots *.xlsx i .gitignore)")
     else:
         _fail(f"{RECEIPTS_2026_06_08}/: {n} kvitton, {RECEIPTS_EXPECTED} väntade — .gitignore döljer spårade filer? (DO.1)")
-    # b) Blob-inventeringen läses
-    csvs = sorted((ROOT / "docs" / "ops").glob("blob_inventory_*.csv"))
-    if csvs:
-        try:
-            rows = sum(1 for _ in csvs[-1].open(encoding="utf-8-sig")) - 1
-            _ok(f"{csvs[-1].relative_to(ROOT)}: {rows} blobbar — var data bor, utan att röra Blob")
-        except Exception as e:
-            _fail(f"{csvs[-1].name} går inte att läsa: {e}")
+    # b) datans hemvist dokumenterad + kvitton som dashboarden pekar på (FACIT-TRÅD-2 2026-10-21)
+    dp = ROOT / "docs" / "ops" / "DATA_PLACERING.md"
+    if dp.is_file():
+        _ok("docs/ops/DATA_PLACERING.md finns — var datan ligger och hur den återställs")
     else:
-        _obs("ingen docs/ops/blob_inventory_*.csv — datans hemvist är inte dokumenterad i klonen")
+        _obs("docs/ops/DATA_PLACERING.md saknas — datans hemvist är inte dokumenterad i klonen")
+    for rel in DASHBOARD_RECEIPTS:
+        if (ROOT / rel).is_file():
+            _ok(f"{rel} (dashboarden länkar hit)")
+        else:
+            _fail(f"{rel} saknas — dashboarden pekar dit (story_config.py); spåras via !-rad i .gitignore (DO.1)")
+    # b2) facit för validatorerna (BCG_FACIT_DIR, default verify_tool/facit) -- data, inte kod: [OBS]
+    froot = Path(os.environ["BCG_FACIT_DIR"]) / "BCG_orginal_V2_New" / "02. Elasticity" if os.environ.get("BCG_FACIT_DIR") else ROOT / FACIT_DIR_REL
+    nf = sum(1 for p in froot.rglob("*") if p.is_file()) if froot.is_dir() else 0
+    if nf >= FACIT_EXPECTED:
+        _ok(f"facit för validatorerna: {nf} filer under {froot.relative_to(ROOT) if _under(froot, ROOT) else froot}")
+    else:
+        _obs(f"facit för validatorerna: {nf}/{FACIT_EXPECTED} filer — kör: .\\.venv\\Scripts\\python.exe tools\\spegel\\spegel_fran_blob.py --kor "
+             f"(proof_chain, output_rationality, provenance och extraction_validation jämför mot dem)")
     # c) run_status självtest (stdlib, offline)
     rs = ROOT / "orchestration" / "shared" / "run_status.py"
     try:

@@ -36,6 +36,7 @@ Run (PowerShell, project venv):
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -51,10 +52,13 @@ TOLERANT_REL = 0.01    # relative diff for a tolerant match
 
 # --- Per-family defaults --------------------------------------------------
 # OURS = our VM run (azure_run_model). FACIT = BCG's frozen run (\output\model).
-_ORIG = (
-    r"C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG"
-    r"\BCG_orginal_V2_New\02. Elasticity"
-)
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+_ORIG = str(_FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity")
 _PIPE = r"C:\Projekt\BCG\Pipeline\02. Elasticity"
 
 FAMILIES = {

@@ -23,6 +23,7 @@ DESIGN NOTE: frozen is NOT a failure. The other suites prove correctness
 input reports REVIEW ("works, but rests on a lock -- see FD"), never FAIL. That
 mirrors output_rationality's "report deviations, not binary pass/fail" philosophy.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -81,10 +82,13 @@ GROWING_CANDIDATES = {
 }
 
 # Frozen BCG facit we knowingly reuse as placeholders (the documented shortcut).
-BCG_FBL_FACIT = (
-    Path("C:/Users/jepa02/OneDrive - Evidensia Djursjukvård AB/Datastrategi/BCG")
-    / "BCG_orginal_V2_New" / "02. Elasticity" / "6. Fall Back Logic"
-)
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+BCG_FBL_FACIT = _FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity" / "6. Fall Back Logic"
 FROZEN_FACIT = {
     "product_base": BCG_FBL_FACIT / "input_data" / "Complete_Product_Data.xlsx",
     "bundle_model": BCG_FBL_FACIT / "input_data" / "output_summary_bundle.xlsx",

@@ -35,6 +35,7 @@ If run with no args, it uses the DEFAULTS below (edit to taste).
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -42,12 +43,18 @@ import numpy as np
 import pandas as pd
 
 # --- Defaults (override with --ours / --facit) -----------------------
-DEFAULT_OURS = r"C:\Projekt\BCG\_step6_run\02. Elasticity\6. Fall Back Logic\output_data"
-DEFAULT_FACIT = (
-    r"C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG"
-    r"\BCG_orginal_V2_New\02. Elasticity\6. Fall Back Logic\output_data"
-    r"\Final_Fallback_Data_20250930_091648.xlsx"
-)
+# SÖKVÄGSRÖTA 2026-10-21 (Jens Palmö): _step6_run/ är arkiverad (_ATT_RADERA/_step6_run_from_FAS_V); steg 6 skriver nu till
+# Pipeline/02. Elasticity/6. Fall Back Logic/output_data/ (run_step6.py) -- nyaste Final_Fallback_Data_*.xlsx väljs.
+# FR-7 gav [ERR] 'not found' i baslinjen 2026-10-21. Repo-relativ default.
+DEFAULT_OURS = str(Path(__file__).resolve().parents[2] / "Pipeline" / "02. Elasticity" / "6. Fall Back Logic" / "output_data")
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+DEFAULT_FACIT = str(_FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity" / "6. Fall Back Logic"
+                    / "output_data" / "Final_Fallback_Data_20250930_091648.xlsx")
 
 # A dv8 row is made unique by ProductKey + SiteCode + Clusters (the grain that
 # dv1/dv2 in creating_one_df merge on). Joining on ProductKey alone explodes into

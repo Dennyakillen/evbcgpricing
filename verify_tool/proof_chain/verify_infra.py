@@ -23,6 +23,7 @@ Run (PowerShell):
     py -3.11 verify_infra.py
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -30,10 +31,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-_ORIG = Path(
-    r"C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG"
-    r"\BCG_orginal_V2_New\02. Elasticity"
-)
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+_ORIG = _FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity"
 _PIPE = Path(r"C:\Projekt\BCG\Pipeline\02. Elasticity")
 _DP = _PIPE / "Sweden_Elasticity_Data_Prep_SQL" / "output"
 
@@ -69,8 +73,8 @@ OURS_FILES = [
     _PIPE / "2. Product Cluster Level Models" / "output" / "azure_run_model" / "output_summary.xlsx",
     _PIPE / "3. Product Site Level Models" / "output" / "azure_run_model" / "output_summary.xlsx",
     _PIPE / "5. Bundle Clinic Models" / "output" / "azure_run_model" / "output_summary.xlsx",
-    Path(r"C:\Projekt\BCG\replicate_dataprep.py"),
-    Path(r"C:\Projekt\BCG\fallback_blend.py"),
+    HERE.parents[1] / "tools" / "replicate_dataprep.py",  # SÖKVÄGSRÖTA 2026-10-21: flyttad till tools/
+    HERE.parent / "run" / "fallback_blend.py",            # SÖKVÄGSRÖTA 2026-10-21: ligger i verify_tool/run/
 ]
 
 # --- 5. Full repo structure audit ----------------------------------------
@@ -181,7 +185,7 @@ def _section(title: str) -> None:
 def find_python_311() -> list:
     if shutil.which("py"):
         return ["py", "-3.11"]
-    known = r"C:\Users\jepa02\AppData\Local\Programs\Python\Python311\python.exe"
+    known = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python311\python.exe")  # 2026-10-21: var hårdkodat kontonamn
     if Path(known).exists():
         return [known]
     return [sys.executable]
@@ -349,7 +353,7 @@ def main() -> int:
         print("\n  Resolve the FEL/SAKNAS items above before running the suite.")
         print("  Common fixes:")
         print("   - Python: run with 'py -3.11' (the .venv lacks duckdb).")
-        print("   - Facit SAKNAS: ensure OneDrive 'Always keep on this device' (no stubs).")
+        print("   - Facit SAKNAS: kor tools/spegel/spegel_fran_blob.py, eller satt BCG_FACIT_DIR (se README).")
         print("   - Ours SAKNAS: the VM run output / dataprep CSVs must be on disk.")
     return 0 if fail == 0 else 1
 

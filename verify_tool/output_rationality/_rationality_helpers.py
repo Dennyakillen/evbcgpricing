@@ -12,6 +12,7 @@ RECEIPT FORMAT: Same single-sheet "Logg" format as extraction_validation suite.
 
 USED BY: All validate_*.py in verify_tool/output_rationality/.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -96,8 +97,14 @@ def resolve_our_output_summary(override=None):
 
 
 # BCG frozen facit (for drift comparison)
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
 BCG_FACIT_OUTPUT_SUMMARY = (
-    Path(r"C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG")
+    _FACIT_ROOT
     / "BCG_orginal_V2_New" / "02. Elasticity"
     / "2. Product Cluster Level Models" / "output" / "model" / "output_summary.xlsx"
 )

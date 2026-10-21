@@ -46,10 +46,13 @@ from _provenance_helpers import (  # noqa: E402
 )
 
 FBL = BCG_ROOT / "Pipeline" / "02. Elasticity" / "6. Fall Back Logic"
-BCG_FBL_FACIT = (
-    Path("C:/Users/jepa02/OneDrive - Evidensia Djursjukvård AB/Datastrategi/BCG")
-    / "BCG_orginal_V2_New" / "02. Elasticity" / "6. Fall Back Logic"
-)
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+BCG_FBL_FACIT = _FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity" / "6. Fall Back Logic"
 
 # IB.11 baseline drift band (revenue 0.057%, per-cluster up to ~1.5%); for elasticity
 # we use the rationality-suite drift thresholds (acceptable < 0.5, decision-relevant > 1.0).
@@ -118,7 +121,7 @@ def main():
         return 1
     if facit_path is None or not facit_path.exists():
         print(f"  facit not found at {BCG_FBL_FACIT}")
-        print(">> Result: REVIEW  (frozen facit not found -- check OneDrive path)")
+        print(">> Result: REVIEW  (frozen facit not found -- kor spegel_fran_blob.py eller satt BCG_FACIT_DIR)")
         return 1
 
     our = _load(our_path, "OURS (growing)")

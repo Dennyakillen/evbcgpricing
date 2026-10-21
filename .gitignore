@@ -154,3 +154,19 @@ verify_tool/conservation_snapshot.json
 docs/*.pptx
 Pipeline/02. Elasticity/6. Fall Back Logic/input_data/
 deploy.zip
+
+# Facit ur BCG-originalet, aterstallt fran Blob (pipeline/00_frozen_facit/bcg_original/) av
+# tools/spegel/spegel_fran_blob.py -- data, inte kod (2026-10-21, Jens Palmo)
+verify_tool/facit/
+
+# DO.1 (2026-10-21, Jens Palmo): kvitton som dashboarden pekar pa (orchestration/webapp/story_config.py) --
+# sparade bevis, foljer med klonen. Ovriga kvitton forblir ignorerade.
+!verify_tool/receipts/verify_receipt_2026-05-28.xlsx
+!verify_tool/receipts/2026-06-08/rationality/
+verify_tool/receipts/2026-06-08/rationality/*
+!verify_tool/receipts/2026-06-08/rationality/00_rationality_master_2026-06-08_130847.xlsx
+!verify_tool/receipts/2026-06-11/
+verify_tool/receipts/2026-06-11/*
+!verify_tool/receipts/2026-06-11/provenance/
+verify_tool/receipts/2026-06-11/provenance/*
+!verify_tool/receipts/2026-06-11/provenance/00_provenance_master_2026-06-11_181714.xlsx

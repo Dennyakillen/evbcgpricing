@@ -167,6 +167,8 @@ structure, the typical value, and the price-relevant groups.
 - **Validate against the frozen original, never a working-folder copy.** The
   `Pipeline\…\data` facit copies drifted (re-encoded, P_CH emptied) because that folder
   is also an `export_b4b` output target. All defaults here point at the OneDrive original.
+  *(2026-10-21: defaults now read `BCG_FACIT_DIR` -- a byte-exact copy of the original, restored from Blob
+  `pipeline/00_frozen_facit/bcg_original/` by `tools/spegel/spegel_fran_blob.py`. See the repo README.)*
 - **Distrust corr 1.0 until source independence is confirmed.** Our dataprep reads raw
   `transaction_data.parquet` + DW dimensions and aggregates independently — it does NOT
   read BCG's 0828 file. So corr 1.0 is a genuine match, not a copy compared to itself.

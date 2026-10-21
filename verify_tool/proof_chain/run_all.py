@@ -20,6 +20,7 @@ Run (PowerShell, from the verify_tool folder):
 """
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -48,7 +49,7 @@ def find_python_311(override: str | None) -> list:
     if shutil.which("py"):
         return ["py", "-3.11"]
     # Fallback: the known global 3.11 path on this machine
-    known = r"C:\Users\jepa02\AppData\Local\Programs\Python\Python311\python.exe"
+    known = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python311\python.exe")  # 2026-10-21: var hårdkodat kontonamn
     if Path(known).exists():
         return [known]
     # Last resort: whatever runs this orchestrator

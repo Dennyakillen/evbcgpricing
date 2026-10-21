@@ -27,24 +27,31 @@ Run (PowerShell, project venv):
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-_ORIG = (
-    r"C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG"
-    r"\BCG_orginal_V2_New\02. Elasticity"
-)
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+_ORIG = str(_FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity")
 _PIPE = r"C:\Projekt\BCG\Pipeline\02. Elasticity"
 
-DEFAULT_BLEND = r"C:\Projekt\BCG\fallback_blend.py"
+# SÖKVÄGSRÖTA 2026-10-21 (Jens Palmö): fallback_blend.py ligger i verify_tool/run/ (var C:\Projekt\BCG\fallback_blend.py,
+# FR-3 gav [ERR] 'not found' i baslinjen 2026-10-21). Repo-relativ default.
+DEFAULT_BLEND = str(Path(__file__).resolve().parents[1] / "run" / "fallback_blend.py")
 # Our cluster model output (same file verify_model --family cluster uses).
 DEFAULT_OUTPUT_SUMMARY = rf"{_PIPE}\2. Product Cluster Level Models\output\azure_run_model\output_summary.xlsx"
 # BCG facit: the 43 representatives, read from the cluster model's OWN output
 # folder in the untouched original (where the blend artefact is born - not the
 # forwarded _Ivce copy in step 6's input_data, though both are byte-identical).
+# MÄTT 2026-10-21 (sha256): INTE byte-identiska -- originalet 14 959 B, _Ivce 17 567 B. Facit = originalet.
 DEFAULT_FACIT = rf"{_ORIG}\2. Product Cluster Level Models\output\final_model_cluster_granularity.xlsx"
 # Product file for Service/Rank/Description join (15,134 ItemCodes, 23 services).
 DEFAULT_PROD = rf"{_ORIG}\6. Fall Back Logic\input_data\Complete_Product_Data.xlsx"

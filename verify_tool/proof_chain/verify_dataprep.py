@@ -28,23 +28,31 @@ Run (PowerShell, project venv):
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 # --- Defaults (override with --base-dir / --facit-dir / --replicate) ----
-DEFAULT_REPLICATE = r"C:\Projekt\BCG\replicate_dataprep.py"
+# SÖKVÄGSRÖTA 2026-10-21 (Jens Palmö): replicate_dataprep.py flyttades till tools/ (var C:\Projekt\BCG\replicate_dataprep.py,
+# FR-1 gav [ERR] 'not found' i baslinjen 2026-10-21). Repo-relativ default.
+DEFAULT_REPLICATE = str(Path(__file__).resolve().parents[2] / "tools" / "replicate_dataprep.py")
 DEFAULT_BASE_DIR = (
     r"C:\Projekt\BCG\Pipeline\02. Elasticity\Sweden_Elasticity_Data_Prep_SQL"
 )
-DEFAULT_FACIT_DIR = (
+# FACIT-ROT (2026-10-21, Jens Palmö): BCG-originalets facit läses ur miljövariabeln BCG_FACIT_DIR --
+# default <repo>/verify_tool/facit, som tools/spegel/spegel_fran_blob.py fyller ur Blob
+# (pipeline/00_frozen_facit/bcg_original/, byte-exakt kopia). Samma mappstruktur som originalet, så
+# variabeln kan också peka på originalarkivet (mappen som innehåller BCG_orginal_V2_New).
+# Ersätter en hårdkodad OneDrive-sökväg med personligt kontonamn.
+_FACIT_ROOT = Path(os.environ.get("BCG_FACIT_DIR") or Path(__file__).resolve().parents[2] / "verify_tool" / "facit")
+DEFAULT_FACIT_DIR = str(
     # The UNTOUCHED BCG original. NOT the Pipeline\...\data copy: that folder
     # shares a directory with export_b4b output and gets overwritten (the
     # 2026-05-25 drift that broke encoding + emptied P_CH facit). Always
     # validate against the frozen original, never a working-folder copy.
-    r"C:\Users\jepa02\OneDrive - Evidensia Djursjukvård AB\Datastrategi\BCG"
-    r"\BCG_orginal_V2_New\02. Elasticity\2. Product Cluster Level Models\data"
+    _FACIT_ROOT / "BCG_orginal_V2_New" / "02. Elasticity" / "2. Product Cluster Level Models" / "data"
 )
 
 # Log-line patterns from replicate_dataprep.py (stable format, parsable directly)
