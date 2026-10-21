@@ -94,6 +94,7 @@ se `BLOB_MALSTRUKTUR.md`), **facit ur BCG-originalet** (`pipeline/00_frozen_faci
 
 - Vad varje fil används till och var i kedjan den sitter: **`docs/ops/DATA_PLACERING.md`**
 - Vilka filer ur BCG-originalet validatorerna jämför mot: **`docs/BCG_ORIGINAL_REFERENSER.md`**
+- Vad som kan vara känsligt (IT-säkerhet, dataskydd), var det ligger och vem som beslutar: **`docs/ops/KANSLIGHETSREGISTER.md`**
 - Medvetet utanför git och Blob: `tools/dw/.env` (värden från IT) och BCG-originalet i övrigt
 
 ## Vad valideringen visar i dag (2026-10-21)
@@ -239,6 +240,7 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 | `docs/ops/DATA_PLACERING.md` | **Var datan ligger** (git/Blob), roll i kedjan, återställning |
 | `docs/ops/OFFBOARDING_KRITISKT.md` | Det som inte följer med utvecklarens dator och konton, och vad som ersätter det |
 | `docs/BCG_ORIGINAL_REFERENSER.md` | Filerna ur BCG-originalet som validatorerna jämför mot (namn, användning, sha256) |
+| `docs/ops/KANSLIGHETSREGISTER.md` | Vad som kan vara känsligt, var det ligger och vem som beslutar — underlag för IT, inte juridisk bedömning |
 | `install.py` · `verify_setup.py` · `tools/spegel/spegel_fran_blob.py` | Ny dator: miljö, kontroll, data ur Blob |
 
 External standards governing this project:

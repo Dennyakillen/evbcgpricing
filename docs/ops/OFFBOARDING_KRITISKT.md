@@ -18,6 +18,7 @@ eller ett konto.
 | 8 | **Förvaltaransvaret** | KRAVSPEC_IT §4: "Vem är förvaltare av modellen efter Jens?" | **beslut: chef + IT** |
 | 9 | **Utvecklarens arbetsmetodik** (sessionsverktyg, beslutsfiler, metodfiler) | behövs inte för drift — följer medvetet inte med till DevOps (beslut 2026-10-21) | — |
 | 10 | **Utvecklarens dator som säkerhetsnät** — i dag finns datan också lokalt; efter avvecklingen är Blob enda kopian. Mätt 2026-10-21: mjuk borttagning (soft delete) för blobbar och containrar och versionshantering är **avstängda** — en blob som raderas eller skrivs över är borta direkt | mjuk borttagning för blobbar och containrar (Microsoft rekommenderar minst 7 dagar); överväg Azure Backup. Kostnaden ökar med kedjans överskrivningar — IT väljer antal dagar | **IT** |
+| 11 | **GitHub-repot** (privat, på utvecklarens personliga konto) — hela historiken, däribland företagsdata och klustringens mappningsfil med anställdas namn och e-post | historiken finns i Blob (rad 4), så repot kan raderas eller lämnas över utan att något går förlorat. Se `docs/ops/KANSLIGHETSREGISTER.md` F4 | **beslut: chef + IT**; utvecklaren genomför |
 
 ## Ordning för den som tar över
 
@@ -50,3 +51,4 @@ Kontot `azureuser` delas. Ett personligt konto per förvaltare är spårbarare, 
 |---|---|
 | 2026-10-21 | Första versionen. |
 | 2026-10-21 | Rad 4 täckt (bundlen uppladdad och återläst). Rad 5: VPN och VM-roll. Rad 6 mätt (en nyckel, utvecklarens) → IT. Ny rad 10 (skydd mot radering). Avsnittet *SSH: byte av nyckel*. |
+| 2026-10-21 | Ny rad 11 (GitHub-repot). |

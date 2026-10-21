@@ -64,12 +64,12 @@ Beslut 2026-10-21 (Jens): filerna stannar i Blob (inte git); återställaren hä
 | Fil (repo-relativ, under `Pipeline/`) | Steg | Läses av | Klass | Var |
 |---|---|---|---|---|
 | `01. Clustering/Input/Clustering_Raw_Data_new.xlsx` | Klustring | omätt (ingen kodreferens hittad) | ? | spegel |
-| `01. Clustering/Sweden_clustering_SQL/input/*` (6 CSV) | Klustring | `00_read.sql` | AVTAL | **git** |
+| `01. Clustering/Sweden_clustering_SQL/input/*` (6 CSV) | Klustring | `00_read.sql` | RÖD-arv; mappningsfilen RÖD (anställdas arbetskontakter, se `docs/ops/KANSLIGHETSREGISTER.md` G3) | **git** |
 | `02. Elasticity/Sweden_Elasticity_Data_Prep_SQL/input/loc.Dim_Item 20250627.csv` | PREP | `00_read.sql` | GUL | spegel |
-| `…/Sweden_Elasticity_Data_Prep_SQL/input/loc.Dim_Department.csv` (+ kopia i klustringens input) | PREP, klustring | `00_read.sql` | RÖD-arv | spegel |
+| `…/Sweden_Elasticity_Data_Prep_SQL/input/loc.Dim_Department.csv` (+ kopia i klustringens input) | PREP, klustring | `00_read.sql` | RÖD (samma chefskolumner som mappningsfilen) | spegel |
 | `…/Sweden_Elasticity_Data_Prep_SQL/input/` `Sweden_Clinic_Cluster_Mapping.csv`, `Sweden_Interpolated_Productivity_time.csv`, `Updated_site_cluster.csv` | PREP | PREP-skripten (omätt vilket) | AVTAL / RÖD-arv | **git** |
 | `…/Sweden_Elasticity_Data_Prep_SQL/input/loc.DIM_Customer 20250627.csv`, `loc.DIM_Patient.csv` | — | **ingen** (bara bortkommenterat i `01_process.sql`) | RÖD | spegel (beslut 2026-10-20) |
-| `…/Sweden_Elasticity_Data_Prep_SQL/parquet/transaction_data_frozen_facit_2025-06.parquet` (968 MB) | REGEN-facit | replikering mot BCG:s fönster | RÖD/GUL | spegel |
+| `…/Sweden_Elasticity_Data_Prep_SQL/parquet/transaction_data_frozen_facit_2025-06.parquet` (968 MB) | REGEN-facit | replikering mot BCG:s fönster | RÖD (pseudonymiserade kund-, patient- och användar-id) | spegel |
 | `02. Elasticity/4. Bundle Clinic Data Prep/1.Data_Pre_Processing/data/0826_bundle_data.csv`, `0826_raw_data_basket_analysis_Clinic_Hospital.csv`, `0825_…Productivity…june25.xlsx` | Bundle-prep | bundle-prepen | AVTAL | spegel |
 | `…/1.Data_Pre_Processing/data/Sweden_Clinic_Hospital_FTE_Data.csv` | Bundle-prep | bundle-prepen | RÖD-arv | spegel (*rättat 2026-10-21: filen spåras inte i git — mätt med `git ls-files`*) |
 | `…/Sweden_Bundling_Data_Prep/input/` (`sweden_bundle_analysis.csv` m.fl., 3 filer) | Bundle-prep | `Sweden_Bundling_Data_Prep/scripts` | AVTAL | spegel |
@@ -114,3 +114,4 @@ Standard är `facit` + `indata`. Torrkörning först (visar planen), `--kor` hä
 |---|---|
 | 2026-10-21 | Första versionen. |
 | 2026-10-21 | §2: skydd mot radering mätt, `historik/` och `_kvitto/`. §4: FTE-filen ligger i spegeln, inte i git (mätt). §7: historiken uppladdad. |
+| 2026-10-21 | §4: klasser ur kolumnmätningen (klustringens indata, `loc.Dim_Department`, fryst bränsle). Se `docs/ops/KANSLIGHETSREGISTER.md`. |
