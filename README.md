@@ -81,6 +81,8 @@ az login --scope https://management.core.windows.net//.default
 
 *AVSIKT:* klona till `C:\Projekt\BCG` — flera verktyg och runners har repo-roten hårdkodad (känd skuld, FD.39). REGEN (DW → parquet)
 kräver dessutom `tools\dw\.env` ifylld med värden från DW-förvaltaren; utan den körs kedjan från PREP på bränslet i Blob.
+MOTOR (stegen på VM:en) kräver VPN och en egen SSH-nyckel som IT lagt in på VM:en — koden kör `ssh` utan lösenordsfråga
+(`BatchMode=yes`); se `docs/ops/OFFBOARDING_KRITISKT.md` rad 6.
 Daglig drift: `DRIFT.md`.
 
 ## Var datan ligger

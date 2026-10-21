@@ -26,6 +26,12 @@ py -3.11 install.py                                              # miljön (.ven
 
 Storlek (mätt 2026-10-21): `input` 5 blobbar / 2,3 GB · `output` 14 552 / 6,5 GB · `pipeline` ~100 / 0,3 GB · `receipts` 255 ·
 `runstatus` 3 · `quarantine` 9 · `spegel` 22 019 / 22,6 GB. Spegeln ligger i Cool-nivå (sällan läst).
+Senare samma dag: `spegel/historik/` (git-historiken, 1 blob) och `pipeline/00_frozen_facit/bcg_original/_kvitto/` (1 blob).
+
+> **Skydd mot radering (mätt 2026-10-21).** Mjuk borttagning (soft delete) för blobbar och containrar och versionshantering är
+> **avstängda**: en blob som raderas eller skrivs över är borta direkt. Uppladdarna skriver aldrig över (`--overwrite false`) och
+> återställaren läser bara, men kedjans körningar skriver över utdata. Offentlig åtkomst är avstängd på kontot och alla containrar;
+> kontot tar emot anslutningar från alla nät och tillåter kontonyckel (som koden använder). Beslut: IT — `docs/ops/OFFBOARDING_KRITISKT.md` rad 10.
 
 > **Kanoniskt facit vs originalet (mätt 2026-10-21).** `pipeline/00_frozen_facit/` är det steg 6 *kör* på. Tre av dess filer är inte
 > byte-identiska med BCG-originalet (`final_model_cluster_granularity_Ivce` 17 567 B mot originalets 14 959 B; `Complete_Product_Data`
@@ -65,7 +71,7 @@ Beslut 2026-10-21 (Jens): filerna stannar i Blob (inte git); återställaren hä
 | `…/Sweden_Elasticity_Data_Prep_SQL/input/loc.DIM_Customer 20250627.csv`, `loc.DIM_Patient.csv` | — | **ingen** (bara bortkommenterat i `01_process.sql`) | RÖD | spegel (beslut 2026-10-20) |
 | `…/Sweden_Elasticity_Data_Prep_SQL/parquet/transaction_data_frozen_facit_2025-06.parquet` (968 MB) | REGEN-facit | replikering mot BCG:s fönster | RÖD/GUL | spegel |
 | `02. Elasticity/4. Bundle Clinic Data Prep/1.Data_Pre_Processing/data/0826_bundle_data.csv`, `0826_raw_data_basket_analysis_Clinic_Hospital.csv`, `0825_…Productivity…june25.xlsx` | Bundle-prep | bundle-prepen | AVTAL | spegel |
-| `…/1.Data_Pre_Processing/data/Sweden_Clinic_Hospital_FTE_Data.csv` | Bundle-prep | bundle-prepen | RÖD-arv | **git** (LF.6) |
+| `…/1.Data_Pre_Processing/data/Sweden_Clinic_Hospital_FTE_Data.csv` | Bundle-prep | bundle-prepen | RÖD-arv | spegel (*rättat 2026-10-21: filen spåras inte i git — mätt med `git ls-files`*) |
 | `…/Sweden_Bundling_Data_Prep/input/` (`sweden_bundle_analysis.csv` m.fl., 3 filer) | Bundle-prep | `Sweden_Bundling_Data_Prep/scripts` | AVTAL | spegel |
 | `02. Elasticity/Excel_Outputs/Sweden_Sitecode_level_elasticity_summary.xlsx` (85 MB) | Steg 5 (MALL) | `data_prep_after_model_output.py` (site) | AVTAL | spegel |
 | `02. Elasticity/Excel_Outputs/Sweden_Fallback.xlsx` | Steg 6 (MALL) | `Fall_Back_Logic.py` | GRÖN | spegel |
@@ -100,4 +106,11 @@ Standard är `facit` + `indata`. Torrkörning först (visar planen), `--kor` hä
 |---|---|---|
 | `tools/dw/.env` (DW-server, databas) | konfiguration med anslutningsuppgifter — speglas aldrig | `tools/dw/.env.example` + värden från DW-förvaltaren (IT) |
 | BCG-originalet i övrigt (`Datastrategi\BCG`, 59 973 filer, 81 GB) | beslut 2026-10-21: applikationens funktion ska återskapas, inte varje utvecklingssteg | de nio facit-filerna i `bcg_original/` + namnlistan i `docs/BCG_ORIGINAL_REFERENSER.md` |
-| Git-historiken (172 commits) i DevOps | DevOps-importen är kurerad utan historik | `git bundle` i Blob — se `docs/ops/OFFBOARDING_KRITISKT.md` |
+| Git-historiken (174 commits) i DevOps | DevOps-importen är kurerad utan historik | `spegel/historik/evbcgpricing_2026-10-21.bundle` (återläst och klonad 2026-10-21) — se `docs/ops/OFFBOARDING_KRITISKT.md` rad 4 |
+
+## Ändringar
+
+| Datum | Ändring |
+|---|---|
+| 2026-10-21 | Första versionen. |
+| 2026-10-21 | §2: skydd mot radering mätt, `historik/` och `_kvitto/`. §4: FTE-filen ligger i spegeln, inte i git (mätt). §7: historiken uppladdad. |

@@ -38,8 +38,9 @@ Alla nio finns i Blob under `pipeline/00_frozen_facit/bcg_original/02. Elasticit
 | 8 | `6. Fall Back Logic\input_data\output_summary_bundle.xlsx` | bundle-sammanfattning in i steg 6 | `provenance/_provenance_helpers.py` | 27 232 | `5675CCB9E5C1B8D0` |
 | 9 | `6. Fall Back Logic\output_data\Final_Fallback_Data_20250930_091648.xlsx` | **BCG:s slutresultat** (fallback-tabellen, 108 979 rader) | `verify_fallback.py`, `verify_infra.py`, `provenance/validate_fallback_freshness.py` | 7 872 584 | `353CFA2E869AB38B` |
 
-Fullständiga sha256 och blob-namn: uppladdningskvittot `BCG_ORIGINAL_UPLOAD_2026-10-21.csv` (utvecklarens granskningsmapp) och
-blob-metadata (`sha256`) på varje blob.
+Fullständiga sha256 och blob-namn: blob-metadata (`sha256`) på varje blob, och uppladdningskvittot i Blob
+`pipeline/00_frozen_facit/bcg_original/_kvitto/BCG_ORIGINAL_UPLOAD_2026-10-21.csv` (2 373 B, sha256 i blob-metadata; ligger
+utanför mappen som återställaren hämtar).
 
 ## Mätt 2026-10-21: driftkopiorna är inte originalet
 
@@ -73,3 +74,10 @@ Resten av originalet (modellkod, mellanresultat, BCG:s dokumentation). Undantag 
 ## Öppet
 
 - **[Jens]** arkivplats för hela originalet (tabellen ovan).
+
+## Ändringar
+
+| Datum | Ändring |
+|---|---|
+| 2026-10-21 | Första versionen. |
+| 2026-10-21 | Uppladdningskvittot ligger nu i Blob (`_kvitto/`); pekaren pekade tidigare på utvecklarens lokala mapp. |
