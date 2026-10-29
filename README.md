@@ -1,13 +1,138 @@
 # evbcgpricing — Evidensia DJursjukvård AB BCG Pricing Replication
 
-**Developer:** Jens Palmö (Senior Business Analyst, Evidensia Djursjukvård AB), with AI advisor.
+**Developer:** Jens Palmö (Senior Business Analyst).
 **Purpose:** Replicate, validate, migrate, and operationalize BCG's price elasticity pipeline so
 Evidensia owns the analytical model internally — independent of BCG's hardware, environment, and
 delivery frequency.
 
 ---
 
-## What this project is
+## Kom igång för dagen
+
+Venv:n och koden ligger i repo-roten. Aktivera och stå kvar i roten.
+
+```powershell
+cd "C:\Projekt\BCG"
+.\.venv\Scripts\Activate.ps1
+```
+
+**PIM först.** Gå till Azure-portalen → PIM → *Mina roller* → *Azure-resurser* och aktivera **Deltagare** på
+resursgruppen **`ev-openai-swce-rg-test`**. Vänta tills rollen står under *Aktiva tilldelningar*.
+Rollen räcker för både Blob-nyckeln och VM:en. Prod-gruppen och Ägare-rollen behövs inte. Aktiveringen har en
+tidsgräns, så gör om den när den löpt ut.
+
+Logga sedan in mot Azure (gör det **efter** PIM). Inloggningen håller i 4 timmar:
+
+```powershell
+az login --scope https://management.core.windows.net//.default    # Azure: Blob-nyckeln och VM:en
+az login --scope https://database.windows.net/.default            # datalagret (DW): månadskörningens FÖRE-steg
+az account set --subscription "ev-lz3-ai (SE)"                    # alltid; andra projekt (t.ex. HUB) byter den
+```
+
+Testa att Blob nås, innan appen startas:
+
+```powershell
+az storage account keys list --account-name evbcgpricinginput --resource-group ev-openai-swce-rg-test -o none; if ($LASTEXITCODE -eq 0) { "OK - Blob nås" }
+```
+
+Inget `OK` betyder att felmeddelandet säger varför: `AuthorizationFailed` betyder att PIM inte är aktiv eller att fel subscription är vald.
+
+Kontrollera setup. Ska ge 0 `[FEL]` (`[OBS]` är information):
+
+```powershell
+python verify_setup.py
+```
+
+Starta dashboarden:
+
+```powershell
+python orchestration\webapp\app.py
+```
+
+Öppna http://127.0.0.1:5000. Avsluta med `Ctrl+C`. Den visar bara data, den ändrar ingenting.
+Molnversionen (`evbcg-dashboard`) är avstängd tills IT satt upp inloggningsskyddet. Starta den inte; läget står i `STATE.md`.
+
+Stoppas `Activate.ps1` av policyn: skriv `.\.venv\Scripts\python.exe` i stället för `python` på raderna ovan.
+Första gången på en ny dator: se *Ny dator — en gång* längre ner.
+
+---
+
+## Månadskörningen (när en ny månad stängt)
+
+Kör en i taget. Tar flera timmar. Kräver VPN. Venv:n ska vara aktiv och du ska vara inloggad (se ovan). `<END>` är sista dagen i
+senast stängda månad, t.ex. `2026-09-30`.
+
+```powershell
+python orchestration\runners\run_data.py --end <END>                # 1. FÖRE: DW -> parquet -> Blob
+python orchestration\runners\run_site_model.py --keep-vm            # 2. MOTOR på VM:en, en familj i taget
+python orchestration\runners\run_cluster_model.py --keep-vm
+python orchestration\runners\run_bundle_model.py                    #    sista familjen stänger VM:en
+python orchestration\runners\run_after.py --date-folder <YYYY-MM-DD> # 3. EFTER: steg 6 + R12 -> Blob
+python verify_tool\probes\all_chain_validator.py                    # 4. Validera kedjan: FAIL=0
+```
+
+Sedan validering, Model Feed och inklistring i prismodell-Excelen: `DRIFT.md` §3.2–3.4. Varje runner tar `--dry-run`
+om du vill se planen först. Tappar du anslutningen: `--attach` på samma runner (`DRIFT.md` §2.5).
+
+---
+
+## Avsluta dagen
+
+Bara om du kört månadskörningen: kontrollera att VM:en är avstängd. Den kostar ~9 kr/h och stänger inte av sig själv.
+
+```powershell
+az vm get-instance-view --resource-group ev-openai-swce-rg-test --name bcg-poc-vm --query "instanceView.statuses[1].displayStatus" -o tsv
+az vm deallocate --resource-group ev-openai-swce-rg-test --name bcg-poc-vm   # bara om svaret var "VM running"
+```
+
+`deallocate`, inte `stop`, eftersom `stop` låter debiteringen fortsätta.
+
+**Felsökning:**
+- `Could not authenticate to Blob` eller tomt efter några timmar: aktivera PIM, kör `az login` och `az account set`
+  igen och kör Blob-testet. Starta sedan om appen med `Ctrl+C` och samma kommando igen.
+- Blob-testet ger OK men appen klagar fortfarande: kör `$env:PRICINGMODEL_AUTH; $env:PRICINGMODEL_KEY.Length`. Om en
+  gammal nyckel ligger kvar som miljövariabel (från autostart-uppsättningen i `DEPLOY_DASHBOARD.md` A) gäller den
+  före az. Ta bort den: `Remove-Item Env:PRICINGMODEL_KEY`.
+- `AuthorizationFailed`: aktivera PIM, sedan `az account set --subscription "ev-lz3-ai (SE)"`.
+- `ModuleNotFoundError`: kör `py -3.11 install.py`.
+- Timeout mot VM:en: anslut VPN.
+- Övrigt: kör `python verify_setup.py` och läs raderna märkta `[FEL]`.
+
+---
+
+
+## Var dokumentationen bor
+
+| Innehåll | Fil |
+|---|---|
+| Start-här: dagen, ny dator, var datan ligger (denna fil) | `README.md` |
+| Ingångskarta: "vill du… → läs" | `START_HERE.md` |
+| Kort översikt i tre bilder: data in → motor → resultat | `FUNKTIONSKARTA.md` |
+| Samma flöde utförligt, utan kod | `SYSTEMGUIDE.md` |
+| Körhandbok: månadskörning, validering, Model Feed | `DRIFT.md` |
+| Nuläge: resurser, VM, öppna IT-ärenden (färskvara) | `STATE.md` |
+| Nästa session: mål, kö, pre-flight | `NEXT_SESSION.md` |
+| Beviset för replikeringen och kontrollen av färska resultat | `REPLIKERING_OCH_VALIDERING.md` |
+| Vad som medvetet är fruset (2025-värden) | `docs/governance/LOCKED_ASSUMPTIONS.md` |
+| Faser, planerat och uppskjutet | `docs/governance/ROADMAP.md`, `docs/governance/FUTURE_DEVELOPMENT.md` |
+| Lärdomar (LB) och analytiska insikter (IB) | `docs/knowledge/LESSONS_BCG.md`, `docs/knowledge/INSIGHTS_BCG.md` |
+| Var datan ligger, Blob-strukturen | `docs/ops/DATA_PLACERING.md`, `BLOB_MALSTRUKTUR.md` |
+| Känslighet och BCG-originalets referensfiler | `docs/ops/KANSLIGHETSREGISTER.md`, `docs/BCG_ORIGINAL_REFERENSER.md` |
+| Publicering av dashboarden (lokalt / Azure) | `DEPLOY_DASHBOARD.md` |
+| Överlämning: det som inte följer med utvecklarens dator | `docs/ops/OFFBOARDING_KRITISKT.md` |
+| Motorn (runners, statuskontrakt, webapp) | `orchestration/README.md` |
+
+Fördelningen mellan filerna:
+- README: hur man kommer igång.
+- DRIFT: hur man gör.
+- LESSONS: varför koden ser ut som den gör.
+- STATE: vad som är sant nu.
+
+Ny kunskap går till rätt fil, inte hit.
+
+---
+
+## What this project is (short in english)
 
 BCG built a Python-based price elasticity pipeline using OLS regression per product group,
 Ray-parallelized, with combinatorial feature selection. The pipeline produces elasticity KPIs that
@@ -83,7 +208,7 @@ az login --scope https://management.core.windows.net//.default
 kräver dessutom `tools\dw\.env` ifylld med värden från DW-förvaltaren; utan den körs kedjan från PREP på bränslet i Blob.
 MOTOR (stegen på VM:en) kräver VPN och en egen SSH-nyckel som IT lagt in på VM:en — koden kör `ssh` utan lösenordsfråga
 (`BatchMode=yes`); se `docs/ops/OFFBOARDING_KRITISKT.md` rad 6.
-Daglig drift: `DRIFT.md`.
+Daglig drift: `DRIFT.md`. Dagsrutinen: *Kom igång för dagen* överst i denna fil.
 
 ## Var datan ligger
 
@@ -222,6 +347,8 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 
 ## Key documents in this repo
 
+> Kort översikt för icke-tekniska läsare: *Var dokumentationen bor* överst i denna fil.
+
 | File | Purpose |
 |---|---|
 | `DRIFT.md` | **Operational runbook** — how to run & maintain the model on fresh data, end-to-end |
@@ -243,38 +370,8 @@ vars with defaults matching BCG's frozen window. Pipeline date filters also G7-p
 | `docs/ops/KANSLIGHETSREGISTER.md` | Vad som kan vara känsligt, var det ligger och vem som beslutar — underlag för IT, inte juridisk bedömning |
 | `install.py` · `verify_setup.py` · `tools/spegel/spegel_fran_blob.py` | Ny dator: miljö, kontroll, data ur Blob |
 
-External standards governing this project:
-- `KÄRNPRINCIPER.md` — universal principles (search-before-build, documentation-as-search-surface)
-- `MASTER_PYTHON.md` — Python environment, lessons L.1–L.43
-- `MASTER_SQL.md` — DW schema, Manual schema, SQL design principles
-
 ---
 
-## Working principles (specific to this project)
-
-1. **Validate against frozen original, never working copy** (LB.24). The OneDrive
-   `BCG_orginal_V2_New` is the source of truth for facit; the `Pipeline\...\data` copies are
-   overwritten by export runs and are not facit.
-   *(2026-10-21: originalets nio facit-filer finns byte-exakt i Blob `pipeline/00_frozen_facit/bcg_original/` och
-   återställs till `verify_tool/facit/` — se `docs/BCG_ORIGINAL_REFERENSER.md`.)*
-
-2. **Distrust corr 1.0 until source independence is confirmed** (LB.25). Our DW extraction reads
-   raw transactions and aggregates independently — corr 1.0 against BCG is a genuine match. But
-   any new validator should be examined for circular dependencies.
-
-3. **Search before designing** (KÄRNPRINCIPER §6.4). Most artifacts you need probably exist already
-   somewhere in `C:\Projekt\` or `OneDrive\...\Datastrategi`. Iterative search (MASTER_PYTHON §7.2)
-   finds artifacts that don't match initial keywords by name.
-
-4. **Document as you code** (KÄRNPRINCIPER §4.6). Every non-trivial file carries a header that says
-   what it does, what it depends on, what depends on it, and what lessons motivate non-obvious
-   choices. Future sessions (yours or someone else's) find the file by searching its header.
-
-5. **Measure, don't guess** (Spår B principle). When a mapping or source is unclear, fetch all
-   candidates and measure (median per-code ratio against facit). The one that clusters at 1.0 is
-   the right answer. Saved us three times: source identity, net/gross, L4 mapping.
-
----
 
 ## Contact and ownership
 
